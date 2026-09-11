@@ -108,7 +108,7 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
         <div className="flex items-center justify-between gap-3 md:gap-6">
           
-          {/* Brand Logo */}
+          {/* Brand Logo & Name Only */}
           <div className="flex items-center gap-3">
             <button
               onClick={() => onNavigateView?.('home')}
@@ -117,14 +117,9 @@ export const Header: React.FC<HeaderProps> = ({
               <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-br from-emerald-600 to-emerald-800 text-white flex items-center justify-center shadow-md shadow-emerald-900/10 group-hover:scale-105 transition-transform">
                 <span className="text-xl sm:text-2xl" role="img" aria-label="ayam">🐔</span>
               </div>
-              <div className="flex flex-col">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-lg sm:text-xl font-extrabold tracking-tight text-stone-900 dark:text-white font-['Outfit']">
-                    Khairul <span className="text-emerald-600 dark:text-emerald-400">FRESH Food</span>
-                  </span>
-                </div>
-                <span className="text-[11px] text-stone-500 dark:text-stone-400 font-medium hidden sm:block">
-                  Ayam Segar Terus Dari Pasar Semenyih • Halal Dijamin
+              <div className="flex items-center">
+                <span className="text-lg sm:text-xl font-extrabold tracking-tight text-stone-900 dark:text-white font-['Outfit']">
+                  Khairul <span className="text-emerald-600 dark:text-emerald-400">Fresh Food</span>
                 </span>
               </div>
             </button>
@@ -159,21 +154,6 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           </div>
 
-          {/* Quick Location / Postcode pill */}
-          <button
-            onClick={onOpenCoverage}
-            className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full bg-stone-100 dark:bg-stone-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 hover:text-emerald-800 dark:hover:text-emerald-300 text-stone-700 dark:text-stone-300 text-xs font-medium border border-stone-200 dark:border-stone-700 transition-all cursor-pointer"
-            title="Klik untuk semak liputan poskod anda"
-          >
-            <MapPin className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-            <span className="truncate max-w-[150px]">
-              {selectedCity ? `${selectedCity} (${selectedPostcode})` : 'Pilih Kawasan / Poskod'}
-            </span>
-            <span className="text-emerald-700 dark:text-emerald-300 text-[11px] font-semibold bg-emerald-100/70 dark:bg-emerald-900/60 px-1.5 py-0.2 rounded-full">
-              Tukar
-            </span>
-          </button>
-
           {/* Search Bar */}
           <div className="flex-1 max-w-md hidden md:block">
             <div className="relative">
@@ -198,22 +178,6 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Desktop Action Navigation & Tools */}
           <div className="hidden lg:flex items-center gap-1.5">
-            <button
-              onClick={onOpenCalculator}
-              className="flex items-center gap-1 px-2.5 py-2 text-xs font-semibold text-stone-700 dark:text-stone-300 hover:text-emerald-700 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-stone-800 rounded-lg transition-colors cursor-pointer"
-            >
-              <Calculator className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-              <span>Kalkulator</span>
-            </button>
-
-            <button
-              onClick={onOpenRecipes}
-              className="flex items-center gap-1 px-2.5 py-2 text-xs font-semibold text-stone-700 dark:text-stone-300 hover:text-emerald-700 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-stone-800 rounded-lg transition-colors cursor-pointer"
-            >
-              <BookOpen className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-              <span>Resepi</span>
-            </button>
-
             <button
               onClick={onOpenTracking}
               className="flex items-center gap-1 px-2.5 py-2 text-xs font-semibold text-stone-700 dark:text-stone-300 hover:text-emerald-700 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-stone-800 rounded-lg transition-colors cursor-pointer"
@@ -640,28 +604,6 @@ export const Header: React.FC<HeaderProps> = ({
                 </span>
               </button>
             )}
-
-            <button
-              onClick={() => {
-                onOpenCalculator();
-                setMobileMenuOpen(false);
-              }}
-              className="flex items-center gap-2 p-2 rounded-lg text-stone-700 dark:text-stone-300 hover:bg-emerald-50 dark:hover:bg-stone-800 text-sm font-medium"
-            >
-              <Calculator className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-              Kalkulator Kenduri & Jamuan
-            </button>
-
-            <button
-              onClick={() => {
-                onOpenRecipes();
-                setMobileMenuOpen(false);
-              }}
-              className="flex items-center gap-2 p-2 rounded-lg text-stone-700 dark:text-stone-300 hover:bg-emerald-50 dark:hover:bg-stone-800 text-sm font-medium"
-            >
-              <BookOpen className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-              Koleksi Resepi & Tips Simpan Segar
-            </button>
 
             <button
               onClick={() => {

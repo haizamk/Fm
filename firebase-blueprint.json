@@ -1,0 +1,103 @@
+{
+  "entities": {
+    "Order": {
+      "title": "Order",
+      "description": "Order records placed by customers or registered by admin",
+      "type": "object",
+      "properties": {
+        "orderId": { "type": "string" },
+        "items": { "type": "array" },
+        "customer": { "type": "object" },
+        "subtotal": { "type": "number" },
+        "deliveryFee": { "type": "number" },
+        "discount": { "type": "number" },
+        "total": { "type": "number" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "estimatedDeliveryText": { "type": "string" },
+        "fulfillmentType": { "type": "string" }
+      },
+      "required": ["orderId", "items", "customer", "total", "status", "createdAt"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Chicken and fresh produce catalog item",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "price": { "type": "number" },
+        "originalPrice": { "type": "number" },
+        "unit": { "type": "string" },
+        "stock": { "type": "number" },
+        "isAvailable": { "type": "boolean" },
+        "image": { "type": "string" }
+      },
+      "required": ["id", "name", "price", "unit"]
+    },
+    "SiteSettings": {
+      "title": "SiteSettings",
+      "description": "Global store configuration and thermal receipt settings",
+      "type": "object",
+      "properties": {
+        "announcementText": { "type": "string" },
+        "supportPhone": { "type": "string" },
+        "isOrderingEnabled": { "type": "boolean" },
+        "thermalReceiptSettings": { "type": "object" },
+        "hitpayConfig": { "type": "object" }
+      }
+    },
+    "Coupon": {
+      "title": "Coupon",
+      "description": "Discount codes and reward vouchers",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "code": { "type": "string" },
+        "discountType": { "type": "string" },
+        "discountValue": { "type": "number" },
+        "minSpend": { "type": "number" },
+        "isActive": { "type": "boolean" }
+      },
+      "required": ["id", "code", "discountType", "discountValue"]
+    },
+    "Customer": {
+      "title": "Customer",
+      "description": "Customer registered profiles and addresses",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "role": { "type": "string" },
+        "loyaltyPoints": { "type": "number" },
+        "totalSpent": { "type": "number" },
+        "addresses": { "type": "array" }
+      }
+    }
+  },
+  "firestore": {
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Realtime orders"
+    },
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "Store products"
+    },
+    "/site_settings/{settingId}": {
+      "schema": "SiteSettings",
+      "description": "Store configurations"
+    },
+    "/coupons/{couponId}": {
+      "schema": "Coupon",
+      "description": "Active coupons"
+    },
+    "/customers/{customerId}": {
+      "schema": "Customer",
+      "description": "Customer accounts"
+    }
+  }
+}

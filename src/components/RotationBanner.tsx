@@ -158,16 +158,11 @@ export const RotationBanner: React.FC<RotationBannerProps> = ({
           {/* Left Text Info */}
           <div className="flex-1 space-y-2.5 max-w-3xl">
             
-            {/* Top Badge & Timer pill */}
+            {/* Top Badge */}
             <div className="flex flex-wrap items-center gap-2">
               <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wider border backdrop-blur-md shadow-2xs ${getBadgeStyle(currentBanner.accentColor)}`}>
                 <span className="w-2 h-2 rounded-full bg-current animate-pulse" />
                 {currentBanner.badge}
-              </span>
-
-              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-stone-400 bg-black/30 backdrop-blur-md px-2.5 py-0.5 rounded-full border border-white/5">
-                <Clock className="w-3 h-3 text-stone-400" />
-                <span>Auto 12s • #{currentIndex + 1} drpd {totalBanners}</span>
               </span>
 
               {currentUser?.role === 'admin' && onOpenAdminPortal && (

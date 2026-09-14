@@ -114,9 +114,9 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
       ? `%0A*Arahan Hantar:* ${encodeURIComponent(order.customer.deliveryInstructions)}` 
       : '';
 
-    const message = `Salam FreshAyam Direct,%0A%0ASaya ingin sahkan pesanan saya:%0A*No. Pesanan:* ${order.orderId}%0A*Nama:* ${order.customer.fullName}%0A*Telefon:* ${order.customer.phone}%0A*Alamat:* ${order.customer.address}, ${order.customer.postcode} ${order.customer.city}%0A*Pilihan Slot Penghantaran:* ${order.estimatedDeliveryText}${deliveryNoteText}%0A*Kaedah Bayaran:* ${order.customer.paymentMethod.toUpperCase()}%0A%0A*Senarai Item:*%0A${encodeURIComponent(itemsList)}%0A%0A*Jumlah Bayaran:* RM ${order.total.toFixed(2)}%0A%0ATerima kasih!`;
+    const message = `Salam Khairul Fresh Food,%0A%0ASaya ingin sahkan pesanan saya:%0A*No. Pesanan:* ${order.orderId}%0A*Nama:* ${order.customer.fullName}%0A*Telefon:* ${order.customer.phone}%0A*Alamat:* ${order.customer.address}, ${order.customer.postcode} ${order.customer.city}%0A*Pilihan Slot Penghantaran:* ${order.estimatedDeliveryText}${deliveryNoteText}%0A*Kaedah Bayaran:* ${order.customer.paymentMethod.toUpperCase()}%0A%0A*Senarai Item:*%0A${encodeURIComponent(itemsList)}%0A%0A*Jumlah Bayaran:* RM ${order.total.toFixed(2)}%0A%0ATerima kasih!`;
 
-    window.open(`https://wa.me/601128568920?text=${message}`, '_blank');
+    window.open(`https://wa.me/601111135503?text=${message}`, '_blank');
   };
 
   return (

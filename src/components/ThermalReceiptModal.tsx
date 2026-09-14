@@ -48,7 +48,7 @@ export const ThermalReceiptModal: React.FC<ThermalReceiptModalProps> = ({
     storeName: 'KHAIRUL FRESH FOOD',
     storeTagline: 'PASAR SEMENTARA SEMENYIH (GA 59)',
     storeAddress: 'Gerai No GA 59, Pasar Semenyih, Selangor',
-    storePhone: '011-2856 8920 / 011-1113 5503',
+    storePhone: '011-11135503',
     halalTag: '100% HALAL & SEMBELIH SEGAR PAGI',
     footerNotes: 'Terima kasih atas sokongan anda kepada produk segar tempatan!',
     paperWidth: '80mm',
@@ -78,7 +78,7 @@ export const ThermalReceiptModal: React.FC<ThermalReceiptModalProps> = ({
     text += `      ${(receiptSettings.storeName || 'KHAIRUL FRESH FOOD').toUpperCase()}       \n`;
     text += `   ${(receiptSettings.storeTagline || 'PASAR SEMENTARA SEMENYIH').toUpperCase()}    \n`;
     text += `       ${(receiptSettings.storeAddress || 'GERAI NO GA 59').toUpperCase()}          \n`;
-    text += `   TEL: ${receiptSettings.storePhone || '011-2856 8920 / 1113 5503'}\n`;
+    text += `   TEL: ${receiptSettings.storePhone || '011-11135503'}\n`;
     text += `  ${receiptSettings.halalTag || '100% HALAL & SEMBELIH PAGI'}   \n`;
     if (receiptSettings.promoText) {
       text += `${subDivider}\n`;
@@ -358,7 +358,7 @@ export const ThermalReceiptModal: React.FC<ThermalReceiptModalProps> = ({
           <div class="store-title">${receiptSettings.storeName || 'KHAIRUL FRESH FOOD'}</div>
           <div class="store-sub">${receiptSettings.storeTagline || 'Gerai No GA 59, Pasar Semenyih'}</div>
           <div class="store-sub">${receiptSettings.storeAddress || 'Pasar Semenyih, Selangor'}</div>
-          <div class="store-sub">Tel: ${receiptSettings.storePhone || '011-2856 8920 / 011-1113 5503'}</div>
+          <div class="store-sub">Tel: ${receiptSettings.storePhone || '011-11135503'}</div>
           <div class="store-sub bold">${receiptSettings.halalTag || '100% HALAL & SEMBELIH SEGAR PAGI'}</div>
           ${receiptSettings.promoText ? `
             <div style="margin-top: 4px; padding: 3px; border: 1px dashed #000; font-weight: bold; font-size: 10px;">
@@ -561,7 +561,7 @@ export const ThermalReceiptModal: React.FC<ThermalReceiptModalProps> = ({
               <div className="text-base font-black tracking-wide">{receiptSettings.storeName || 'KHAIRUL FRESH FOOD'}</div>
               <div className="text-[11px] text-stone-800 mt-0.5">{receiptSettings.storeTagline || 'Pasar Sementara Semenyih (GA 59)'}</div>
               <div className="text-[10px] text-stone-700">{receiptSettings.storeAddress || 'Pasar Semenyih, Selangor'}</div>
-              <div className="text-[10px] text-stone-700">WhatsApp: {receiptSettings.storePhone || '011-2856 8920 / 1113 5503'}</div>
+              <div className="text-[10px] text-stone-700">WhatsApp: {receiptSettings.storePhone || '011-11135503'}</div>
               <div className="text-[10px] font-bold mt-1 uppercase">★ {receiptSettings.halalTag || '100% Halal & Sembelih Segar Pagi'} ★</div>
               {receiptSettings.promoText && (
                 <div className="mt-1.5 p-1 border border-dashed border-black text-[10px] font-bold bg-amber-50">

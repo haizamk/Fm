@@ -48,7 +48,7 @@ export function generateReceiptPDF(order: OrderRecord): jsPDF {
   doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
   doc.text('Gerai No. 59, Pasar Sementara Semenyih, 43500 Semenyih, Selangor', margin, y);
   y += 4;
-  doc.text('WhatsApp: 011-2856 8920 / 011-1113 5503 | 100% Halal Diiktiraf & Bersih', margin, y);
+  doc.text('WhatsApp: 011-11135503 | 100% Halal Diiktiraf & Bersih', margin, y);
 
   y += 5;
   doc.setDrawColor(220, 220, 220);
@@ -346,7 +346,7 @@ export function downloadReceiptPDF(order: OrderRecord): void {
  */
 export async function sendReceiptPDFToWhatsApp(
   order: OrderRecord,
-  whatsappPhone: string = '601128568920'
+  whatsappPhone: string = '601111135503'
 ): Promise<{ success: boolean; mode: 'shared_file' | 'downloaded_and_opened' }> {
   const doc = generateReceiptPDF(order);
   const fileName = `Resit-KhairulFreshFood-${order.orderId}.pdf`;

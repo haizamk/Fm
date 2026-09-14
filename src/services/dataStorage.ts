@@ -7,7 +7,8 @@ import {
   DailySalesStat, 
   ProductSalesStat, 
   CouponCode, 
-  RotationBannerItem 
+  RotationBannerItem,
+  MediaItem
 } from '../types';
 import { PRODUCTS } from '../data/products';
 import { db } from './firebase';
@@ -31,6 +32,33 @@ const STOCK_ALERTS_KEY = 'khairul_fresh_stock_alerts_v5';
 const LOGISTICS_RUNS_KEY = 'khairul_fresh_logistics_runs_v5';
 const COUPONS_KEY = 'khairul_fresh_coupons_v5';
 const BANNERS_KEY = 'khairul_fresh_rotation_banners_v5';
+const MEDIA_LIBRARY_KEY = 'khairul_fresh_media_library_v5';
+
+
+// Firebase Error Handling Types per Skill Guidelines
+export enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errMsg = error instanceof Error ? error.message : String(error);
+  if (errMsg.includes('the client is offline') || errMsg.includes('unavailable') || errMsg.includes('Could not reach Cloud Firestore')) {
+    // Graceful offline operation warning
+    console.info(`[Firestore] Operating in local offline mode for ${operationType} on ${path}: ${errMsg}`);
+    return;
+  }
+  const errInfo = {
+    error: errMsg,
+    operationType,
+    path
+  };
+  console.warn('Firestore Operation Info:', JSON.stringify(errInfo));
+}
 
 // Clear legacy demo keys
 try {
@@ -220,7 +248,7 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   announcementText: 'Pesan sebelum 11:00 PM untuk penghantaran segar esok!',
   announcementCutoffTime: '23:00',
   freeShippingMinAmount: 150,
-  supportPhone: '011-2856 8920',
+  supportPhone: '011-11135503',
   supportEmail: 'support@freshayam.com.my',
   bannerNotice: '⚡ Tawaran Hujung Minggu: Jimat RM 2.60 untuk Ayam Bulat Segar Ladang!',
   isOrderingEnabled: true,
@@ -235,6 +263,12 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
     enabledMethods: ['fpx', 'duitnow', 'card', 'grabpay', 'tng', 'shopeepay'],
     webhookUrl: 'https://ais-dev-ibciauzkghto525j7ma3h5-707200717362.asia-east1.run.app/api/hitpay/webhook',
   },
+  fonnteConfig: {
+    token: '',
+    adminPhone: '011-11135503',
+    autoNotifyAdmin: true,
+    autoNotifyCustomer: false,
+  },
   thermalReceiptSettings: {
     showLogo: true,
     logoUrl: '',
@@ -242,7 +276,7 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
     showPromoText: true,
     storeName: 'KHAIRUL FRESH FOOD',
     storeAddress: 'Pasar Sementara Semenyih, Gerai GA 59',
-    storePhone: '011-2856 8920 / 011-1113 5503',
+    storePhone: '011-11135503',
   },
 };
 
@@ -266,7 +300,7 @@ async function syncDocToFirestore(collectionName: string, docId: string, data: a
     const docRef = doc(db, collectionName, docId);
     await setDoc(docRef, data, { merge: true });
   } catch (error) {
-    console.warn(`Firestore sync failed for ${collectionName}/${docId}:`, error);
+    handleFirestoreError(error, OperationType.WRITE, `${collectionName}/${docId}`);
   }
 }
 
@@ -275,7 +309,7 @@ async function deleteDocFromFirestore(collectionName: string, docId: string) {
     const docRef = doc(db, collectionName, docId);
     await deleteDoc(docRef);
   } catch (error) {
-    console.warn(`Firestore delete failed for ${collectionName}/${docId}:`, error);
+    handleFirestoreError(error, OperationType.DELETE, `${collectionName}/${docId}`);
   }
 }
 
@@ -296,10 +330,10 @@ export const dataStorageService = {
           callback(cloudOrders);
         }
       }, (err) => {
-        console.warn('Firestore orders subscription error:', err);
+        handleFirestoreError(err, OperationType.LIST, 'orders');
       });
     } catch (e) {
-      console.warn('Could not initialize orders subscription:', e);
+      handleFirestoreError(e, OperationType.LIST, 'orders');
       return () => {};
     }
   },
@@ -314,15 +348,24 @@ export const dataStorageService = {
             cloudProds.push(docSnap.data() as Product);
           });
           if (cloudProds.length > 0) {
-            localStorage.setItem(PRODUCTS_KEY, JSON.stringify(cloudProds));
-            callback(cloudProds);
+            const mappedProds = cloudProds.map(p => {
+              if (!p.image || p.image.trim().length === 0) {
+                const defaultP = PRODUCTS.find(dp => dp.id === p.id);
+                if (defaultP && defaultP.image) {
+                  return { ...p, image: defaultP.image };
+                }
+              }
+              return p;
+            });
+            localStorage.setItem(PRODUCTS_KEY, JSON.stringify(mappedProds));
+            callback(mappedProds);
           }
         }
       }, (err) => {
-        console.warn('Firestore products subscription error:', err);
+        handleFirestoreError(err, OperationType.LIST, 'products');
       });
     } catch (e) {
-      console.warn('Could not initialize products subscription:', e);
+      handleFirestoreError(e, OperationType.LIST, 'products');
       return () => {};
     }
   },
@@ -337,10 +380,10 @@ export const dataStorageService = {
           callback(cloudSettings);
         }
       }, (err) => {
-        console.warn('Firestore settings subscription error:', err);
+        handleFirestoreError(err, OperationType.GET, 'site_settings/main');
       });
     } catch (e) {
-      console.warn('Could not initialize settings subscription:', e);
+      handleFirestoreError(e, OperationType.GET, 'site_settings/main');
       return () => {};
     }
   },
@@ -358,10 +401,10 @@ export const dataStorageService = {
           callback(cloudCoupons);
         }
       }, (err) => {
-        console.warn('Firestore coupons subscription error:', err);
+        handleFirestoreError(err, OperationType.LIST, 'coupons');
       });
     } catch (e) {
-      console.warn('Could not initialize coupons subscription:', e);
+      handleFirestoreError(e, OperationType.LIST, 'coupons');
       return () => {};
     }
   },
@@ -385,8 +428,20 @@ export const dataStorageService = {
       if (settingsSnap.empty) {
         await setDoc(doc(db, 'site_settings', 'main'), DEFAULT_SITE_SETTINGS);
       }
+
+      // Sync media library if cloud has none
+      const mediaSnap = await getDocs(collection(db, 'media_library'));
+      if (mediaSnap.empty) {
+        const batch = writeBatch(db);
+        const defaultMedia = this.getMediaLibrary();
+        defaultMedia.forEach((m) => {
+          const mRef = doc(db, 'media_library', m.id);
+          batch.set(mRef, m);
+        });
+        await batch.commit();
+      }
     } catch (e) {
-      console.warn('Initial cloud sync error (operating in offline/cached mode):', e);
+      handleFirestoreError(e, OperationType.GET, 'initial_sync');
     }
   },
 
@@ -517,7 +572,22 @@ export const dataStorageService = {
   getProducts(): Product[] {
     try {
       const saved = localStorage.getItem(PRODUCTS_KEY);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed: Product[] = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Ensure products with empty image get their official default image
+          const filled = parsed.map(p => {
+            if (!p.image || p.image.trim().length === 0) {
+              const defaultP = PRODUCTS.find(dp => dp.id === p.id);
+              if (defaultP && defaultP.image) {
+                return { ...p, image: defaultP.image };
+              }
+            }
+            return p;
+          });
+          return filled;
+        }
+      }
     } catch {
       // ignore
     }
@@ -529,11 +599,20 @@ export const dataStorageService = {
     return PRODUCTS;
   },
 
+  resetAllProductImages(adminName: string): Product[] {
+    const current = this.getProducts();
+    const updated = current.map(p => ({
+      ...p,
+      image: ''
+    }));
+    return this.saveProducts(updated, adminName, 'Semua foto produk telah dipadam (reset gambar kosong) untuk input baru.');
+  },
+
   saveProducts(products: Product[], adminName: string, actionNote: string): Product[] {
     try {
       localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products));
-    } catch {
-      // ignore
+    } catch (e) {
+      console.warn('Local storage products save warning:', e);
     }
 
     // Sync each product to Firestore
@@ -579,6 +658,211 @@ export const dataStorageService = {
     return this.saveProducts(updated, adminName, `Produk "${target?.name || productId}" dipadam daripada katalog.`);
   },
 
+  // ==========================================
+  // MASTER MEDIA LIBRARY (Folder & Galeri Media)
+  // ==========================================
+  getMediaLibrary(): MediaItem[] {
+    try {
+      const saved = localStorage.getItem(MEDIA_LIBRARY_KEY);
+      if (saved) {
+        const parsed: MediaItem[] = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.warn('Error reading media library:', e);
+    }
+    const defaultMedia: MediaItem[] = [
+      {
+        id: 'media-ayam-kampung',
+        name: 'Ayam Kampung Organik Segar',
+        url: 'https://images.unsplash.com/photo-1587593810167-a84920ea0781?auto=format&fit=crop&q=80&w=900',
+        category: 'ayam-seekor',
+        uploadedBy: 'Sistem Khairul FRESH',
+        uploadedAt: new Date().toISOString(),
+      },
+      {
+        id: 'media-ayam-standard',
+        name: 'Ayam Segar Standard (Pasar Semenyih)',
+        url: 'https://images.unsplash.com/photo-1604503468506-a8da13d82791?auto=format&fit=crop&q=80&w=900',
+        category: 'ayam-seekor',
+        uploadedBy: 'Sistem Khairul FRESH',
+        uploadedAt: new Date().toISOString(),
+      },
+      {
+        id: 'media-ayam-pencen',
+        name: 'Ayam Tua / Pencen Segar',
+        url: 'https://images.unsplash.com/photo-1548567117-0429762db801?auto=format&fit=crop&q=80&w=900',
+        category: 'ayam-seekor',
+        uploadedBy: 'Sistem Khairul FRESH',
+        uploadedAt: new Date().toISOString(),
+      },
+      {
+        id: 'media-whole-leg',
+        name: 'Whole-leg Segar',
+        url: 'https://images.unsplash.com/photo-1588168333986-5078d3ae3976?auto=format&fit=crop&q=80&w=900',
+        category: 'bahagian-ayam',
+        uploadedBy: 'Sistem Khairul FRESH',
+        uploadedAt: new Date().toISOString(),
+      },
+      {
+        id: 'media-kepak',
+        name: 'Kepak Ayam Segar',
+        url: 'https://images.unsplash.com/photo-1567620832903-9fc6debc209f?auto=format&fit=crop&q=80&w=900',
+        category: 'bahagian-ayam',
+        uploadedBy: 'Sistem Khairul FRESH',
+        uploadedAt: new Date().toISOString(),
+      },
+      {
+        id: 'media-dada',
+        name: 'Dada Ayam Segar',
+        url: 'https://images.unsplash.com/photo-1604503468506-a8da13d82791?auto=format&fit=crop&q=80&w=900',
+        category: 'bahagian-ayam',
+        uploadedBy: 'Sistem Khairul FRESH',
+        uploadedAt: new Date().toISOString(),
+      },
+      {
+        id: 'media-organ',
+        name: 'Hati / Pedal Ayam Segar',
+        url: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&q=80&w=900',
+        category: 'bahagian-ayam',
+        uploadedBy: 'Sistem Khairul FRESH',
+        uploadedAt: new Date().toISOString(),
+      },
+      {
+        id: 'media-kaki',
+        name: 'Kaki Ayam Bersih',
+        url: 'https://images.unsplash.com/photo-1587593810167-a84920ea0781?auto=format&fit=crop&q=80&w=900',
+        category: 'bahagian-ayam',
+        uploadedBy: 'Sistem Khairul FRESH',
+        uploadedAt: new Date().toISOString(),
+      },
+      {
+        id: 'media-rangka',
+        name: 'Rangka Ayam Segar',
+        url: 'https://images.unsplash.com/photo-1548567117-0429762db801?auto=format&fit=crop&q=80&w=900',
+        category: 'bahagian-ayam',
+        uploadedBy: 'Sistem Khairul FRESH',
+        uploadedAt: new Date().toISOString(),
+      },
+    ];
+    try {
+      localStorage.setItem(MEDIA_LIBRARY_KEY, JSON.stringify(defaultMedia));
+    } catch {
+      // ignore
+    }
+    return defaultMedia;
+  },
+
+  saveMediaLibrary(items: MediaItem[]): void {
+    try {
+      localStorage.setItem(MEDIA_LIBRARY_KEY, JSON.stringify(items));
+    } catch (e) {
+      console.warn('Local storage media library error:', e);
+    }
+  },
+
+  addMediaItem(item: Omit<MediaItem, 'id' | 'uploadedAt'>): MediaItem {
+    const current = this.getMediaLibrary();
+    const newItem: MediaItem = {
+      ...item,
+      id: `media-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      uploadedAt: new Date().toISOString(),
+    };
+    const updated = [newItem, ...current];
+    this.saveMediaLibrary(updated);
+    syncDocToFirestore('media_library', newItem.id, newItem);
+    return newItem;
+  },
+
+  updateMediaItem(id: string, updates: Partial<MediaItem>, adminName?: string): MediaItem[] {
+    const current = this.getMediaLibrary();
+    const target = current.find(m => m.id === id);
+    if (!target) return current;
+
+    const updatedItem: MediaItem = {
+      ...target,
+      ...updates,
+    };
+
+    const updated = current.map(m => m.id === id ? updatedItem : m);
+    this.saveMediaLibrary(updated);
+    syncDocToFirestore('media_library', id, updatedItem);
+
+    if (adminName && updates.name) {
+      this.addAuditLog({
+        action: 'Tukar Nama Foto Media Master',
+        performedBy: adminName,
+        details: `Nama imej "${target.name}" ditukar kepada "${updatedItem.name}".`,
+        type: 'product',
+      });
+    }
+
+    return updated;
+  },
+
+  deleteMediaItem(id: string, adminName?: string): MediaItem[] {
+    const current = this.getMediaLibrary();
+    const target = current.find(m => m.id === id || m.url === id);
+    const updated = current.filter(m => m.id !== id && m.url !== id);
+    this.saveMediaLibrary(updated);
+    if (target) {
+      deleteDocFromFirestore('media_library', target.id);
+    } else {
+      deleteDocFromFirestore('media_library', id);
+    }
+    if (adminName && target) {
+      this.addAuditLog({
+        action: 'Padam Foto Media Master',
+        performedBy: adminName,
+        details: `Imej "${target.name}" dipadam dari galeri master.`,
+        type: 'product',
+      });
+    }
+    return updated;
+  },
+
+  subscribeMediaLibrary(callback: (items: MediaItem[]) => void): Unsubscribe {
+    const initial = this.getMediaLibrary();
+    callback(initial);
+
+    try {
+      const colRef = collection(db, 'media_library');
+      return onSnapshot(
+        colRef,
+        (snapshot) => {
+          const list: MediaItem[] = [];
+          snapshot.forEach((docSnap) => {
+            list.push(docSnap.data() as MediaItem);
+          });
+          list.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+          
+          // Only overwrite local storage if snapshot has documents or if user intentionally deleted all
+          if (!snapshot.empty) {
+            this.saveMediaLibrary(list);
+            callback(list);
+          } else {
+            // If cloud is empty, check if we have local items to seed to cloud
+            const local = this.getMediaLibrary();
+            if (local.length > 0) {
+              local.forEach((m) => syncDocToFirestore('media_library', m.id, m));
+              callback(local);
+            } else {
+              this.saveMediaLibrary([]);
+              callback([]);
+            }
+          }
+        },
+        (error) => {
+          handleFirestoreError(error, OperationType.LIST, 'media_library');
+        }
+      );
+    } catch (e) {
+      console.warn('subscribeMediaLibrary error:', e);
+      return () => {};
+    }
+  },
+
+
   // Site Settings
   getSiteSettings(): SiteSettings {
     try {
@@ -591,6 +875,7 @@ export const dataStorageService = {
         if (!parsed.thermalReceiptSettings) {
           parsed.thermalReceiptSettings = DEFAULT_SITE_SETTINGS.thermalReceiptSettings;
         }
+        parsed.supportPhone = '011-11135503';
         return parsed;
       }
     } catch {

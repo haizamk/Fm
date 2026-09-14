@@ -1,13 +1,14 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { Product } from '../types';
 import { Star, Scissors, Plus, ShieldCheck, Check, Heart, Scale, Flame, AlertCircle, Sparkles, Bell, Layers } from 'lucide-react';
 import { calculatePricePerKg } from '../utils/pricing';
 import { ProductImage } from './ProductImage';
+import { useLanguage } from '../context/LanguageContext';
 
 interface ProductCardProps {
   product: Product;
   onSelectProduct: (product: Product) => void;
-  onQuickAdd: (product: Product) => void;
+  onQuickAdd: (product: Product, sourceRect?: DOMRect) => void;
   onNotifyStock?: (product: Product) => void;
   isFavorite?: boolean;
   onToggleFavorite?: (productId: string) => void;
@@ -23,6 +24,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   onToggleFavorite,
   index = 0,
 }) => {
+  const { t, isEn, tProduct } = useLanguage();
+  const cardRef = useRef<HTMLDivElement>(null);
+  const transProd = tProduct(product);
+
   // Weight variations calculations if present
   const hasWeightOptions = Boolean(product.hasWeightOptions && product.weightOptions && product.weightOptions.length > 0);
   const activeWeightOptions = hasWeightOptions ? product.weightOptions!.filter(opt => opt.isAvailable) : [];
@@ -48,15 +53,16 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
   return (
     <div 
+      ref={cardRef}
       className="animate-fade-in-up group bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-800 hover:border-emerald-500/60 dark:hover:border-emerald-500/60 hover:shadow-2xl hover:-translate-y-1.5 hover:scale-[1.018] dark:shadow-stone-950/50 transition-all duration-300 ease-out flex flex-col overflow-hidden relative cursor-pointer"
       style={{ animationDelay: staggerDelay }}
     >
       
-      {/* Image Container - Dynamic & Resilient with ProductImage */}
+      {/* Image Container */}
       <div className="relative aspect-16/10 overflow-hidden bg-stone-100 dark:bg-stone-800">
         <ProductImage
           product={product}
-          alt={product.name}
+          alt={transProd.name}
           showHoverEffect={true}
           onClick={() => onSelectProduct(product)}
           containerClassName="w-full h-full cursor-pointer"
@@ -69,8 +75,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             e.stopPropagation();
             onToggleFavorite?.(product.id);
           }}
-          aria-label={isFavorite ? `Buang ${product.name} dari kegemaran` : `Simpan ${product.name} ke kegemaran`}
-          title={isFavorite ? "Tersimpan dalam Kegemaran (Klik untuk buang)" : "Simpan ke Kegemaran"}
+          aria-label={isFavorite ? (isEn ? `Remove ${transProd.name} from favorites` : `Buang ${transProd.name} dari kegemaran`) : (isEn ? `Save ${transProd.name} to favorites` : `Simpan ${transProd.name} ke kegemaran`)}
+          title={isFavorite ? (isEn ? "Saved in Favorites (Click to remove)" : "Tersimpan dalam Kegemaran (Klik untuk buang)") : (isEn ? "Save to Favorites" : "Simpan ke Kegemaran")}
           className={`absolute top-2.5 right-2.5 z-20 w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 shadow-md cursor-pointer ${
             isFavorite
               ? 'bg-white dark:bg-stone-800 text-rose-500 shadow-rose-500/25 scale-105 ring-2 ring-rose-300 dark:ring-rose-900'
@@ -91,7 +97,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           {isOutOfStock ? (
             <span className="text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider shadow-md text-white bg-rose-700 flex items-center gap-1 w-fit ring-1 ring-white/40">
               <AlertCircle className="w-3 h-3 text-white shrink-0" />
-              <span>Habis Stok</span>
+              <span>{t('outOfStock')}</span>
             </span>
           ) : (
             product.badge && (
@@ -100,7 +106,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                 product.badgeColor === 'amber' ? 'bg-amber-600' :
                 product.badgeColor === 'red' ? 'bg-rose-600' : 'bg-blue-600'
               }`}>
-                {product.badge}
+                {isEn && product.badge === 'Paling Laris' ? 'Best Seller' : isEn && product.badge === 'Pek Jimat' ? 'Value Pack' : product.badge}
               </span>
             )
           )}
@@ -109,7 +115,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           {hasDiscount && savingsAmount > 0 && !isOutOfStock && (
             <span className="text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider shadow-md text-white bg-rose-600 flex items-center gap-1 w-fit ring-1 ring-white/30">
               <Sparkles className="w-3 h-3 text-amber-300 fill-amber-300 shrink-0" />
-              <span>Jimat RM {savingsAmount.toFixed(2)}</span>
+              <span>{t('savingBadge')} RM {savingsAmount.toFixed(2)}</span>
             </span>
           )}
 
@@ -119,14 +125,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               isCriticalStock ? 'bg-rose-600 animate-pulse' : 'bg-amber-600'
             }`}>
               <Flame className="w-3 h-3 fill-amber-300 text-amber-300 shrink-0" />
-              <span>Baki {displayStock} Sahaja!</span>
+              <span>{t('remainingStock')} {displayStock} {t('leftUnit')}!</span>
             </span>
           )}
 
           {product.halalCertified && (
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-stone-900/80 text-white backdrop-blur-xs flex items-center gap-1 shadow-sm w-fit border border-stone-700/50">
               <ShieldCheck className="w-3 h-3 text-emerald-400" />
-              <span>Halal Diiktiraf</span>
+              <span>{t('halalCertifiedBadge')}</span>
             </span>
           )}
         </div>
@@ -143,7 +149,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         <div className="px-3 py-1.5 flex items-center justify-between text-[11px] font-bold border-b bg-rose-50 dark:bg-rose-950/50 text-rose-900 dark:text-rose-200 border-rose-200 dark:border-rose-900/60">
           <div className="flex items-center gap-1.5">
             <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-600 dark:text-rose-400" />
-            <span>Stok sedang habis. Daftar untuk terima notifikasi restock!</span>
+            <span>{isEn ? 'Currently out of stock. Register for restock alerts!' : 'Stok sedang habis. Daftar untuk terima notifikasi restock!'}</span>
           </div>
         </div>
       ) : isLowStock ? (
@@ -155,13 +161,13 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           <div className="flex items-center gap-1.5">
             <AlertCircle className={`w-3.5 h-3.5 shrink-0 ${isCriticalStock ? 'text-rose-600 dark:text-rose-400' : 'text-amber-600 dark:text-amber-400'}`} />
             <span>
-              Stok segar terhad: <strong className="underline">{displayStock} baki</strong> hari ini
+              {isEn ? 'Limited fresh stock:' : 'Stok segar terhad:'} <strong className="underline">{displayStock} {t('leftUnit')}</strong> {isEn ? 'today' : 'hari ini'}
             </span>
           </div>
           <span className={`text-[9px] font-black uppercase px-1.5 py-0.2 rounded-sm ${
             isCriticalStock ? 'bg-rose-600 text-white' : 'bg-amber-600 text-white'
           }`}>
-            Cepat Pesan
+            {isEn ? 'Order Fast' : 'Cepat Pesan'}
           </span>
         </div>
       ) : null}
@@ -177,7 +183,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               <span className="text-stone-400 dark:text-stone-500 font-normal">({product.reviewsCount})</span>
             </div>
             <span className="text-[11px] text-emerald-700 dark:text-emerald-400 font-semibold bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-100 dark:border-emerald-900/50">
-              {product.freshnessType}
+              {transProd.freshnessType || product.freshnessType}
             </span>
           </div>
 
@@ -185,14 +191,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           <h3 
             onClick={() => onSelectProduct(product)}
             className="font-bold text-stone-900 dark:text-white text-base group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors line-clamp-1 cursor-pointer"
-            title={product.name}
+            title={transProd.name}
           >
-            {product.name}
+            {transProd.name}
           </h3>
 
           {/* Subtitle description */}
           <p className="text-xs text-stone-500 dark:text-stone-400 mt-1 line-clamp-2 leading-relaxed">
-            {product.subtitle}
+            {transProd.subtitle}
           </p>
 
           {/* Cut Feature Tag */}
@@ -201,46 +207,50 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400 bg-emerald-50/80 dark:bg-emerald-950/50 px-2 py-0.8 rounded-md font-medium text-[11px] border border-emerald-100 dark:border-emerald-900/40">
                 <Scissors className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
                 <span>
-                  {product.customCutOptions && product.customCutOptions.length > 0
-                    ? `Pilihan Potong: ${product.customCutOptions.map((c) => c.label).join(' / ')}`
-                    : 'Percuma Potong: 4 / 8 / 12 / 16 / Cincang'}
+                  {isEn
+                    ? (product.customCutOptions && product.customCutOptions.length > 0
+                        ? 'Custom Cuts Available'
+                        : 'Free Cuts: 4 / 8 / 12 / 16 / Minced')
+                    : (product.customCutOptions && product.customCutOptions.length > 0
+                        ? `Pilihan Potong: ${product.customCutOptions.map((c) => c.label).join(' / ')}`
+                        : 'Percuma Potong: 4 / 8 / 12 / 16 / Cincang')}
                 </span>
               </span>
-            ) : product.hasOrganVariations || product.id === 'hati-pedal-ayam' ? (
+            ) : product.hasOrganVariations || product.id === 'hati-pedal-ayam-segar' ? (
               <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400 bg-emerald-50/80 dark:bg-emerald-950/50 px-2 py-0.8 rounded-md font-medium text-[11px] border border-emerald-100 dark:border-emerald-900/40">
                 <Layers className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                <span>Pilihan: Hati / Pedal / Campur</span>
+                <span>{isEn ? 'Options: Liver / Gizzard / Mixed' : 'Pilihan: Hati / Pedal / Campur'}</span>
               </span>
             ) : (
               <span className="inline-flex items-center gap-1 text-stone-500 dark:text-stone-400 bg-stone-100 dark:bg-stone-800 px-2 py-0.8 rounded-md text-[11px]">
                 <Check className="w-3 h-3 text-emerald-500 dark:text-emerald-400" />
-                <span>Siap Bersih & Dikemas Rapi</span>
+                <span>{isEn ? 'Cleaned & Ready to Cook' : 'Siap Bersih & Dikemas Rapi'}</span>
               </span>
             )}
           </div>
         </div>
 
-        {/* Pricing & CTA with High Contrast Per-KG Value Tag */}
+        {/* Pricing & CTA */}
         <div className="mt-4 pt-3 border-t border-stone-100 dark:border-stone-800 flex items-center justify-between gap-2">
           <div className="flex flex-col">
             {/* Primary unit price */}
             <div className="flex items-baseline gap-1.5">
               {hasWeightOptions && (
-                <span className="text-xs font-bold text-stone-500 dark:text-stone-400">Dari</span>
+                <span className="text-xs font-bold text-stone-500 dark:text-stone-400">{isEn ? 'From' : 'Dari'}</span>
               )}
               <span className="text-lg sm:text-xl font-black text-stone-950 dark:text-white tracking-tight">
                 RM {minActivePrice.toFixed(2)}
               </span>
               <span className="text-xs text-stone-500 dark:text-stone-400 font-medium">
-                /{product.unit}
+                /{product.unit === 'ekor' && isEn ? 'bird' : product.unit === 'pakej' && isEn ? 'pkg' : product.unit}
               </span>
             </div>
 
-            {/* High Contrast Price Per KG Label and Strikethrough Discount */}
+            {/* Price Per KG Label and Strikethrough Discount */}
             <div className="flex items-center gap-1.5 mt-1 flex-wrap">
               <span 
                 className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md bg-emerald-950 dark:bg-emerald-900 text-emerald-200 font-extrabold text-[11px] tracking-wide border border-emerald-800 dark:border-emerald-700 shadow-2xs"
-                title={`Kadar nilai anggaran: ${priceInfo.formatted}`}
+                title={`Kadar nilai: ${priceInfo.formatted}`}
               >
                 <span>{priceInfo.formatted}</span>
               </span>
@@ -253,7 +263,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
               {hasDiscount && savingsAmount > 0 && (
                 <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 font-extrabold text-[10px] border border-rose-200 dark:border-rose-900 shadow-2xs">
-                  Jimat RM {savingsAmount.toFixed(2)}
+                  {t('savingBadge')} RM {savingsAmount.toFixed(2)}
                 </span>
               )}
             </div>
@@ -261,37 +271,46 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
           {isOutOfStock ? (
             <button
+              type="button"
               onClick={() => onNotifyStock ? onNotifyStock(product) : onSelectProduct(product)}
               className="bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white text-xs font-bold px-3 py-2.5 rounded-xl transition-all flex items-center gap-1.5 shadow-sm cursor-pointer shrink-0"
-              title="Maklumkan Saya Apabila Stok Tersedia"
+              title={t('notifyStock')}
             >
               <Bell className="w-3.5 h-3.5" />
-              <span>Maklumkan Saya</span>
+              <span>{t('notifyStock')}</span>
             </button>
-          ) : product.hasOrganVariations || product.id === 'hati-pedal-ayam' ? (
+          ) : product.hasOrganVariations || product.id === 'hati-pedal-ayam-segar' ? (
             <button
+              type="button"
               onClick={() => onSelectProduct(product)}
               className="bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-bold px-3 py-2.5 rounded-xl transition-all flex items-center gap-1.5 shadow-sm hover:shadow-emerald-600/20 cursor-pointer shrink-0"
-              title="Pilih Variasi Hati / Pedal"
+              title={t('selectVariation')}
             >
               <Layers className="w-3.5 h-3.5" />
-              <span>Pilih Variasi</span>
+              <span>{t('selectVariation')}</span>
             </button>
           ) : product.supportsCutting || hasWeightOptions ? (
             <button
+              type="button"
               onClick={() => onSelectProduct(product)}
               className="bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-bold px-3 py-2.5 rounded-xl transition-all flex items-center gap-1.5 shadow-sm hover:shadow-emerald-600/20 cursor-pointer shrink-0"
             >
               <Scissors className="w-3.5 h-3.5" />
-              <span>{hasWeightOptions ? 'Pilih Berat & Potong' : 'Pilih Potong'}</span>
+              <span>{hasWeightOptions ? t('chooseWeightAndCut') : t('chooseCut')}</span>
             </button>
           ) : (
             <button
-              onClick={() => onQuickAdd(product)}
-              className="bg-stone-900 dark:bg-emerald-600 hover:bg-emerald-600 dark:hover:bg-emerald-500 active:bg-emerald-700 text-white text-xs font-bold px-3 py-2.5 rounded-xl transition-all flex items-center gap-1.5 shadow-sm cursor-pointer shrink-0"
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                const imgEl = cardRef.current?.querySelector('img');
+                const rect = imgEl ? imgEl.getBoundingClientRect() : e.currentTarget.getBoundingClientRect();
+                onQuickAdd(product, rect);
+              }}
+              className="bg-stone-900 dark:bg-emerald-600 hover:bg-emerald-600 dark:hover:bg-emerald-500 active:bg-emerald-700 text-white text-xs font-bold px-3 py-2.5 rounded-xl transition-all flex items-center gap-1.5 shadow-sm cursor-pointer shrink-0 active:scale-95"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>Tambah</span>
+              <span>{t('quickAdd')}</span>
             </button>
           )}
         </div>
@@ -301,4 +320,3 @@ export const ProductCard: React.FC<ProductCardProps> = ({
     </div>
   );
 };
-

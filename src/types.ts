@@ -244,6 +244,7 @@ export interface SavedAddress {
 
 export interface UserAccount {
   id: string;
+  username?: string;
   email: string;
   name: string;
   role: UserRole;
@@ -340,6 +341,12 @@ export interface SiteSettings {
   isOrderingEnabled: boolean;
   guaranteeText: string;
   hitpayConfig?: HitPayConfig;
+  fonnteConfig?: {
+    token: string;
+    adminPhone: string;
+    autoNotifyAdmin: boolean;
+    autoNotifyCustomer: boolean;
+  };
   thermalReceiptSettings?: ThermalReceiptSettings;
 }
 
@@ -366,3 +373,16 @@ export interface RotationBannerItem {
   isActive: boolean;
   order: number;
 }
+
+export interface MediaItem {
+  id: string;
+  name: string;
+  url: string;
+  category?: string;
+  sizeBytes?: number;
+  width?: number;
+  height?: number;
+  uploadedAt: string;
+  uploadedBy?: string;
+}
+

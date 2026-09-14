@@ -1,5 +1,13 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, Firestore } from 'firebase/firestore';
+import { 
+  initializeFirestore, 
+  getFirestore, 
+  Firestore, 
+  doc, 
+  getDocFromServer,
+  persistentLocalCache,
+  persistentMultipleTabManager
+} from 'firebase/firestore';
 import firebaseConfigData from '../../firebase-applet-config.json';
 
 const firebaseConfig = {
@@ -14,18 +22,40 @@ const firebaseConfig = {
 // Initialize Firebase App
 export const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-// Initialize Firestore with specific databaseId if provided
+// Initialize Firestore with specific databaseId and resilient long-polling configuration for browser iframe
 let dbInstance: Firestore;
+const dbId = firebaseConfigData.firestoreDatabaseId || '(default)';
+
 try {
-  if (firebaseConfigData.firestoreDatabaseId) {
-    dbInstance = getFirestore(app, firebaseConfigData.firestoreDatabaseId);
-  } else {
+  dbInstance = initializeFirestore(app, {
+    experimentalAutoDetectLongPolling: true,
+    localCache: persistentLocalCache({
+      tabManager: persistentMultipleTabManager(),
+    }),
+  }, dbId === '(default)' ? undefined : dbId);
+} catch {
+  try {
+    dbInstance = dbId === '(default)' ? getFirestore(app) : getFirestore(app, dbId);
+  } catch {
     dbInstance = getFirestore(app);
   }
-} catch (e) {
-  console.warn('Fallback to default Firestore database:', e);
-  dbInstance = getFirestore(app);
 }
 
 export const db = dbInstance;
 export const isFirestoreAvailable = true;
+
+// Graceful connection health check according to Firebase skill
+export async function testFirestoreConnection(): Promise<boolean> {
+  try {
+    await getDocFromServer(doc(db, 'site_settings', 'main'));
+    return true;
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('the client is offline')) {
+      console.info('Firestore client is currently operating in offline/cached mode.');
+    } else {
+      console.info('Firestore connection note:', error);
+    }
+    return false;
+  }
+}
+

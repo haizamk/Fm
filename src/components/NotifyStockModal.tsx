@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Product, StockAlertSubscription } from '../types';
 import { dataStorageService } from '../services/dataStorage';
+import { getProductImageUrl } from '../utils/imageCompressor';
 
 interface NotifyStockModalProps {
   isOpen: boolean;
@@ -108,9 +109,10 @@ export const NotifyStockModal: React.FC<NotifyStockModalProps> = ({
         {/* Product Preview Card */}
         <div className="p-4 sm:p-5 border-b border-stone-100 dark:border-stone-800 bg-stone-50 dark:bg-stone-800/50 flex items-center gap-3.5">
           <img
-            src={product.image}
+            src={getProductImageUrl(product) || product.image}
             alt={product.name}
             className="w-16 h-16 rounded-xl object-cover border border-stone-200 dark:border-stone-700 shrink-0"
+            referrerPolicy="no-referrer"
           />
           <div className="flex-1 min-w-0">
             <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900 w-fit block mb-1">

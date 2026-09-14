@@ -38,5 +38,10 @@ service cloud.firestore {
     match /rotation_banners/{bannerId} {
       allow read, write: if true;
     }
+
+    // Media library: allow read and write
+    match /media_library/{mediaId} {
+      allow read, write: if true;
+    }
   }
 }

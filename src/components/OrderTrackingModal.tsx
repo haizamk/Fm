@@ -225,7 +225,7 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
               <div className="p-3 bg-stone-100 rounded-xl flex items-center justify-between text-xs">
                 <span className="text-stone-700">Perlukan bantuan tentang pesanan ini?</span>
                 <a
-                  href={`https://wa.me/601128568920?text=Salam%20Khairul%20Fresh%2C%20saya%20ingin%20tanya%20status%20pesanan%20%23${matchedOrder.orderId}`}
+                  href={`https://wa.me/601111135503?text=Salam%20Khairul%20Fresh%2C%20saya%20ingin%20tanya%20status%20pesanan%20%23${matchedOrder.orderId}`}
                   target="_blank"
                   rel="noreferrer"
                   className="text-emerald-700 font-bold flex items-center gap-1 hover:underline"

@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { CartItem, CustomerDetails, OrderRecord, DeliverySlotId, CouponCode } from '../types';
+import { CartItem, CustomerDetails, OrderRecord, DeliverySlotId, CouponCode, UserAccount, SavedAddress } from '../types';
 import { COVERAGE_AREAS, DELIVERY_SLOTS, STORE_PICKUP_LOCATION, checkCoverageByPostcode } from '../data/coverage';
 import { CHICKEN_CUT_OPTIONS, getCutLabel } from '../data/products';
 import { dataStorageService } from '../services/dataStorage';
 import { hitpayService } from '../services/hitpayService';
+import { authService } from '../services/auth';
 import { lookupByPostcode, lookupByCity } from '../utils/postcodeHelper';
 import { InteractiveDeliveryCalendar } from './InteractiveDeliveryCalendar';
 import { 
@@ -27,7 +28,16 @@ import {
   Lock,
   Smartphone,
   ExternalLink,
-  Box
+  Box,
+  User,
+  KeyRound,
+  Eye,
+  EyeOff,
+  LogIn,
+  LogOut,
+  Bookmark,
+  PlusCircle,
+  Check
 } from 'lucide-react';
 
 interface CheckoutModalProps {
@@ -43,6 +53,9 @@ interface CheckoutModalProps {
   appliedDeliveryCoupon?: CouponCode | null;
   itemCouponDiscount?: number;
   deliveryCouponDiscount?: number;
+  currentUser?: UserAccount | null;
+  onLoginSuccess?: (user: UserAccount) => void;
+  onLogout?: () => void;
 }
 
 const DAYS_BM = ['Ahad', 'Isnin', 'Selasa', 'Rabu', 'Khamis', 'Jumaat', 'Sabtu'];
@@ -138,7 +151,26 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   appliedDeliveryCoupon,
   itemCouponDiscount,
   deliveryCouponDiscount,
+  currentUser,
+  onLoginSuccess,
+  onLogout,
 }) => {
+  // Authentication & Logged in state
+  const [loggedInUser, setLoggedInUser] = useState<UserAccount | null>(() => currentUser || authService.getCurrentUser());
+  const [authTab, setAuthTab] = useState<'guest' | 'login'>('login');
+  
+  // Inline Login form states
+  const [loginIdentifier, setLoginIdentifier] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [loginError, setLoginError] = useState('');
+  const [loginSuccessMsg, setLoginSuccessMsg] = useState('');
+
+  // Saved Address selection
+  const [selectedSavedAddressId, setSelectedSavedAddressId] = useState<string>('');
+  const [saveAddressToAccount, setSaveAddressToAccount] = useState<boolean>(true);
+
   // Fulfillment option: 'delivery' (Penghantaran ke Rumah) | 'pickup' (Ambil Sendiri di Kedai)
   const [fulfillmentType, setFulfillmentType] = useState<'delivery' | 'pickup'>('delivery');
 
@@ -156,6 +188,36 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
   const [address, setAddress] = useState('');
+
+  // Sync logged in user & auto-populate on open or auth state change
+  useEffect(() => {
+    const user = currentUser || authService.getCurrentUser();
+    setLoggedInUser(user);
+    if (user) {
+      if (!fullName) setFullName(user.name || '');
+      if (!phone) setPhone(user.phone || '');
+      if (!email) setEmail(user.email || '');
+
+      // Check for saved addresses
+      if (user.savedAddresses && user.savedAddresses.length > 0) {
+        const defaultAddr = user.savedAddresses.find((a) => a.isDefault) || user.savedAddresses[0];
+        if (defaultAddr && !address) {
+          setSelectedSavedAddressId(defaultAddr.id);
+          setAddress(defaultAddr.address);
+          handlePostcodeChange(defaultAddr.postcode);
+          if (defaultAddr.city) setCity(defaultAddr.city);
+          if (defaultAddr.state) setState(defaultAddr.state);
+        }
+      }
+    } else {
+      if (defaultPostcode && !postcode) {
+        handlePostcodeChange(defaultPostcode);
+      }
+      if (defaultCity && !city) {
+        handleCityChange(defaultCity);
+      }
+    }
+  }, [isOpen, currentUser]);
 
   // Date & Slot selection
   const [deliveryDate, setDeliveryDate] = useState(initialDateStr);
@@ -307,6 +369,73 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
   const selectedSlotObj = DELIVERY_SLOTS.find((s) => s.id === deliverySlot) || DELIVERY_SLOTS[0];
 
+  // Inline Login Handler
+  const handleInlineLogin = async () => {
+    if (!loginIdentifier.trim()) {
+      setLoginError('Sila masukkan username, emel atau nombor telefon.');
+      return;
+    }
+    if (!loginPassword) {
+      setLoginError('Sila masukkan kata laluan.');
+      return;
+    }
+
+    setLoginLoading(true);
+    setLoginError('');
+    setLoginSuccessMsg('');
+
+    try {
+      const res = await authService.login(loginIdentifier, loginPassword);
+      if (res.success && res.user) {
+        setLoggedInUser(res.user);
+        if (onLoginSuccess) onLoginSuccess(res.user);
+
+        // Auto-fill customer details
+        setFullName(res.user.name || '');
+        if (res.user.phone) setPhone(res.user.phone);
+        if (res.user.email) setEmail(res.user.email);
+
+        // Auto-fill address if available
+        if (res.user.savedAddresses && res.user.savedAddresses.length > 0) {
+          const defaultAddr = res.user.savedAddresses.find((a) => a.isDefault) || res.user.savedAddresses[0];
+          if (defaultAddr) {
+            setSelectedSavedAddressId(defaultAddr.id);
+            setAddress(defaultAddr.address);
+            handlePostcodeChange(defaultAddr.postcode);
+            if (defaultAddr.city) setCity(defaultAddr.city);
+            if (defaultAddr.state) setState(defaultAddr.state);
+          }
+        }
+
+        setLoginSuccessMsg(`Selamat kembali, ${res.user.name}! Maklumat anda telah diisi secara automatik.`);
+        setLoginPassword('');
+      } else {
+        setLoginError(res.error || 'Log masuk gagal. Sila pastikan kata laluan tepat.');
+      }
+    } catch {
+      setLoginError('Ralat berlaku ketika log masuk. Sila cuba lagi.');
+    } finally {
+      setLoginLoading(false);
+    }
+  };
+
+  const handleInlineLogout = () => {
+    authService.logout();
+    setLoggedInUser(null);
+    setSelectedSavedAddressId('');
+    if (onLogout) onLogout();
+  };
+
+  const handleSelectSavedAddress = (addr: SavedAddress) => {
+    setSelectedSavedAddressId(addr.id);
+    setAddress(addr.address);
+    handlePostcodeChange(addr.postcode);
+    if (addr.city) setCity(addr.city);
+    if (addr.state) setState(addr.state);
+    if (addr.fullName && !fullName) setFullName(addr.fullName);
+    if (addr.phone && !phone) setPhone(addr.phone);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!fullName || !phone) {
@@ -380,6 +509,32 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       pickupTime: fulfillmentType === 'pickup' ? pickupTime : undefined,
       appliedCoupon: [activeItemCoupon?.code, activeDeliveryCoupon?.code].filter(Boolean).join(', ') || undefined,
     };
+
+    if (loggedInUser && saveAddressToAccount && fulfillmentType === 'delivery') {
+      try {
+        const alreadySaved = loggedInUser.savedAddresses?.some(
+          (a) => a.address.trim().toLowerCase() === address.trim().toLowerCase() && a.postcode.trim() === postcode.trim()
+        );
+        if (!alreadySaved) {
+          const updatedAddresses = authService.addAddress({
+            label: 'Alamat Rumah',
+            fullName,
+            phone,
+            address,
+            postcode,
+            city,
+            state,
+            isDefault: (loggedInUser.savedAddresses?.length || 0) === 0,
+          });
+          setLoggedInUser({
+            ...loggedInUser,
+            savedAddresses: updatedAddresses,
+          });
+        }
+      } catch (e) {
+        console.error('Error saving address to account:', e);
+      }
+    }
 
     try {
       setHitpayStatusText('Memproses Pembayaran HitPay (FPX / DuitNow / E-Wallet)...');
@@ -504,6 +659,239 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             </div>
           </div>
 
+          {/* CUSTOMER AUTHENTICATION / LOGIN TAB BAR (BEFORE SECTION 1) */}
+          {loggedInUser ? (
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-50 via-emerald-100/50 to-emerald-50 dark:from-emerald-950/60 dark:via-emerald-900/40 dark:to-emerald-950/60 border border-emerald-300 dark:border-emerald-800 shadow-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black text-sm shadow-xs shrink-0">
+                    {loggedInUser.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-black text-emerald-950 dark:text-emerald-100">
+                        Akaun Ahli: {loggedInUser.name}
+                      </span>
+                      <span className="bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-2xs">
+                        <Sparkles className="w-2.5 h-2.5" />
+                        <span>{loggedInUser.loyaltyPoints || 0} Mata Ganjaran</span>
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-emerald-800 dark:text-emerald-300 mt-0.5">
+                      {loggedInUser.email} {loggedInUser.phone && `• ${loggedInUser.phone}`}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleInlineLogout}
+                  className="px-3 py-1.5 rounded-xl bg-white/90 dark:bg-stone-800 hover:bg-rose-50 dark:hover:bg-rose-950/60 text-stone-600 dark:text-stone-300 hover:text-rose-600 text-xs font-bold border border-emerald-200 dark:border-emerald-700 transition-colors flex items-center gap-1.5 self-start sm:self-auto cursor-pointer shadow-2xs"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>Tukar / Log Keluar</span>
+                </button>
+              </div>
+
+              {loginSuccessMsg && (
+                <div className="mt-2.5 p-2 rounded-xl bg-emerald-100/80 dark:bg-emerald-900/60 border border-emerald-300 dark:border-emerald-700 text-emerald-900 dark:text-emerald-200 text-xs flex items-center gap-1.5 font-medium">
+                  <Check className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                  <span>{loginSuccessMsg}</span>
+                </div>
+              )}
+
+              {/* Saved Addresses Quick Selector */}
+              {loggedInUser.savedAddresses && loggedInUser.savedAddresses.length > 0 && fulfillmentType === 'delivery' && (
+                <div className="mt-3 pt-3 border-t border-emerald-200/80 dark:border-emerald-800/80">
+                  <label className="block text-[11px] font-bold text-emerald-950 dark:text-emerald-200 mb-1.5 flex items-center gap-1.5">
+                    <Bookmark className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Pilih Alamat Penghantaran Tersimpan:</span>
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {loggedInUser.savedAddresses.map((addr) => {
+                      const isSelected = selectedSavedAddressId === addr.id;
+                      return (
+                        <button
+                          key={addr.id}
+                          type="button"
+                          onClick={() => handleSelectSavedAddress(addr)}
+                          className={`p-2.5 rounded-xl text-left text-xs transition-all border cursor-pointer ${
+                            isSelected
+                              ? 'bg-white dark:bg-stone-900 border-emerald-500 shadow-xs ring-2 ring-emerald-500/20'
+                              : 'bg-white/70 dark:bg-stone-900/70 border-emerald-200/70 dark:border-emerald-800/70 hover:bg-white hover:border-emerald-400'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between font-bold text-stone-900 dark:text-white">
+                            <span>{addr.label || 'Alamat Tersimpan'}</span>
+                            {isSelected && <Check className="w-3.5 h-3.5 text-emerald-600" />}
+                          </div>
+                          <p className="text-[11px] text-stone-600 dark:text-stone-300 truncate mt-0.5">{addr.address}</p>
+                          <p className="text-[10px] text-emerald-700 dark:text-emerald-400 font-semibold">{addr.postcode} {addr.city}</p>
+                        </button>
+                      );
+                    })}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedSavedAddressId('');
+                        setAddress('');
+                        setPostcode('');
+                        setCity('');
+                        setState('');
+                      }}
+                      className="p-2.5 rounded-xl text-left text-xs border border-dashed border-emerald-300 dark:border-emerald-700 bg-emerald-50/50 dark:bg-emerald-950/30 hover:bg-white text-emerald-800 dark:text-emerald-300 flex items-center justify-center gap-1.5 font-bold cursor-pointer"
+                    >
+                      <PlusCircle className="w-4 h-4" />
+                      <span>+ Guna Alamat Baharu</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-stone-200 dark:border-stone-800 bg-stone-50/80 dark:bg-stone-900/80 overflow-hidden shadow-2xs">
+              {/* Tab Selector Buttons */}
+              <div className="flex border-b border-stone-200 dark:border-stone-800 bg-stone-100 dark:bg-stone-800/60 p-1 gap-1">
+                <button
+                  type="button"
+                  onClick={() => setAuthTab('login')}
+                  className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                    authTab === 'login'
+                      ? 'bg-white dark:bg-stone-900 text-emerald-700 dark:text-emerald-400 shadow-xs border border-stone-200 dark:border-stone-700'
+                      : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 hover:bg-stone-200/60 dark:hover:bg-stone-700/60'
+                  }`}
+                >
+                  <LogIn className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Sudah Berdaftar? Log Masuk</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setAuthTab('guest')}
+                  className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                    authTab === 'guest'
+                      ? 'bg-white dark:bg-stone-900 text-stone-900 dark:text-white shadow-xs border border-stone-200 dark:border-stone-700'
+                      : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 hover:bg-stone-200/60 dark:hover:bg-stone-700/60'
+                  }`}
+                >
+                  <User className="w-3.5 h-3.5 text-stone-500" />
+                  <span>Pelanggan Baharu / Tetamu</span>
+                </button>
+              </div>
+
+              {/* Tab 1 Content: Login Form */}
+              {authTab === 'login' && (
+                <div className="p-4 bg-white dark:bg-stone-900 space-y-3">
+                  <div>
+                    <h4 className="text-xs font-black text-stone-900 dark:text-white flex items-center gap-1.5">
+                      <KeyRound className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Log Masuk Akaun Ahli</span>
+                    </h4>
+                    <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5">
+                      Log masuk untuk auto-isi nama, nombor telefon WhatsApp, alamat tersimpan dan kumpul mata ganjaran.
+                    </p>
+                  </div>
+
+                  {loginError && (
+                    <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>{loginError}</span>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="block text-[11px] font-bold text-stone-700 dark:text-stone-300 mb-1">
+                        Username / Emel / No. Telefon
+                      </label>
+                      <input
+                        type="text"
+                        value={loginIdentifier}
+                        onChange={(e) => {
+                          setLoginIdentifier(e.target.value);
+                          if (loginError) setLoginError('');
+                        }}
+                        placeholder="cth: 011-11135503 atau emel"
+                        className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl px-3 py-2 text-xs text-stone-900 dark:text-white focus:bg-white focus:border-emerald-500 focus:outline-hidden"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-stone-700 dark:text-stone-300 mb-1">
+                        Kata Laluan
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showLoginPassword ? 'text' : 'password'}
+                          value={loginPassword}
+                          onChange={(e) => {
+                            setLoginPassword(e.target.value);
+                            if (loginError) setLoginError('');
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleInlineLogin();
+                            }
+                          }}
+                          placeholder="Masukkan kata laluan"
+                          className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl px-3 py-2 pr-9 text-xs text-stone-900 dark:text-white focus:bg-white focus:border-emerald-500 focus:outline-hidden"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowLoginPassword(!showLoginPassword)}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 p-0.5 cursor-pointer"
+                        >
+                          {showLoginPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1 gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => setAuthTab('guest')}
+                      className="text-[11px] text-stone-500 hover:text-emerald-600 font-semibold cursor-pointer underline"
+                    >
+                      Tiada akaun? Teruskan isi borang sebagai tetamu →
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={loginLoading}
+                      onClick={handleInlineLogin}
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer disabled:opacity-50 transition-all"
+                    >
+                      {loginLoading ? (
+                        <span>Menyemak...</span>
+                      ) : (
+                        <>
+                          <LogIn className="w-3.5 h-3.5" />
+                          <span>Log Masuk & Auto-Isi</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Tab 2 Content: Guest note */}
+              {authTab === 'guest' && (
+                <div className="px-4 py-2.5 bg-stone-50 dark:bg-stone-900/40 flex items-center justify-between text-xs text-stone-500 dark:text-stone-400">
+                  <span>📝 Anda sedang mengisi maklumat sebagai pelanggan terus / tetamu.</span>
+                  <button
+                    type="button"
+                    onClick={() => setAuthTab('login')}
+                    className="text-emerald-600 dark:text-emerald-400 font-bold hover:underline cursor-pointer"
+                  >
+                    Ada akaun? Log Masuk
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* SECTION 1: MAKLUMAT PELANGGAN & ALAMAT */}
           <div>
             <h3 className="text-xs sm:text-sm font-extrabold text-stone-900 dark:text-white uppercase tracking-wide flex items-center gap-2 mb-3">
@@ -623,6 +1011,21 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                       className="w-full bg-stone-50 dark:bg-stone-800/80 border border-stone-200 dark:border-stone-700 rounded-xl px-3 py-2 text-xs sm:text-sm text-stone-900 dark:text-white focus:bg-white dark:focus:bg-stone-800 focus:border-emerald-500 focus:outline-hidden resize-none transition-colors"
                     />
                   </div>
+
+                  {/* Logged in User: Save Address to Account Checkbox */}
+                  {loggedInUser && (
+                    <label className="sm:col-span-2 flex items-center gap-2 p-2.5 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-xs text-stone-700 dark:text-stone-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={saveAddressToAccount}
+                        onChange={(e) => setSaveAddressToAccount(e.target.checked)}
+                        className="rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4 cursor-pointer"
+                      />
+                      <span className="font-medium text-emerald-950 dark:text-emerald-200">
+                        Simpan alamat ini ke profil akaun saya untuk memudahkan pesanan akan datang
+                      </span>
+                    </label>
+                  )}
 
                   {/* Rate & Zone Indicator Pill */}
                   {zoneMatch.isSupported ? (

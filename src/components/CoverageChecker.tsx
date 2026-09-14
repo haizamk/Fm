@@ -8,13 +8,14 @@ import {
   Truck, 
   Clock, 
   CheckCircle2, 
-  ShieldCheck,
-  AlertCircle,
-  ExternalLink,
-  Navigation,
-  Compass,
-  Store
+  ShieldCheck, 
+  AlertCircle, 
+  ExternalLink, 
+  Navigation, 
+  Compass, 
+  Store 
 } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 interface CoverageCheckerProps {
   isOpen: boolean;
@@ -29,6 +30,7 @@ export const CoverageChecker: React.FC<CoverageCheckerProps> = ({
   onSelectArea,
   currentPostcode,
 }) => {
+  const { t, isEn } = useLanguage();
   const [query, setQuery] = useState(currentPostcode || '43500');
   const [selectedResult, setSelectedResult] = useState<CoverageArea | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
@@ -72,9 +74,11 @@ export const CoverageChecker: React.FC<CoverageCheckerProps> = ({
               <MapPin className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold font-['Outfit']">Zon Penghantaran & Ambil Sendiri</h2>
+              <h2 className="text-lg font-bold font-['Outfit']">
+                {isEn ? 'Delivery Zones & Self-Pickup' : 'Zon Penghantaran & Ambil Sendiri'}
+              </h2>
               <p className="text-xs text-stone-400">
-                Khairul Fresh Food • Pasar Semenyih, Beranang & Kajang
+                {isEn ? 'Khairul Fresh Food • Pasar Semenyih, Beranang & Kajang' : 'Khairul Fresh Food • Pasar Semenyih, Beranang & Kajang'}
               </p>
             </div>
           </div>
@@ -82,7 +86,7 @@ export const CoverageChecker: React.FC<CoverageCheckerProps> = ({
           <button
             onClick={onClose}
             className="p-1.5 rounded-full text-stone-400 hover:text-white hover:bg-stone-800 transition-colors cursor-pointer"
-            aria-label="Tutup"
+            aria-label={t('cancel')}
           >
             <X className="w-5 h-5" />
           </button>
@@ -92,7 +96,7 @@ export const CoverageChecker: React.FC<CoverageCheckerProps> = ({
         <div className="bg-emerald-50 dark:bg-emerald-950/50 px-5 py-2.5 border-b border-emerald-200 dark:border-emerald-800/80 text-xs flex items-center justify-between">
           <span className="text-emerald-900 dark:text-emerald-200 font-semibold flex items-center gap-1.5">
             <Clock className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-            <span><strong>Waktu Operasi (Selasa - Ahad):</strong> 7:00 AM - 12:00 Tengah Hari (Isnin Tutup)</span>
+            <span><strong>{isEn ? 'Operating Hours (Tue - Sun):' : 'Waktu Operasi (Selasa - Ahad):'}</strong> {isEn ? '7:00 AM - 12:00 PM (Closed Monday)' : '7:00 AM - 12:00 Tengah Hari (Isnin Tutup)'}</span>
           </span>
           <a
             href={getGoogleMapsUrl()}
@@ -100,7 +104,7 @@ export const CoverageChecker: React.FC<CoverageCheckerProps> = ({
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-400 hover:underline"
           >
-            <span>Peta Pasar</span>
+            <span>{isEn ? 'Market Map' : 'Peta Pasar'}</span>
             <ExternalLink className="w-3 h-3" />
           </a>
         </div>
@@ -117,17 +121,17 @@ export const CoverageChecker: React.FC<CoverageCheckerProps> = ({
               <div>
                 <div className="flex items-center gap-2">
                   <h4 className="font-extrabold text-sm text-stone-900 dark:text-white">
-                    🏪 Ambil Sendiri di Kedai (Self-Pickup)
+                    🏪 {isEn ? 'Store Self-Pickup' : 'Ambil Sendiri di Kedai (Self-Pickup)'}
                   </h4>
                   <span className="px-2 py-0.5 rounded-md bg-emerald-600 text-white font-extrabold text-[10px]">
-                    RM0.00 PERCUMA
+                    {isEn ? 'RM0.00 FREE' : 'RM0.00 PERCUMA'}
                   </span>
                 </div>
                 <p className="text-xs text-stone-700 dark:text-stone-300 font-medium mt-1">
                   {STORE_PICKUP_LOCATION.address}
                 </p>
                 <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-1">
-                  Ambil ayam segar anda 1 jam selepas pesanan dibayar (sebelum 12:00 PM).
+                  {isEn ? 'Collect fresh chicken 1 hour after payment (before 12:00 PM).' : 'Ambil ayam segar anda 1 jam selepas pesanan dibayar (sebelum 12:00 PM).'}
                 </p>
               </div>
             </div>
@@ -137,7 +141,7 @@ export const CoverageChecker: React.FC<CoverageCheckerProps> = ({
               target="_blank"
               rel="noopener noreferrer"
               className="p-2 rounded-xl bg-white dark:bg-stone-800 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-700 shrink-0 hover:bg-amber-100 transition-colors"
-              title="Navigasi ke Pasar Semenyih"
+              title="Google Maps Pasar Semenyih"
             >
               <Navigation className="w-4 h-4" />
             </a>
@@ -146,7 +150,7 @@ export const CoverageChecker: React.FC<CoverageCheckerProps> = ({
           {/* Search Postcode Form */}
           <div>
             <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1.5">
-              Semak Caj Penghantaran Mengikut Poskod:
+              {isEn ? 'Check Delivery Fee by Postcode:' : 'Semak Caj Penghantaran Mengikut Poskod:'}
             </label>
             <form onSubmit={handleSearch} className="flex gap-2">
               <div className="relative flex-1">
@@ -158,7 +162,7 @@ export const CoverageChecker: React.FC<CoverageCheckerProps> = ({
                     setQuery(e.target.value);
                     setHasSearched(false);
                   }}
-                  placeholder="Masukkan poskod (43500 Semenyih, 43700 Beranang, 43000 Kajang)"
+                  placeholder={isEn ? "Enter postcode (43500 Semenyih, 43700 Beranang, 43000 Kajang)" : "Masukkan poskod (43500 Semenyih, 43700 Beranang, 43000 Kajang)"}
                   className="w-full bg-stone-100 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl pl-10 pr-4 py-2.5 text-xs sm:text-sm text-stone-900 dark:text-white placeholder:text-stone-400 focus:bg-white dark:focus:bg-stone-800 focus:border-emerald-500 focus:outline-hidden"
                 />
               </div>
@@ -166,7 +170,7 @@ export const CoverageChecker: React.FC<CoverageCheckerProps> = ({
                 type="submit"
                 className="bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs sm:text-sm px-4 py-2.5 rounded-xl transition-all cursor-pointer shrink-0"
               >
-                Semak
+                {isEn ? 'Check' : 'Semak'}
               </button>
             </form>
           </div>
@@ -180,13 +184,13 @@ export const CoverageChecker: React.FC<CoverageCheckerProps> = ({
                     <CheckCircle2 className="w-6 h-6 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
                     <div>
                       <span className="text-xs font-bold uppercase text-emerald-700 dark:text-emerald-400 tracking-wider">
-                        Liputan Aktif
+                        {isEn ? 'Active Coverage' : 'Liputan Aktif'}
                       </span>
                       <h4 className="font-extrabold text-stone-900 dark:text-white text-sm sm:text-base">
                         {selectedResult.city}, {selectedResult.state} ({selectedResult.postcode})
                       </h4>
                       <p className="text-xs text-stone-600 dark:text-stone-300 mt-0.5">
-                        Caj Hantar: <strong>RM {selectedResult.deliveryFee.toFixed(2)}</strong> • {selectedResult.estimatedHours}
+                        {isEn ? 'Delivery Fee:' : 'Caj Hantar:'} <strong>RM {selectedResult.deliveryFee.toFixed(2)}</strong> • {selectedResult.estimatedHours}
                       </p>
                     </div>
                   </div>
@@ -195,7 +199,7 @@ export const CoverageChecker: React.FC<CoverageCheckerProps> = ({
                     onClick={() => handleSelect(selectedResult)}
                     className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded-xl transition-colors shrink-0 cursor-pointer shadow-xs"
                   >
-                    Pilih Poskod Ini
+                    {isEn ? 'Select This Postcode' : 'Pilih Poskod Ini'}
                   </button>
                 </div>
               ) : (
@@ -203,10 +207,12 @@ export const CoverageChecker: React.FC<CoverageCheckerProps> = ({
                   <AlertCircle className="w-6 h-6 text-amber-600 dark:text-amber-400 shrink-0" />
                   <div className="text-xs">
                     <strong className="block text-sm text-stone-900 dark:text-white">
-                      Poskod di Luar Zon Penghantaran Semasa
+                      {isEn ? 'Postcode Outside Current Delivery Zone' : 'Poskod di Luar Zon Penghantaran Semasa'}
                     </strong>
                     <span className="text-stone-700 dark:text-stone-300">
-                      Buat masa ini liputan penghantaran aktif meliputi <strong>Semenyih (43500)</strong>, <strong>Beranang (43700)</strong>, dan <strong>Kajang (43000)</strong>. Anda juga boleh memilih <strong>Self-Pickup</strong> di GA 59, Pasar Semenyih atau WhatsApp kami di <strong>011-11135503</strong>.
+                      {isEn
+                        ? 'Currently active delivery covers Semenyih (43500), Beranang (43700), and Kajang (43000). You can also choose Self-Pickup at Stall 59, Pasar Semenyih or WhatsApp us at 011-11135503.'
+                        : 'Buat masa ini liputan penghantaran aktif meliputi Semenyih (43500), Beranang (43700), dan Kajang (43000). Anda juga boleh memilih Self-Pickup di GA 59, Pasar Semenyih atau WhatsApp kami di 011-11135503.'}
                     </span>
                   </div>
                 </div>
@@ -217,7 +223,7 @@ export const CoverageChecker: React.FC<CoverageCheckerProps> = ({
           {/* Active 3 Coverage Zones Listing */}
           <div>
             <span className="text-xs font-extrabold text-stone-900 dark:text-white uppercase tracking-wider block mb-2.5">
-              3 Zon Poskod Penghantaran Khairul Fresh Food:
+              {isEn ? 'Khairul Fresh Food 3 Main Delivery Zones:' : '3 Zon Poskod Penghantaran Khairul Fresh Food:'}
             </span>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -246,7 +252,7 @@ export const CoverageChecker: React.FC<CoverageCheckerProps> = ({
 
                   <div className="mt-3 pt-2 border-t border-stone-200/80 dark:border-stone-700/80 flex items-center justify-between text-[10px]">
                     <span className="text-stone-500">{item.estimatedHours}</span>
-                    <span className="text-emerald-700 dark:text-emerald-400 font-bold">Pilih ✓</span>
+                    <span className="text-emerald-700 dark:text-emerald-400 font-bold">{isEn ? 'Select ✓' : 'Pilih ✓'}</span>
                   </div>
                 </div>
               ))}
@@ -264,7 +270,7 @@ export const CoverageChecker: React.FC<CoverageCheckerProps> = ({
             onClick={onClose}
             className="bg-stone-900 dark:bg-stone-800 hover:bg-stone-800 dark:hover:bg-stone-700 text-white text-xs font-bold px-4 py-2 rounded-xl transition-colors cursor-pointer"
           >
-            Tutup
+            {isEn ? 'Close' : 'Tutup'}
           </button>
         </div>
 

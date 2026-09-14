@@ -6,24 +6,22 @@ import {
   ArrowLeft, 
   ArrowUp,
   Search, 
-  SlidersHorizontal, 
   Sparkles, 
   Heart, 
   Flame, 
-  CheckCircle2, 
   ShoppingBag,
   RotateCcw,
   Percent,
-  TrendingDown,
   Layers
 } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 interface AllProductsPageProps {
   products: Product[];
   favorites: string[];
   onToggleFavorite: (id: string) => void;
   onSelectProduct: (product: Product) => void;
-  onQuickAdd: (product: Product) => void;
+  onQuickAdd: (product: Product, sourceRect?: DOMRect) => void;
   onNotifyStock?: (product: Product) => void;
   onBackToHome: () => void;
   initialCategory?: ProductCategory;
@@ -43,6 +41,7 @@ export const AllProductsPage: React.FC<AllProductsPageProps> = ({
   initialCategory = 'semua',
   initialSearchQuery = '',
 }) => {
+  const { t, isEn, tCategoryName } = useLanguage();
   const [searchQuery, setSearchQuery] = useState<string>(initialSearchQuery);
   const [selectedCategory, setSelectedCategory] = useState<ProductCategory>(initialCategory);
   const [sortBy, setSortBy] = useState<SortOption>('default');
@@ -121,15 +120,15 @@ export const AllProductsPage: React.FC<AllProductsPageProps> = ({
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/60 text-stone-700 dark:text-stone-300 hover:text-emerald-700 dark:hover:text-emerald-300 font-bold text-xs transition-colors cursor-pointer border border-stone-200 dark:border-stone-700"
             >
               <ArrowLeft className="w-4 h-4" />
-              <span>Kembali ke Laman Utama</span>
+              <span>{t('backToHomeBtn')}</span>
             </button>
             <div className="h-4 w-px bg-stone-300 dark:bg-stone-700 hidden sm:block" />
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-emerald-800 dark:text-emerald-400 uppercase tracking-wider">
-                Katalog Keseluruhan
+                {isEn ? 'Full Catalog' : 'Katalog Keseluruhan'}
               </span>
               <span className="text-xs text-stone-400 dark:text-stone-500">
-                ({filteredProducts.length} daripada {products.length} produk)
+                ({filteredProducts.length} {isEn ? `of ${products.length} products` : `daripada ${products.length} produk`})
               </span>
             </div>
           </div>
@@ -138,11 +137,11 @@ export const AllProductsPage: React.FC<AllProductsPageProps> = ({
           <div className="flex items-center gap-2 text-xs font-semibold text-stone-600 dark:text-stone-400">
             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-[11px]">
               <Sparkles className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-              <span>Bekalan Segar Awal Pagi</span>
+              <span>{t('freshFromFarm')}</span>
             </span>
             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border border-stone-200 dark:border-stone-700 text-[11px]">
               <Layers className="w-3 h-3 text-stone-500" />
-              <span>Susunan 3 Produk Setiap Baris</span>
+              <span>{isEn ? '3 Products Per Row Grid' : 'Susunan 3 Produk Setiap Baris'}</span>
             </span>
           </div>
         </div>
@@ -154,10 +153,10 @@ export const AllProductsPage: React.FC<AllProductsPageProps> = ({
         {/* Page Header */}
         <div className="mb-6 sm:mb-8">
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-stone-900 dark:text-white font-['Outfit'] tracking-tight">
-            Semua Produk Ayam Segar & Potongan
+            {t('allProductsTitle')}
           </h1>
           <p className="mt-1.5 text-xs sm:text-sm text-stone-600 dark:text-stone-400 max-w-3xl leading-relaxed">
-            Pilihan lengkap ayam segar harian, bahagian potongan percuma, pek kombo jimat, dan bekalan kenduri dengan 100% Halal Diiktiraf.
+            {t('allProductsSubtitle')}
           </p>
         </div>
 
@@ -173,7 +172,7 @@ export const AllProductsPage: React.FC<AllProductsPageProps> = ({
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Cari nama produk, potongan, atau tag..."
+                placeholder={t('searchPlaceholder')}
                 className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 focus:border-emerald-500 dark:focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 rounded-xl pl-9 pr-8 py-2.5 text-sm text-stone-900 dark:text-white placeholder:text-stone-400 dark:placeholder:text-stone-500 transition-all outline-hidden"
               />
               {searchQuery && (
@@ -189,18 +188,18 @@ export const AllProductsPage: React.FC<AllProductsPageProps> = ({
             {/* Sort Options */}
             <div className="flex items-center gap-2 shrink-0">
               <span className="text-xs font-bold text-stone-500 dark:text-stone-400 shrink-0">
-                Susun:
+                {t('sortByLabel')}:
               </span>
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as SortOption)}
                 className="bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-200 text-xs font-bold rounded-xl px-3 py-2.5 focus:border-emerald-500 outline-hidden cursor-pointer"
               >
-                <option value="default">Cadangan (Standard)</option>
-                <option value="price-asc">Harga: Rendah ke Tinggi</option>
-                <option value="price-desc">Harga: Tinggi ke Rendah</option>
-                <option value="savings-desc">Diskaun / Jimat Tertinggi</option>
-                <option value="rating-desc">Penilaian Tertinggi ⭐</option>
+                <option value="default">{t('sortDefault')}</option>
+                <option value="price-asc">{t('sortPriceAsc')}</option>
+                <option value="price-desc">{t('sortPriceDesc')}</option>
+                <option value="savings-desc">{t('sortSavings')}</option>
+                <option value="rating-desc">{t('sortRating')}</option>
               </select>
             </div>
           </div>
@@ -222,7 +221,7 @@ export const AllProductsPage: React.FC<AllProductsPageProps> = ({
                         : 'bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-700 border border-stone-200 dark:border-stone-700'
                     }`}
                   >
-                    <span>{cat.label}</span>
+                    <span>{tCategoryName(cat.id)}</span>
                   </button>
                 );
               })}
@@ -240,7 +239,7 @@ export const AllProductsPage: React.FC<AllProductsPageProps> = ({
                 }`}
               >
                 <Percent className="w-3.5 h-3.5" />
-                <span>Promosi Sahaja</span>
+                <span>{t('filterPromoOnly')}</span>
               </button>
 
               {/* Low Stock Only */}
@@ -253,7 +252,7 @@ export const AllProductsPage: React.FC<AllProductsPageProps> = ({
                 }`}
               >
                 <Flame className="w-3.5 h-3.5" />
-                <span>Stok Terhad</span>
+                <span>{t('filterLowStock')}</span>
               </button>
 
               {/* Favorites Only */}
@@ -266,7 +265,7 @@ export const AllProductsPage: React.FC<AllProductsPageProps> = ({
                 }`}
               >
                 <Heart className={`w-3.5 h-3.5 ${showOnlyFavorites ? 'fill-white' : ''}`} />
-                <span>Kegemaran ({favorites.length})</span>
+                <span>{t('filterFavorites')} ({favorites.length})</span>
               </button>
 
               {/* Reset Filters */}
@@ -274,10 +273,10 @@ export const AllProductsPage: React.FC<AllProductsPageProps> = ({
                 <button
                   onClick={handleResetFilters}
                   className="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-stone-500 dark:text-stone-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors flex items-center gap-1 cursor-pointer"
-                  title="Reset Semua Tapisan"
+                  title={t('filterReset')}
                 >
                   <RotateCcw className="w-3 h-3" />
-                  <span>Reset</span>
+                  <span>{t('filterReset')}</span>
                 </button>
               )}
             </div>
@@ -286,26 +285,26 @@ export const AllProductsPage: React.FC<AllProductsPageProps> = ({
 
         </div>
 
-        {/* 3-Column Listing Grid (3 Produk Setiap Baris) */}
+        {/* 3-Column Listing Grid */}
         {filteredProducts.length === 0 ? (
           <div className="text-center py-16 px-4 bg-white dark:bg-stone-900 rounded-3xl border border-stone-200 dark:border-stone-800">
             <div className="w-16 h-16 rounded-2xl bg-stone-100 dark:bg-stone-800 flex items-center justify-center mx-auto mb-4 text-stone-400">
               <ShoppingBag className="w-8 h-8" />
             </div>
             <h3 className="text-lg font-bold text-stone-800 dark:text-stone-200">
-              Tiada produk dijumpai
+              {t('noProductsFound')}
             </h3>
             <p className="text-xs sm:text-sm text-stone-500 dark:text-stone-400 max-w-md mx-auto mt-1">
               {searchQuery
-                ? `Tiada hasil untuk carian "${searchQuery}". Sila cuba kata kunci lain.`
-                : 'Tiada produk yang sepadan dengan tapisan yang dipilih.'}
+                ? (isEn ? `No results found for "${searchQuery}". Please try other keywords.` : `Tiada hasil untuk carian "${searchQuery}". Sila cuba kata kunci lain.`)
+                : (isEn ? 'No products match your selected filters.' : 'Tiada produk yang sepadan dengan tapisan yang dipilih.')}
             </p>
             <button
               onClick={handleResetFilters}
               className="mt-5 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              <span>Tunjukkan Semua Produk</span>
+              <span>{t('showAllProducts')}</span>
             </button>
           </div>
         ) : (
@@ -332,7 +331,7 @@ export const AllProductsPage: React.FC<AllProductsPageProps> = ({
             className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm transition-all shadow-md hover:shadow-lg cursor-pointer"
           >
             <ArrowUp className="w-4 h-4" />
-            <span>Kembali ke Atas</span>
+            <span>{isEn ? 'Back to Top' : 'Kembali ke Atas'}</span>
           </button>
 
           <button
@@ -340,7 +339,7 @@ export const AllProductsPage: React.FC<AllProductsPageProps> = ({
             className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-stone-900 dark:bg-stone-800 hover:bg-stone-800 dark:hover:bg-stone-700 text-white font-extrabold text-sm transition-all shadow-md cursor-pointer border border-stone-700"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>Kembali ke Laman Utama</span>
+            <span>{t('backToHomeBtn')}</span>
           </button>
         </div>
 

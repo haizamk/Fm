@@ -21,10 +21,14 @@ import {
   ShieldCheck,
   Lock,
   LogOut,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Globe,
+  Languages
 } from 'lucide-react';
 import { LoyaltyStatus } from '../utils/loyalty';
 import { CartItem, UserAccount } from '../types';
+import { getProductImageUrl } from '../utils/imageCompressor';
+import { useLanguage } from '../context/LanguageContext';
 
 interface HeaderProps {
   cartCount: number;
@@ -85,6 +89,7 @@ export const Header: React.FC<HeaderProps> = ({
   activeView = 'home',
   onNavigateView,
 }) => {
+  const { language, setLanguage, t } = useLanguage();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isCartHovered, setIsCartHovered] = useState(false);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -135,7 +140,7 @@ export const Header: React.FC<HeaderProps> = ({
                   : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
               }`}
             >
-              Laman Utama
+              {t('home')}
             </button>
             <button
               onClick={() => onNavigateView?.('all-products')}
@@ -145,11 +150,11 @@ export const Header: React.FC<HeaderProps> = ({
                   : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
               }`}
             >
-              <span>Semua Produk</span>
+              <span>{t('allProducts')}</span>
               <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-extrabold ${
                 activeView === 'all-products' ? 'bg-white/20 text-white' : 'bg-stone-200 dark:bg-stone-700 text-stone-700 dark:text-stone-300'
               }`}>
-                Katalog
+                {t('catalog')}
               </span>
             </button>
           </div>
@@ -162,7 +167,7 @@ export const Header: React.FC<HeaderProps> = ({
                 type="text"
                 value={searchQuery}
                 onChange={(e) => onSearchChange(e.target.value)}
-                placeholder="Cari ayam bulat, dada fillet, kepak, drumstick..."
+                placeholder={t('searchPlaceholder')}
                 className="w-full bg-stone-100/80 dark:bg-stone-800/80 hover:bg-stone-100 dark:hover:bg-stone-800 focus:bg-white dark:focus:bg-stone-800 border border-stone-200 dark:border-stone-700 focus:border-emerald-500 dark:focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 rounded-full pl-9 pr-4 py-2 text-sm text-stone-900 dark:text-white placeholder:text-stone-400 dark:placeholder:text-stone-500 transition-all outline-hidden"
               />
               {searchQuery && (
@@ -170,7 +175,7 @@ export const Header: React.FC<HeaderProps> = ({
                   onClick={() => onSearchChange('')}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 text-xs cursor-pointer"
                 >
-                  Batal
+                  {t('cancel')}
                 </button>
               )}
             </div>
@@ -183,13 +188,52 @@ export const Header: React.FC<HeaderProps> = ({
               className="flex items-center gap-1 px-2.5 py-2 text-xs font-semibold text-stone-700 dark:text-stone-300 hover:text-emerald-700 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-stone-800 rounded-lg transition-colors cursor-pointer"
             >
               <Truck className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-              <span>Jejak</span>
+              <span>{t('trackOrder')}</span>
+            </button>
+            <button
+              onClick={onOpenWhatsApp}
+              className="flex items-center gap-1.5 px-2.5 py-2 text-xs font-bold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-stone-800 rounded-lg transition-colors cursor-pointer"
+              title="Hubungi WhatsApp Bantuan: 011-11135503"
+            >
+              <Phone className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span>Bantuan: 011-11135503</span>
             </button>
           </div>
 
-          {/* Right Header Actions: User Auth, Loyalty Points, Favorites & Cart Button */}
+          {/* Right Header Actions: Language Switcher, User Auth, Loyalty Points, Favorites & Cart Button */}
           <div className="flex items-center gap-2">
             
+            {/* Language Toggle Button (BM / BI) */}
+            <div 
+              className="flex items-center p-0.5 bg-stone-100 dark:bg-stone-800 rounded-xl border border-stone-200 dark:border-stone-700 shadow-2xs"
+              title={language === 'bm' ? 'Tukar ke Bahasa Inggeris (English)' : 'Switch to Bahasa Melayu'}
+            >
+              <button
+                type="button"
+                onClick={() => setLanguage('bm')}
+                className={`px-2 py-1.5 rounded-lg text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1 ${
+                  language === 'bm'
+                    ? 'bg-emerald-600 text-white shadow-2xs'
+                    : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
+                }`}
+                aria-label="Tukar ke Bahasa Melayu"
+              >
+                <span>BM</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setLanguage('en')}
+                className={`px-2 py-1.5 rounded-lg text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1 ${
+                  language === 'en'
+                    ? 'bg-emerald-600 text-white shadow-2xs'
+                    : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
+                }`}
+                aria-label="Switch to English"
+              >
+                <span>BI</span>
+              </button>
+            </div>
+
             {/* User Account / Portal Selector Pill */}
             {currentUser ? (
               <div className="flex items-center gap-1">
@@ -203,7 +247,7 @@ export const Header: React.FC<HeaderProps> = ({
                       <Lock className="w-3.5 h-3.5" />
                     </div>
                     <div className="text-left hidden sm:block">
-                      <span className="text-xs font-black block leading-none">Portal Admin</span>
+                      <span className="text-xs font-black block leading-none">{t('adminPortal')}</span>
                       <span className="text-[10px] text-indigo-600 dark:text-indigo-400">{currentUser.name}</span>
                     </div>
                   </button>
@@ -217,7 +261,7 @@ export const Header: React.FC<HeaderProps> = ({
                       <User className="w-3.5 h-3.5" />
                     </div>
                     <div className="text-left hidden sm:block">
-                      <span className="text-xs font-black block leading-none">Portal Saya</span>
+                      <span className="text-xs font-black block leading-none">{t('myPortal')}</span>
                       <span className="text-[10px] text-emerald-600 dark:text-emerald-400 truncate max-w-[90px] block">{currentUser.name}</span>
                     </div>
                   </button>
@@ -230,7 +274,7 @@ export const Header: React.FC<HeaderProps> = ({
                 title="Log Masuk / Daftar Akaun Segar"
               >
                 <User className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                <span className="hidden sm:inline">Log Masuk</span>
+                <span className="hidden sm:inline">{t('login')}</span>
               </button>
             )}
 
@@ -247,7 +291,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <div className="flex flex-col text-left">
                   <div className="flex items-center gap-1.5">
                     <span className="text-xs font-black text-stone-900 dark:text-white font-['Outfit']">
-                      {loyaltyStatus.currentPoints} <span className="text-[10px] text-stone-500 dark:text-stone-400 font-normal hidden sm:inline">Mata</span>
+                      {loyaltyStatus.currentPoints} <span className="text-[10px] text-stone-500 dark:text-stone-400 font-normal hidden sm:inline">{t('points')}</span>
                     </span>
                     <span className="text-[10px] font-extrabold px-1.5 py-0.2 rounded-md bg-amber-200/90 dark:bg-amber-900 text-amber-900 dark:text-amber-200">
                       {loyaltyStatus.currentTier}
@@ -277,7 +321,7 @@ export const Header: React.FC<HeaderProps> = ({
                 aria-label="Produk Kegemaran"
               >
                 <Heart className={`w-4 h-4 transition-transform ${favoritesCount > 0 ? 'fill-rose-500 text-rose-500' : 'text-stone-500 dark:text-stone-400'}`} />
-                <span className="hidden md:inline">Kegemaran</span>
+                <span className="hidden md:inline">{t('favorites')}</span>
                 {favoritesCount > 0 && (
                   <span className="bg-rose-500 text-white text-[10px] font-extrabold px-1.5 py-0.2 rounded-full min-w-4 text-center">
                     {favoritesCount}
@@ -312,7 +356,7 @@ export const Header: React.FC<HeaderProps> = ({
                 </div>
                 <div className="flex flex-col text-left leading-tight hidden xs:block">
                   <span className="text-[10px] text-emerald-100 uppercase tracking-wider font-bold">
-                    Troli
+                    {t('cart')}
                   </span>
                   <span className="text-xs sm:text-sm font-bold">
                     RM {cartTotal.toFixed(2)}
@@ -374,9 +418,10 @@ export const Header: React.FC<HeaderProps> = ({
                           <div key={item.cartItemId} className="flex items-center justify-between gap-2 text-xs py-1 border-b border-stone-100/70 dark:border-stone-800 last:border-0">
                             <div className="flex items-center gap-2 min-w-0">
                               <img
-                                src={item.product.image}
+                                src={getProductImageUrl(item.product) || item.product.image}
                                 alt={item.product.name}
                                 className="w-8 h-8 rounded-lg object-cover border border-stone-200 dark:border-stone-700 shrink-0"
+                                referrerPolicy="no-referrer"
                               />
                               <div className="min-w-0">
                                 <p className="text-xs font-bold text-stone-800 dark:text-stone-200 truncate leading-tight">
@@ -466,6 +511,38 @@ export const Header: React.FC<HeaderProps> = ({
         {mobileMenuOpen && (
           <div className="lg:hidden mt-3 pt-3 border-t border-stone-200 dark:border-stone-800 flex flex-col gap-2 pb-2">
             
+            {/* Mobile Language Switcher Bar */}
+            <div className="flex items-center justify-between p-2.5 rounded-xl bg-stone-100 dark:bg-stone-800 border border-stone-200 dark:border-stone-700">
+              <div className="flex items-center gap-2 text-xs font-bold text-stone-800 dark:text-stone-200">
+                <Globe className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <span>{language === 'bm' ? 'Bahasa Paparan' : 'Display Language'}</span>
+              </div>
+              <div className="flex items-center p-0.5 bg-stone-200 dark:bg-stone-700 rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => setLanguage('bm')}
+                  className={`px-3 py-1 rounded-md text-xs font-extrabold transition-all cursor-pointer ${
+                    language === 'bm'
+                      ? 'bg-emerald-600 text-white shadow-2xs'
+                      : 'text-stone-600 dark:text-stone-300'
+                  }`}
+                >
+                  BM
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLanguage('en')}
+                  className={`px-3 py-1 rounded-md text-xs font-extrabold transition-all cursor-pointer ${
+                    language === 'en'
+                      ? 'bg-emerald-600 text-white shadow-2xs'
+                      : 'text-stone-600 dark:text-stone-300'
+                  }`}
+                >
+                  BI
+                </button>
+              </div>
+            </div>
+
             {/* Page Navigation Tabs in Mobile */}
             <div className="grid grid-cols-2 gap-2 p-1 bg-stone-100 dark:bg-stone-800 rounded-xl mb-1">
               <button
@@ -479,7 +556,7 @@ export const Header: React.FC<HeaderProps> = ({
                     : 'text-stone-600 dark:text-stone-400'
                 }`}
               >
-                🏠 Laman Utama
+                🏠 {t('home')}
               </button>
               <button
                 onClick={() => {
@@ -492,7 +569,7 @@ export const Header: React.FC<HeaderProps> = ({
                     : 'text-stone-600 dark:text-stone-400'
                 }`}
               >
-                🍗 Semua Produk
+                🍗 {t('allProducts')}
               </button>
             </div>
 
@@ -621,10 +698,15 @@ export const Header: React.FC<HeaderProps> = ({
                 onOpenWhatsApp();
                 setMobileMenuOpen(false);
               }}
-              className="flex items-center gap-2 p-2 rounded-lg text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 text-sm font-semibold"
+              className="flex items-center justify-between p-2.5 rounded-xl text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-xs font-bold"
             >
-              <Phone className="w-4 h-4" />
-              WhatsApp Talian Khidmat Pelanggan
+              <span className="flex items-center gap-2">
+                <Phone className="w-4 h-4 text-emerald-600" />
+                Bantuan WhatsApp
+              </span>
+              <span className="font-mono bg-emerald-600 text-white px-2 py-0.5 rounded-md text-[11px]">
+                011-11135503
+              </span>
             </button>
           </div>
         )}

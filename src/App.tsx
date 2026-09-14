@@ -16,8 +16,10 @@ import {
 } from './types';
 import { COVERAGE_AREAS } from './data/coverage';
 import { getLoyaltyStatus } from './utils/loyalty';
+import { getProductImageUrl } from './utils/productImage';
 import { authService } from './services/auth';
 import { dataStorageService } from './services/dataStorage';
+import { fonnteService } from './services/fonnteService';
 
 // Components
 import { AnnouncementBar } from './components/AnnouncementBar';
@@ -39,9 +41,11 @@ import { QualityGuarantee } from './components/QualityGuarantee';
 import { CustomerReviews } from './components/CustomerReviews';
 import { FAQAccordion } from './components/FAQAccordion';
 import { Footer } from './components/Footer';
+import { FloatingProductOverlay, FlyingProductItem } from './components/FloatingProductOverlay';
 
 // Portals & Secure Authentication Components
 import { AuthModal } from './components/AuthModal';
+import { AdminAuthModal } from './components/AdminAuthModal';
 import { CustomerPortal } from './components/CustomerPortal';
 import { AdminPortal } from './components/AdminPortal';
 import { NotifyStockModal } from './components/NotifyStockModal';
@@ -74,6 +78,7 @@ export default function App() {
   // Auth State
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => authService.getCurrentUser());
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
+  const [isAdminAuthModalOpen, setIsAdminAuthModalOpen] = useState<boolean>(false);
   const [isCustomerPortalOpen, setIsCustomerPortalOpen] = useState<boolean>(false);
   const [isAdminPortalOpen, setIsAdminPortalOpen] = useState<boolean>(false);
 
@@ -167,12 +172,18 @@ export default function App() {
 
   // Cart animation state (pulse / scale-up on add)
   const [isCartPulsing, setIsCartPulsing] = useState<boolean>(false);
+  const [flyingItems, setFlyingItems] = useState<FlyingProductItem[]>([]);
 
   const triggerCartPulse = () => {
     setIsCartPulsing(true);
     setTimeout(() => {
       setIsCartPulsing(false);
     }, 700);
+  };
+
+  const handleFlyingAnimationComplete = (id: string) => {
+    setFlyingItems((prev) => prev.filter((item) => item.id !== id));
+    triggerCartPulse();
   };
 
   // Selected delivery location (Empty by default)
@@ -393,8 +404,46 @@ export default function App() {
     setIsCutModalOpen(true);
   };
 
-  const handleQuickAdd = (product: Product) => {
-    // For products without cut selection (like wings, drumstick, etc.)
+  const handleQuickAdd = (product: Product, sourceRect?: DOMRect | { left: number; top: number; width?: number; height?: number }) => {
+    // 1. Calculate trajectory coordinates for floating animation moving into the cart icon
+    try {
+      const cartBtn = document.getElementById('header-cart-btn');
+      let endX = window.innerWidth - 65;
+      let endY = 32;
+
+      if (cartBtn) {
+        const rect = cartBtn.getBoundingClientRect();
+        endX = rect.left + rect.width / 2;
+        endY = rect.top + rect.height / 2;
+      }
+
+      let startX = window.innerWidth / 2;
+      let startY = window.innerHeight / 2;
+
+      if (sourceRect) {
+        startX = sourceRect.left + (sourceRect.width ? sourceRect.width / 2 : 0);
+        startY = sourceRect.top + (sourceRect.height ? sourceRect.height / 2 : 0);
+      }
+
+      const imageUrl = getProductImageUrl(product);
+      const flyingId = `${product.id}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+
+      const newFlyingItem: FlyingProductItem = {
+        id: flyingId,
+        startX,
+        startY,
+        endX,
+        endY,
+        imageUrl,
+        name: product.name,
+      };
+
+      setFlyingItems((prev) => [...prev, newFlyingItem]);
+    } catch {
+      // Graceful fallback if DOM measurement fails
+    }
+
+    // 2. For products without cut selection (like wings, drumstick, etc.)
     const existingIndex = cartItems.findIndex(
       (item) => item.product.id === product.id && item.selectedCut === 'utuh-tak-potong'
     );
@@ -421,8 +470,6 @@ export default function App() {
       };
       setCartItems([...cartItems, newItem]);
     }
-    triggerCartPulse();
-    setIsCartOpen(true);
   };
 
   const handleAddToCartWithCut = (
@@ -520,6 +567,11 @@ export default function App() {
     // Central persistence in data storage
     dataStorageService.addOrder(order, currentUser?.name || order.customer.fullName);
 
+    // Auto-dispatch WhatsApp notification to Admin & Customer via Fonnte Gateway
+    fonnteService.triggerNewOrderNotification(order).catch((err) => {
+      console.warn('Fonnte auto-dispatch background error:', err);
+    });
+
     // Update user's loyalty points & total spent if logged in
     const pointsEarned = Math.round(order.total);
     if (currentUser) {
@@ -542,11 +594,16 @@ export default function App() {
   };
 
   const handleOpenWhatsAppHotline = () => {
-    const phone = (siteSettings.supportPhone || '011-2856 8920').replace(/\D/g, '');
-    window.open(
-      `https://wa.me/6${phone}?text=Salam%20FreshAyam%20Direct,%20saya%20ingin%20bertanya%20mengenai%20pesanan%20ayam%20segar.`,
-      '_blank'
-    );
+    let digits = (siteSettings.supportPhone || '011-11135503').replace(/\D/g, '');
+    if (digits.startsWith('60')) {
+      // already 601111135503
+    } else if (digits.startsWith('0')) {
+      digits = '60' + digits.slice(1);
+    } else {
+      digits = '60' + digits;
+    }
+    const url = `https://wa.me/${digits}?text=${encodeURIComponent('Salam Khairul Fresh Food, saya ingin bertanya mengenai pesanan ayam segar.')}`;
+    window.open(url, '_blank');
   };
 
   const handleQuickWhatsAppOrder = () => {
@@ -558,9 +615,17 @@ export default function App() {
       )
       .join('\n');
 
-    const phone = (siteSettings.supportPhone || '011-2856 8920').replace(/\D/g, '');
-    const msg = `Salam FreshAyam Direct,%0A%0ASaya ingin membuat pesanan segar berikut:%0A${encodeURIComponent(itemsList)}%0A%0AJumlah: RM ${cartTotal.toFixed(2)}%0ALokasi Hantar: ${selectedCity} (${selectedPostcode})%0A%0AMohon bantuan pengesahan dan masa slot penghantaran. Terima kasih!`;
-    window.open(`https://wa.me/6${phone}?text=${msg}`, '_blank');
+    let digits = (siteSettings.supportPhone || '011-11135503').replace(/\D/g, '');
+    if (digits.startsWith('60')) {
+      // already 601111135503
+    } else if (digits.startsWith('0')) {
+      digits = '60' + digits.slice(1);
+    } else {
+      digits = '60' + digits;
+    }
+    const msg = `Salam Khairul Fresh Food,\n\nSaya ingin membuat pesanan segar berikut:\n${itemsList}\n\nJumlah: RM ${cartTotal.toFixed(2)}\nLokasi Hantar: ${selectedCity} (${selectedPostcode})\n\nMohon bantuan pengesahan dan masa slot penghantaran. Terima kasih!`;
+    const url = `https://wa.me/${digits}?text=${encodeURIComponent(msg)}`;
+    window.open(url, '_blank');
   };
 
   const scrollToProducts = () => {
@@ -686,7 +751,7 @@ export default function App() {
               if (currentUser?.role === 'admin') {
                 setIsAdminPortalOpen(true);
               } else {
-                setIsAuthModalOpen(true);
+                setIsAdminAuthModalOpen(true);
               }
             }}
             onCtaClick={(action) => {
@@ -875,7 +940,7 @@ export default function App() {
           if (currentUser?.role === 'admin') {
             setIsAdminPortalOpen(true);
           } else {
-            setIsAuthModalOpen(true);
+            setIsAdminAuthModalOpen(true);
           }
         }}
         onOpenAuth={() => setIsAuthModalOpen(true)}
@@ -885,7 +950,7 @@ export default function App() {
       <button
         onClick={handleOpenWhatsAppHotline}
         className="fixed bottom-5 right-5 z-40 bg-emerald-600 hover:bg-emerald-500 text-white p-3.5 rounded-full shadow-2xl hover:scale-105 transition-all flex items-center gap-2 cursor-pointer group"
-        title="Hubungi Talian WhatsApp FreshAyam Direct"
+        title="Hubungi Talian WhatsApp Khairul Fresh Food"
         aria-label="WhatsApp Kami"
       >
         <MessageCircle className="w-6 h-6" />
@@ -899,18 +964,23 @@ export default function App() {
 
       {/* MODALS & PORTALS */}
 
-      {/* 0. Secure Auth Modal (Login / Register / 2FA) */}
+      {/* 0. Customer Portal Auth Modal (Customer Login / Register) */}
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
-        defaultRole="customer"
         onLoginSuccess={(user) => {
           setCurrentUser(user);
-          if (user.role === 'admin') {
-            setIsAdminPortalOpen(true);
-          } else {
-            setIsCustomerPortalOpen(true);
-          }
+          setIsCustomerPortalOpen(true);
+        }}
+      />
+
+      {/* 0.0 Admin Portal Auth Modal (Dedicated Admin Login) */}
+      <AdminAuthModal
+        isOpen={isAdminAuthModalOpen}
+        onClose={() => setIsAdminAuthModalOpen(false)}
+        onLoginSuccess={(user) => {
+          setCurrentUser(user);
+          setIsAdminPortalOpen(true);
         }}
       />
 
@@ -988,6 +1058,11 @@ export default function App() {
         appliedDeliveryCoupon={appliedDeliveryCoupon}
         itemCouponDiscount={itemCouponDiscount}
         deliveryCouponDiscount={deliveryCouponDiscount}
+        currentUser={currentUser}
+        onLoginSuccess={(user) => {
+          setCurrentUser(user);
+        }}
+        onLogout={handleLogout}
       />
 
       {/* 4. Order Success & Receipt Modal */}
@@ -1063,6 +1138,12 @@ export default function App() {
 
       {/* 11. Global Simulated OTP & Notification Toast System */}
       <NotificationToast />
+
+      {/* 12. Floating Product Animation Overlay (Tracks to Cart Icon) */}
+      <FloatingProductOverlay
+        items={flyingItems}
+        onAnimationComplete={handleFlyingAnimationComplete}
+      />
 
     </div>
   );

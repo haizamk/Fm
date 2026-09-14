@@ -50,7 +50,8 @@ import {
   Globe,
   Zap,
   HelpCircle,
-  Radio
+  Radio,
+  FolderOpen
 } from 'lucide-react';
 import { 
   UserAccount, 
@@ -64,17 +65,22 @@ import {
   CouponDiscountType,
   RotationBannerItem,
   ProductWeightOption,
-  HitPayConfig
+  HitPayConfig,
+  MediaItem
 } from '../types';
 import { dataStorageService } from '../services/dataStorage';
 import { authService } from '../services/auth';
 import { hitpayService, DEFAULT_HITPAY_CONFIG } from '../services/hitpayService';
+import { fonnteService, DEFAULT_FONNTE_CONFIG, FonnteConfig } from '../services/fonnteService';
 import { AdminDashboardTab } from './AdminDashboardTab';
 import { BannerEditorTab } from './BannerEditorTab';
 import { ImageUploadDropzone } from './ImageUploadDropzone';
 import { ProductImage } from './ProductImage';
 import { LogisticsZoneIndicator } from './LogisticsZoneIndicator';
 import { ThermalReceiptModal } from './ThermalReceiptModal';
+import { MediaLibraryModal } from './MediaLibraryModal';
+import { AdminMediaTab } from './AdminMediaTab';
+import { AdminWhatsAppGatewayTab } from './AdminWhatsAppGatewayTab';
 
 interface AdminPortalProps {
   isOpen: boolean;
@@ -97,7 +103,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   banners: propBanners,
   onBannersUpdated: propOnBannersUpdated,
 }) => {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'orders' | 'customers' | 'products' | 'banners' | 'coupons' | 'settings' | 'payment' | 'security'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'orders' | 'customers' | 'products' | 'media' | 'banners' | 'coupons' | 'settings' | 'payment' | 'whatsapp_gateway' | 'security'>('dashboard');
+
 
   // Data states from dataStorageService
   const [orders, setOrders] = useState<OrderRecord[]>(() => dataStorageService.getOrders());
@@ -125,6 +132,19 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [copiedHitpayWebhook, setCopiedHitpayWebhook] = useState(false);
   const [copiedHitpayRedirect, setCopiedHitpayRedirect] = useState(false);
 
+  // Fonnte WhatsApp Gateway State
+  const initialFonnte = fonnteService.getConfig();
+  const [fonnteToken, setFonnteToken] = useState(initialFonnte.token || '');
+  const [fonnteAdminPhone, setFonnteAdminPhone] = useState(initialFonnte.adminPhone || '011-11135503');
+  const [fonnteAutoNotifyAdmin, setFonnteAutoNotifyAdmin] = useState(initialFonnte.autoNotifyAdmin ?? true);
+  const [fonnteAutoNotifyCustomer, setFonnteAutoNotifyCustomer] = useState(initialFonnte.autoNotifyCustomer ?? false);
+  const [fonnteTesting, setFonnteTesting] = useState(false);
+  const [fonnteTestResult, setFonnteTestResult] = useState<{ success: boolean; message: string; data?: any } | null>(null);
+  const [showFonnteToken, setShowFonnteToken] = useState(false);
+  const [testCustomPhone, setTestCustomPhone] = useState('011-11135503');
+  const [testCustomMessage, setTestCustomMessage] = useState('Salam Khairul Fresh Food! Ini adalah ujian notifikasi WhatsApp dari Fonnte Gateway.');
+  const [fonnteSendingTestMsg, setFonnteSendingTestMsg] = useState(false);
+
   // Search & Filters for Orders
   const [orderSearch, setOrderSearch] = useState('');
   const [orderStatusFilter, setOrderStatusFilter] = useState<string>('all');
@@ -148,13 +168,14 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [couponSearch, setCouponSearch] = useState('');
   const [copiedCouponId, setCopiedCouponId] = useState<string | null>(null);
 
-  // WhatsApp Status Update Modal State
+  // WhatsApp Status Update Modal State & Auto-Dispatch
   const [statusModalOrder, setStatusModalOrder] = useState<OrderRecord | null>(null);
   const [targetStatus, setTargetStatus] = useState<OrderRecord['status']>('disahkan');
   const [riderName, setRiderName] = useState('Ali (Rider Semenyih)');
   const [riderPhone, setRiderPhone] = useState('019-3345890');
   const [riderEta, setRiderEta] = useState('11:30 AM');
   const [customMsgPreview, setCustomMsgPreview] = useState('');
+  const [autoSendWhatsApp, setAutoSendWhatsApp] = useState<boolean>(true);
 
   // Product Edit / Add Modal Form State
   const [isEditingProduct, setIsEditingProduct] = useState(false);
@@ -260,15 +281,47 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   };
 
   // ORDER MANAGEMENT HANDLERS
-  const handleUpdateStatus = (orderId: string, newStatus: OrderRecord['status']) => {
+  const handleUpdateStatus = (orderId: string, newStatus: OrderRecord['status'], forcePromptModal: boolean = false) => {
     const updated = dataStorageService.updateOrderStatus(orderId, newStatus, adminUser.name);
     setOrders(updated);
     setAuditLogs(dataStorageService.getAuditLogs());
-    if (selectedOrderForDetail?.orderId === orderId) {
-      const match = updated.find((o) => o.orderId === orderId);
-      if (match) setSelectedOrderForDetail(match);
+    
+    const targetOrder = updated.find((o) => o.orderId === orderId);
+
+    if (selectedOrderForDetail?.orderId === orderId && targetOrder) {
+      setSelectedOrderForDetail(targetOrder);
     }
-    showNotification('success', `Status pesanan #${orderId} dikemaskini kepada: "${newStatus}".`);
+
+    // If autoSendWhatsApp is active and it's not forced to modal, generate and trigger WhatsApp message
+    if (autoSendWhatsApp && targetOrder && !forcePromptModal) {
+      const autoMsg = generateStatusMessage(targetOrder, newStatus);
+      
+      // If Fonnte is configured, send via Fonnte API silently without popup
+      const fonnteCfg = fonnteService.getConfig();
+      if (fonnteCfg.token && fonnteCfg.token.trim() !== '') {
+        fonnteService.sendMessage(targetOrder.customer.phone, autoMsg).then((res) => {
+          if (res.success) {
+            console.log(`[Fonnte] Status update sent to ${targetOrder.customer.phone}`);
+          }
+        }).catch((err) => {
+          console.warn('[Fonnte] Status update send error:', err);
+        });
+        showNotification('success', `Status #${orderId} dikemaskini & WhatsApp dihantar melalui Fonnte ke ${targetOrder.customer.fullName}!`);
+      } else {
+        const rawPhone = targetOrder.customer.phone.replace(/\D/g, '');
+        let cleanPhone = rawPhone;
+        if (cleanPhone.startsWith('0')) {
+          cleanPhone = '60' + cleanPhone.slice(1);
+        } else if (!cleanPhone.startsWith('60')) {
+          cleanPhone = '60' + cleanPhone;
+        }
+        const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(autoMsg)}`;
+        window.open(waUrl, '_blank');
+        showNotification('success', `Status #${orderId} dikemaskini & WhatsApp status dibuka ke ${targetOrder.customer.fullName}!`);
+      }
+    } else {
+      showNotification('success', `Status pesanan #${orderId} dikemaskini kepada: "${newStatus}".`);
+    }
   };
 
   const handleSaveAndSendWhatsApp = () => {
@@ -284,22 +337,33 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       if (match) setSelectedOrderForDetail(match);
     }
 
-    // 2. Format phone number for WhatsApp
-    const rawPhone = statusModalOrder.customer.phone.replace(/\D/g, '');
-    let cleanPhone = rawPhone;
-    if (cleanPhone.startsWith('0')) {
-      cleanPhone = '60' + cleanPhone.slice(1);
-    } else if (!cleanPhone.startsWith('60')) {
-      cleanPhone = '60' + cleanPhone;
+    const messageToSend = customMsgPreview || generateStatusMessage(statusModalOrder, targetStatus);
+
+    // Check if Fonnte is configured
+    const fonnteCfg = fonnteService.getConfig();
+    if (fonnteCfg.token && fonnteCfg.token.trim() !== '') {
+      fonnteService.sendMessage(statusModalOrder.customer.phone, messageToSend).then((res) => {
+        if (res.success) {
+          showNotification('success', `Status #${statusModalOrder.orderId} dikemaskini & WhatsApp dihantar melalui Fonnte ke ${statusModalOrder.customer.fullName}!`);
+        } else {
+          showNotification('error', `Gagal hantar WhatsApp Fonnte: ${res.message}`);
+        }
+      });
+    } else {
+      // 2. Format phone number for WhatsApp
+      const rawPhone = statusModalOrder.customer.phone.replace(/\D/g, '');
+      let cleanPhone = rawPhone;
+      if (cleanPhone.startsWith('0')) {
+        cleanPhone = '60' + cleanPhone.slice(1);
+      } else if (!cleanPhone.startsWith('60')) {
+        cleanPhone = '60' + cleanPhone;
+      }
+
+      const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(messageToSend)}`;
+      window.open(waUrl, '_blank');
+      showNotification('success', `Status #${statusModalOrder.orderId} dikemaskini & WhatsApp dibuka untuk dihantar ke ${statusModalOrder.customer.fullName}.`);
     }
 
-    const messageToSend = customMsgPreview || generateStatusMessage(statusModalOrder, targetStatus);
-    const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(messageToSend)}`;
-
-    // 3. Open WhatsApp
-    window.open(waUrl, '_blank');
-
-    showNotification('success', `Status #${statusModalOrder.orderId} dikemaskini & WhatsApp dibuka untuk dihantar ke ${statusModalOrder.customer.fullName}.`);
     setStatusModalOrder(null);
   };
 
@@ -432,6 +496,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     showNotification('success', 'Produk telah dipadam.');
   };
 
+  const handleResetAllProductImages = () => {
+    if (window.confirm('Adakah anda pasti mahu memadam SEMUA gambar produk dalam katalog?\n\nTindakan ini akan mengosongkan gambar semua produk supaya anda boleh muat naik gambar foto sebenar satu persatu.')) {
+      const updated = dataStorageService.resetAllProductImages(adminUser.name);
+      setProducts(updated);
+      onProductsUpdated(updated);
+      setAuditLogs(dataStorageService.getAuditLogs());
+      showNotification('success', 'Semua foto produk telah dikosongkan. Sedia untuk dimuat naik satu persatu.');
+    }
+  };
+
   const handleToggleProductStock = (productId: string, current: boolean) => {
     const target = products.find((p) => p.id === productId);
     if (!target) return;
@@ -540,6 +614,84 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       setTimeout(() => setCopiedHitpayRedirect(false), 2500);
     }
     showNotification('success', 'Pautan berjaya disalin ke papan keratan.');
+  };
+
+  // FONNTE WHATSAPP GATEWAY HANDLERS
+  const handleSaveFonnteConfig = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const cleanAdminPhone = fonnteAdminPhone.trim() || '011-11135503';
+    const cleanToken = fonnteToken.trim();
+
+    const newConfig: FonnteConfig = {
+      token: cleanToken,
+      adminPhone: cleanAdminPhone,
+      autoNotifyAdmin: fonnteAutoNotifyAdmin,
+      autoNotifyCustomer: fonnteAutoNotifyCustomer,
+    };
+
+    fonnteService.saveConfig(newConfig);
+
+    const newSettings: SiteSettings = {
+      ...siteSettings,
+      supportPhone: cleanAdminPhone,
+      fonnteConfig: {
+        token: cleanToken,
+        adminPhone: cleanAdminPhone,
+        autoNotifyAdmin: fonnteAutoNotifyAdmin,
+        autoNotifyCustomer: fonnteAutoNotifyCustomer,
+      },
+    };
+
+    const saved = dataStorageService.saveSiteSettings(newSettings, adminUser.name);
+    setSiteSettings(saved);
+    setSettingsForm(saved);
+    onSettingsUpdated(saved);
+
+    dataStorageService.addAuditLog({
+      action: 'GATEWAY FONNTE WHATSAPP DIKEMASKINI',
+      performedBy: adminUser.name,
+      details: `Konfigurasi Fonnte WhatsApp Gateway dikemaskini. Admin Phone: ${cleanAdminPhone}, Auto Notify Admin: ${fonnteAutoNotifyAdmin ? 'Aktif' : 'Nyahaktif'}`,
+      type: 'system',
+    });
+    setAuditLogs(dataStorageService.getAuditLogs());
+
+    showNotification('success', 'Tetapan Fonnte WhatsApp Gateway berjaya disimpan!');
+  };
+
+  const handleTestFonnteConnection = async () => {
+    setFonnteTesting(true);
+    setFonnteTestResult(null);
+
+    const result = await fonnteService.testConnection(fonnteToken);
+    setFonnteTesting(false);
+    setFonnteTestResult(result);
+
+    if (result.success) {
+      showNotification('success', result.message);
+    } else {
+      showNotification('error', result.message);
+    }
+  };
+
+  const handleSendTestMessage = async () => {
+    if (!testCustomPhone.trim()) {
+      showNotification('error', 'Sila masukkan nombor telefon penerima ujian.');
+      return;
+    }
+    if (!testCustomMessage.trim()) {
+      showNotification('error', 'Sila masukkan mesej teks ujian.');
+      return;
+    }
+
+    setFonnteSendingTestMsg(true);
+    const res = await fonnteService.sendMessage(testCustomPhone, testCustomMessage, fonnteToken);
+    setFonnteSendingTestMsg(false);
+
+    if (res.success) {
+      showNotification('success', res.message);
+    } else {
+      showNotification('error', res.message);
+    }
   };
 
   // COUPON MANAGEMENT HANDLERS
@@ -801,6 +953,18 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           </button>
 
           <button
+            onClick={() => setActiveTab('media')}
+            className={`py-1.5 px-3 rounded-lg font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+              activeTab === 'media'
+                ? 'bg-emerald-700 text-white shadow-xs'
+                : 'text-stone-600 dark:text-stone-400 hover:bg-stone-200/60 dark:hover:bg-stone-800/60 hover:text-stone-900 dark:hover:text-stone-200'
+            }`}
+          >
+            <FolderOpen className="w-3.5 h-3.5" />
+            <span>Folder Media Master</span>
+          </button>
+
+          <button
             onClick={() => setActiveTab('banners')}
             className={`py-1.5 px-3 rounded-lg font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
               activeTab === 'banners'
@@ -846,6 +1010,21 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             <span>HitPay Gateway</span>
             <span className="text-[10px] px-1.5 py-0.2 rounded-full font-bold bg-emerald-800 text-emerald-100 border border-emerald-600/40">
               API
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('whatsapp_gateway')}
+            className={`py-1.5 px-3 rounded-lg font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+              activeTab === 'whatsapp_gateway'
+                ? 'bg-emerald-700 text-white shadow-xs'
+                : 'text-stone-600 dark:text-stone-400 hover:bg-stone-200/60 dark:hover:bg-stone-800/60 hover:text-stone-900 dark:hover:text-stone-200'
+            }`}
+          >
+            <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
+            <span>WhatsApp Gateway (Fonnte)</span>
+            <span className="text-[10px] px-1.5 py-0.2 rounded-full font-bold bg-emerald-800 text-emerald-100 border border-emerald-600/40">
+              Auto
             </span>
           </button>
 
@@ -931,6 +1110,25 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     <option value="dalam-penghantaran">4. Rider / Sedia Ambil</option>
                     <option value="selesai">5. Selesai</option>
                   </select>
+
+                  {/* Auto WhatsApp Notification Toggle */}
+                  <label 
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold cursor-pointer transition-all ${
+                      autoSendWhatsApp
+                        ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-300'
+                        : 'bg-stone-100 dark:bg-stone-800 border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-400'
+                    }`}
+                    title="Hantar kemas kini status pesanan secara automatik ke WhatsApp pelanggan setiap kali status ditukar"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={autoSendWhatsApp}
+                      onChange={(e) => setAutoSendWhatsApp(e.target.checked)}
+                      className="rounded text-emerald-600 focus:ring-emerald-500 w-3.5 h-3.5 cursor-pointer"
+                    />
+                    <MessageCircle className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                    <span>Auto WhatsApp Status</span>
+                  </label>
 
                   <button
                     onClick={() => window.print()}
@@ -1351,19 +1549,40 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           {activeTab === 'products' && (
             <div className="space-y-6">
               
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <h3 className="text-sm font-black text-stone-900 dark:text-white">Pengurusan Katalog Produk & Stok Pasar Semenyih</h3>
-                  <p className="text-xs text-stone-500">Tambah produk ayam baharu, kemaskini harga jualan, diskaun 'Jimat RM X', dan had stok ayam harian.</p>
+                  <p className="text-xs text-stone-500">Tambah produk ayam baharu, muat naik foto segar mengikut produk, dan kawal stok harian.</p>
                 </div>
                 {!isEditingProduct && (
-                  <button
-                    onClick={handleOpenAddProduct}
-                    className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>Tambah Produk Ayam Baharu</span>
-                  </button>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={handleResetAllProductImages}
+                      className="px-3 py-2 rounded-xl bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 font-bold text-xs flex items-center gap-1.5 transition-colors border border-rose-200 dark:border-rose-800 cursor-pointer shadow-2xs"
+                      title="Padam semua foto produk untuk muat naik semula dari awal"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Padam Semua Gambar (Reset Foto)</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('media')}
+                      className="px-3 py-2 rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 text-stone-700 dark:text-stone-300 font-bold text-xs flex items-center gap-1.5 transition-colors border border-stone-200 dark:border-stone-700 cursor-pointer shadow-2xs"
+                    >
+                      <FolderOpen className="w-3.5 h-3.5" />
+                      <span>Folder Media Master</span>
+                    </button>
+
+                    <button
+                      onClick={handleOpenAddProduct}
+                      className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Tambah Produk Ayam Baharu</span>
+                    </button>
+                  </div>
                 )}
               </div>
 
@@ -1475,15 +1694,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         value={prodImage}
                         onChange={(newImg) => setProdImage(newImg)}
                         label="Foto / Gambar Produk Ayam Segar"
-                        helperText="Muat naik fail gambar dari komputer / telefon (PNG, JPG, WebP) atau guna pautan URL."
-                        presetImages={[
-                          { url: 'https://images.unsplash.com/photo-1587593810167-a84920ea0781?auto=format&fit=crop&q=80&w=800', label: 'Ayam Standard' },
-                          { url: 'https://images.unsplash.com/photo-1604503468506-a8da13d82791?auto=format&fit=crop&q=80&w=800', label: 'Ayam Kampung' },
-                          { url: 'https://images.unsplash.com/photo-1594221708779-94832f4320d1?auto=format&fit=crop&q=80&w=800', label: 'Ayam Tua' },
-                          { url: 'https://images.unsplash.com/photo-1563245372-f21724e3856d?auto=format&fit=crop&q=80&w=800', label: 'Whole-leg' },
-                          { url: 'https://images.unsplash.com/photo-1527477396000-e27163b481c2?auto=format&fit=crop&q=80&w=800', label: 'Kepak' },
-                          { url: 'https://images.unsplash.com/photo-1606728035253-49e8a23146de?auto=format&fit=crop&q=80&w=800', label: 'Dada Fillet' },
-                        ]}
+                        helperText="Muat naik fail foto dari komputer / telefon (PNG, JPG, WebP) atau pilih dari Folder Media Master."
+                        adminName={adminUser.name}
                       />
                     </div>
 
@@ -1778,6 +1990,19 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 })}
               </div>
             </div>
+          )}
+
+          {/* TAB: MASTER MEDIA FOLDER & GALLERY */}
+          {activeTab === 'media' && (
+            <AdminMediaTab
+              products={products}
+              onProductsUpdated={(updated) => {
+                setProducts(updated);
+                onProductsUpdated(updated);
+              }}
+              onShowNotification={showNotification}
+              adminName={adminUser.name}
+            />
           )}
 
           {/* TAB: ROTATION BANNERS */}
@@ -2582,7 +2807,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                       </label>
                       <input
                         type="text"
-                        value={settingsForm.thermalReceiptSettings?.storePhone || '011-2856 8920 / 011-1113 5503'}
+                        value={settingsForm.thermalReceiptSettings?.storePhone || '011-11135503'}
                         onChange={(e) => setSettingsForm({
                           ...settingsForm,
                           thermalReceiptSettings: {
@@ -3120,21 +3345,6 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   </div>
                 </div>
 
-                {/* Section 6: Panduan Ringkas Integrasi HitPay */}
-                <div className="p-4 rounded-2xl bg-emerald-50/50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 text-xs space-y-2">
-                  <div className="flex items-center gap-2 text-emerald-900 dark:text-emerald-200 font-extrabold">
-                    <HelpCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                    <span>Panduan Ringkas: Cara Sambungkan HitPay Malaysia</span>
-                  </div>
-                  <ol className="list-decimal list-inside space-y-1 text-stone-600 dark:text-stone-300 text-[11px] pl-1 leading-relaxed">
-                    <li>Daftar akaun peniaga HitPay percuma di <a href="https://hitpayapp.com" target="_blank" rel="noreferrer" className="text-emerald-700 dark:text-emerald-400 font-bold underline">https://hitpayapp.com</a>.</li>
-                    <li>Pergi ke menu <strong>Settings</strong> &gt; <strong>Payment Gateway</strong> &gt; <strong>API Keys</strong>.</li>
-                    <li>Salin <strong>API Key</strong> dan tampal pada ruangan di atas.</li>
-                    <li>Pilih <strong>Mod Live</strong> apabila akaun HitPay anda telah disahkan oleh pihak HitPay Malaysia.</li>
-                    <li>Tekan butang <strong>Simpan Konfigurasi HitPay API</strong> di bawah.</li>
-                  </ol>
-                </div>
-
                 {/* Submit Action */}
                 <div className="pt-2 flex items-center justify-end gap-3">
                   <button
@@ -3148,6 +3358,32 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
               </form>
             </div>
+          )}
+
+          {/* TAB: WHATSAPP GATEWAY (FONNTE) CONFIGURATION */}
+          {activeTab === 'whatsapp_gateway' && (
+            <AdminWhatsAppGatewayTab
+              fonnteToken={fonnteToken}
+              setFonnteToken={setFonnteToken}
+              fonnteAdminPhone={fonnteAdminPhone}
+              setFonnteAdminPhone={setFonnteAdminPhone}
+              fonnteAutoNotifyAdmin={fonnteAutoNotifyAdmin}
+              setFonnteAutoNotifyAdmin={setFonnteAutoNotifyAdmin}
+              fonnteAutoNotifyCustomer={fonnteAutoNotifyCustomer}
+              setFonnteAutoNotifyCustomer={setFonnteAutoNotifyCustomer}
+              showFonnteToken={showFonnteToken}
+              setShowFonnteToken={setShowFonnteToken}
+              fonnteTesting={fonnteTesting}
+              fonnteTestResult={fonnteTestResult}
+              handleTestFonnteConnection={handleTestFonnteConnection}
+              testCustomPhone={testCustomPhone}
+              setTestCustomPhone={setTestCustomPhone}
+              testCustomMessage={testCustomMessage}
+              setTestCustomMessage={setTestCustomMessage}
+              fonnteSendingTestMsg={fonnteSendingTestMsg}
+              handleSendTestMessage={handleSendTestMessage}
+              handleSaveFonnteConfig={handleSaveFonnteConfig}
+            />
           )}
 
           {/* TAB 5: SECURITY & AUDIT TRAIL */}

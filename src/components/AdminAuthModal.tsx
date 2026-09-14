@@ -132,8 +132,8 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
           )}
 
           <div>
-            <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1">
-              Username, Emel atau No. Telefon Pentadbir
+            <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1.5">
+              ID Pengguna / No. Telefon / Emel Pentadbir
             </label>
             <div className="relative">
               <User className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -142,20 +142,17 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
                 required
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
-                placeholder="Cth: krul411 / 011-11135503 / emel"
+                placeholder="Masukkan username, no. telefon atau emel"
                 autoCapitalize="none"
                 autoCorrect="off"
                 spellCheck={false}
-                className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl pl-10 pr-3.5 py-2.5 text-xs sm:text-sm text-stone-900 dark:text-white focus:outline-hidden focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl pl-10 pr-3.5 py-2.5 text-xs sm:text-sm text-stone-900 dark:text-white focus:outline-hidden focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all"
               />
             </div>
-            <p className="text-[11px] text-stone-400 mt-1">
-              Boleh masukkan username (<strong>krul411</strong>), nombor telefon, atau emel.
-            </p>
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1">
+            <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1.5">
               Kata Laluan Pentadbir
             </label>
             <div className="relative">
@@ -165,8 +162,8 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl pl-10 pr-10 py-2.5 text-xs sm:text-sm text-stone-900 dark:text-white focus:outline-hidden focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                placeholder="Masukkan kata laluan"
+                className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl pl-10 pr-10 py-2.5 text-xs sm:text-sm text-stone-900 dark:text-white focus:outline-hidden focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all"
               />
               <button
                 type="button"

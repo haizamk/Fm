@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { ProductImage } from './ProductImage';
 import { useLanguage } from '../context/LanguageContext';
+import { getOfficialWhatsAppLink } from '../utils/whatsappHelper';
 
 interface CartDrawerProps {
   isOpen: boolean;
@@ -186,7 +187,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                 {t('maxUnitLimitDesc')}
               </p>
               <a
-                href={`https://wa.me/601111135503?text=${encodeURIComponent(`Salam Khairul Fresh Food, saya ingin membuat tempahan pukal / katering melebihi 30 unit.`)}`}
+                href={getOfficialWhatsAppLink('Salam Khairul Fresh Food, saya ingin membuat tempahan pukal / katering melebihi 30 unit.')}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 font-bold text-[11px] text-emerald-700 dark:text-emerald-400 hover:underline mt-0.5"

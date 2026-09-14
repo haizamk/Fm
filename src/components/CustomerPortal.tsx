@@ -109,23 +109,61 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({
   // Auto-fill city and state when postcode is entered
   const handlePostcodeChange = (val: string) => {
     setNewPostcode(val);
-    const match = lookupByPostcode(val);
-    if (match) {
-      setNewCity(match.city);
-      setNewState(match.state);
+    const clean = val.trim();
+    if (clean === '43500') {
+      setNewCity('Semenyih');
+      setNewState('Selangor');
+    } else if (clean === '43700') {
+      setNewCity('Beranang');
+      setNewState('Selangor');
+    } else if (clean === '43000') {
+      setNewCity('Kajang');
+      setNewState('Selangor');
+    } else {
+      const match = lookupByPostcode(clean);
+      if (match) {
+        setNewCity(match.city);
+        setNewState(match.state);
+      }
     }
   };
 
   // Auto-fill postcode and state when city is entered
   const handleCityChange = (val: string) => {
     setNewCity(val);
-    const match = lookupByCity(val);
-    if (match) {
-      if (!newPostcode) {
-        setNewPostcode(match.postcode);
+    const clean = val.trim().toLowerCase();
+    if (clean.includes('semenyih')) {
+      setNewPostcode('43500');
+      setNewState('Selangor');
+    } else if (clean.includes('beranang')) {
+      setNewPostcode('43700');
+      setNewState('Selangor');
+    } else if (clean.includes('kajang')) {
+      setNewPostcode('43000');
+      setNewState('Selangor');
+    } else {
+      const match = lookupByCity(clean);
+      if (match) {
+        if (!newPostcode) {
+          setNewPostcode(match.postcode);
+        }
+        setNewState(match.state);
       }
-      setNewState(match.state);
     }
+  };
+
+  // Helper to check if postcode/city is within the 3 delivery zones
+  const isDeliveryZone = (pc: string, ct: string) => {
+    const p = (pc || '').trim();
+    const c = (ct || '').trim().toLowerCase();
+    return (
+      p === '43500' ||
+      p === '43700' ||
+      p === '43000' ||
+      c.includes('semenyih') ||
+      c.includes('beranang') ||
+      c.includes('kajang')
+    );
   };
 
   // Profile edit form state
@@ -975,8 +1013,8 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({
                         maxLength={5}
                         value={newPostcode}
                         onChange={(e) => handlePostcodeChange(e.target.value)}
-                        placeholder=""
-                        className="w-full bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 rounded-xl p-2.5 focus:outline-hidden focus:border-emerald-500"
+                        placeholder="Cth: 43500 atau poskod kediaman anda"
+                        className="w-full bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 rounded-xl p-2.5 focus:outline-hidden focus:border-emerald-500 font-mono"
                       />
                     </div>
 
@@ -987,7 +1025,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({
                         rows={2}
                         value={newAddress}
                         onChange={(e) => setNewAddress(e.target.value)}
-                        placeholder=""
+                        placeholder="No rumah, nama jalan, taman perumahan..."
                         className="w-full bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 rounded-xl p-2.5 focus:outline-hidden focus:border-emerald-500"
                       />
                     </div>
@@ -999,7 +1037,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({
                         required
                         value={newCity}
                         onChange={(e) => handleCityChange(e.target.value)}
-                        placeholder=""
+                        placeholder="Semenyih / Beranang / Kajang"
                         className="w-full bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 rounded-xl p-2.5 focus:outline-hidden focus:border-emerald-500"
                       />
                     </div>
@@ -1011,11 +1049,36 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({
                         required
                         value={newState}
                         onChange={(e) => setNewState(e.target.value)}
-                        placeholder=""
+                        placeholder="Selangor"
                         className="w-full bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 rounded-xl p-2.5 focus:outline-hidden focus:border-emerald-500"
                       />
                     </div>
                   </div>
+
+                  {/* Coverage Status Indicator */}
+                  {newPostcode || newCity ? (
+                    isDeliveryZone(newPostcode, newCity) ? (
+                      <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-900 dark:text-emerald-200 flex items-center justify-between">
+                        <span className="flex items-center gap-1.5 font-bold">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                          <span>Zon Liputan Penghantaran Rumah Sah: <strong>{newCity} ({newPostcode})</strong></span>
+                        </span>
+                        <span className="text-[11px] bg-emerald-600 text-white font-bold px-2 py-0.5 rounded-md">
+                          Penghantaran Disediakan
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                        <div>
+                          <strong className="block">Alamat Luar Liputan Penghantaran ke Rumah</strong>
+                          <p className="text-[11px] text-amber-800 dark:text-amber-300 mt-0.5">
+                            Tiada penghantaran dibuat untuk kawasan ini (penghantaran terus hanya ke Semenyih, Beranang & Kajang). Namun, anda tetap boleh menyimpan alamat ini dan memilih <strong>Ambil Sendiri di Kedai (Pasar Semenyih)</strong> semasa checkout.
+                          </p>
+                        </div>
+                      </div>
+                    )
+                  ) : null}
 
                   <div className="flex items-center justify-between pt-2">
                     <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer">
@@ -1040,51 +1103,65 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({
 
               {/* Address List */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {(user.savedAddresses || []).map((addr) => (
-                  <div
-                    key={addr.id}
-                    className="p-4 rounded-2xl bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 relative group flex flex-col justify-between"
-                  >
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-black px-2 py-0.5 rounded-md bg-stone-100 dark:bg-stone-700 text-stone-800 dark:text-stone-200">
-                            {addr.label}
-                          </span>
-                          {addr.isDefault && (
-                            <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300">
-                              Utama
+                {(user.savedAddresses || []).map((addr) => {
+                  const isCovered = isDeliveryZone(addr.postcode, addr.city);
+                  return (
+                    <div
+                      key={addr.id}
+                      className="p-4 rounded-2xl bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 relative group flex flex-col justify-between"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-black px-2 py-0.5 rounded-md bg-stone-100 dark:bg-stone-700 text-stone-800 dark:text-stone-200">
+                              {addr.label}
                             </span>
-                          )}
+                            {addr.isDefault && (
+                              <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300">
+                                Utama
+                              </span>
+                            )}
+                            {isCovered ? (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                                ✓ Hantar ke Rumah
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+                                🏪 Ambil Sendiri Sahaja
+                              </span>
+                            )}
+                          </div>
+
+                          <button
+                            onClick={() => handleDeleteAddress(addr.id)}
+                            className="text-stone-400 hover:text-rose-600 p-1 transition-colors cursor-pointer"
+                            title="Padam Alamat"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </div>
 
-                        <button
-                          onClick={() => handleDeleteAddress(addr.id)}
-                          className="text-stone-400 hover:text-rose-600 p-1 transition-colors cursor-pointer"
-                          title="Padam Alamat"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <p className="font-bold text-xs text-stone-900 dark:text-white">{addr.fullName} ({addr.phone})</p>
+                        <p className="text-xs text-stone-600 dark:text-stone-300 mt-1 leading-relaxed">
+                          {addr.address}<br />
+                          {addr.postcode} {addr.city}, {addr.state}
+                        </p>
                       </div>
 
-                      <p className="font-bold text-xs text-stone-900 dark:text-white">{addr.fullName} ({addr.phone})</p>
-                      <p className="text-xs text-stone-600 dark:text-stone-300 mt-1 leading-relaxed">
-                        {addr.address}<br />
-                        {addr.postcode} {addr.city}, {addr.state}
-                      </p>
+                      <div className="mt-4 pt-2 border-t border-stone-100 dark:border-stone-700 flex items-center justify-between text-xs">
+                        <span className="text-stone-400 text-[11px]">
+                          {isCovered ? 'Zon Penghantaran Aktif' : 'Ambil di Pasar Semenyih'}
+                        </span>
+                        <button
+                          onClick={onOpenCoverage}
+                          className="text-emerald-600 dark:text-emerald-400 hover:underline font-semibold text-[11px] cursor-pointer"
+                        >
+                          Semak Liputan
+                        </button>
+                      </div>
                     </div>
-
-                    <div className="mt-4 pt-2 border-t border-stone-100 dark:border-stone-700 flex items-center justify-between text-xs">
-                      <span className="text-stone-400 text-[11px]">Zon Lembah Klang</span>
-                      <button
-                        onClick={onOpenCoverage}
-                        className="text-emerald-600 dark:text-emerald-400 hover:underline font-semibold text-[11px] cursor-pointer"
-                      >
-                        Semak Liputan
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -1266,3 +1343,5 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({
     </div>
   );
 };
+
+export default CustomerPortal;

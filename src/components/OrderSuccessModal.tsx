@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { OrderRecord } from '../types';
 import { getCutLabel } from '../data/products';
 import { downloadReceiptPDF, sendReceiptPDFToWhatsApp } from '../utils/pdfReceipt';
+import { getWhatsAppOrderConfirmationLink } from '../utils/whatsappHelper';
 import confetti from 'canvas-confetti';
 import { 
   CheckCircle2, 
@@ -101,22 +102,9 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
   };
 
   const generateWhatsAppMessage = () => {
-    const itemsList = order.items
-      .map(
-        (it) =>
-          `• ${it.product.name} (x${it.quantity}) - Potongan: ${it.selectedCut}${
-            it.specialNotes ? ` [Nota: ${it.specialNotes}]` : ''
-          }`
-      )
-      .join('\n');
-
-    const deliveryNoteText = order.customer.deliveryInstructions 
-      ? `%0A*Arahan Hantar:* ${encodeURIComponent(order.customer.deliveryInstructions)}` 
-      : '';
-
-    const message = `Salam Khairul Fresh Food,%0A%0ASaya ingin sahkan pesanan saya:%0A*No. Pesanan:* ${order.orderId}%0A*Nama:* ${order.customer.fullName}%0A*Telefon:* ${order.customer.phone}%0A*Alamat:* ${order.customer.address}, ${order.customer.postcode} ${order.customer.city}%0A*Pilihan Slot Penghantaran:* ${order.estimatedDeliveryText}${deliveryNoteText}%0A*Kaedah Bayaran:* ${order.customer.paymentMethod.toUpperCase()}%0A%0A*Senarai Item:*%0A${encodeURIComponent(itemsList)}%0A%0A*Jumlah Bayaran:* RM ${order.total.toFixed(2)}%0A%0ATerima kasih!`;
-
-    window.open(`https://wa.me/601111135503?text=${message}`, '_blank');
+    if (!order) return;
+    const url = getWhatsAppOrderConfirmationLink(order);
+    window.open(url, '_blank');
   };
 
   return (

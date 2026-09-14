@@ -9,6 +9,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { dataStorageService } from '../services/dataStorage';
+import { getWhatsAppOrderStatusLink } from '../utils/whatsappHelper';
 
 interface OrderTrackingModalProps {
   isOpen: boolean;
@@ -222,16 +223,16 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
               </div>
 
               {/* Rider / Support Helpline */}
-              <div className="p-3 bg-stone-100 rounded-xl flex items-center justify-between text-xs">
-                <span className="text-stone-700">Perlukan bantuan tentang pesanan ini?</span>
+              <div className="p-3 bg-stone-100 dark:bg-stone-800 rounded-xl flex items-center justify-between text-xs">
+                <span className="text-stone-700 dark:text-stone-300">Perlukan bantuan tentang pesanan ini?</span>
                 <a
-                  href={`https://wa.me/601111135503?text=Salam%20Khairul%20Fresh%2C%20saya%20ingin%20tanya%20status%20pesanan%20%23${matchedOrder.orderId}`}
+                  href={getWhatsAppOrderStatusLink(matchedOrder.orderId, matchedOrder.customer?.fullName)}
                   target="_blank"
                   rel="noreferrer"
-                  className="text-emerald-700 font-bold flex items-center gap-1 hover:underline"
+                  className="text-emerald-700 dark:text-emerald-400 font-bold flex items-center gap-1 hover:underline"
                 >
                   <PhoneCall className="w-3.5 h-3.5" />
-                  <span>WhatsApp Khairul FRESH</span>
+                  <span>WhatsApp Khairul FRESH (011-11135503)</span>
                 </a>
               </div>
 

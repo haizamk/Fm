@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   X, 
   ShieldCheck, 
@@ -11,10 +11,35 @@ import {
   AlertCircle, 
   CheckCircle2, 
   ArrowRight,
-  AtSign
+  AtSign,
+  Sparkles,
+  Lightbulb,
+  Shuffle
 } from 'lucide-react';
 import { UserAccount } from '../types';
 import { authService, checkRateLimit } from '../services/auth';
+
+const CUSTOMER_LOGIN_TIPS = [
+  'Boleh log masuk menggunakan Username pilihan, alamat emel, atau nombor WhatsApp berdaftar.',
+  'Log masuk untuk menyemak baki Mata Ganjaran terkini dan menebus baucar diskaun anda.',
+  'Jejak status penyediaan ayam segar dan lokasi rider secara terus selepas log masuk.',
+  'Simpan alamat penghantaran anda dalam profil untuk tempahan pantas 1-klik.',
+  'Muat turun resit rasmi PDF dan semak sejarah belian anda pada bila-bila masa.',
+  'Gunakan nombor WhatsApp berdaftar untuk kemas kini pesanan automatik.'
+];
+
+const CUSTOMER_REGISTER_TIPS = [
+  'Daftar akaun percuma hari ini dan nikmati ganjaran +50 Mata Ganjaran serta-merta!',
+  'Cipta Username ringkas (cth: amir99) untuk log masuk pantas tanpa perlu menaip emel panjang.',
+  'Gunakan nombor WhatsApp aktif untuk menerima resit digital dan notifikasi rider.',
+  'Kumpul mata bagi setiap kilogram ayam segar untuk potongan harga pesanan akan datang.',
+  'Pilih dan simpan jenis potongan ayam kegemaran keluarga untuk pesanan ulangan.',
+  'Ahli berdaftar menikmati tawaran promosi eksklusif dan diskaun mingguan.'
+];
+
+const RANDOM_USERNAMES = ['amir88', 'huda_segar', 'faizal_ayam', 'siti_fresh', 'zaki99', 'farid_kajang'];
+const RANDOM_NAMES = ['Ahmad Faizal Bin Razak', 'Siti Nurul Huda', 'Mohd Amirul Syafiq', 'Noraini Binti Ismail', 'Muhammad Hafiz'];
+const RANDOM_EMAILS = ['faizal@gmail.com', 'huda.siti@yahoo.com', 'amirul@outlook.com', 'noraini@gmail.com', 'hafiz.ayam@gmail.com'];
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -29,6 +54,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 }) => {
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   
+  // Random Tips & Placeholders State
+  const [randomLoginTip, setRandomLoginTip] = useState<string>('');
+  const [randomRegisterTip, setRandomRegisterTip] = useState<string>('');
+  const [placeholderUsername, setPlaceholderUsername] = useState('cth: amir88');
+  const [placeholderName, setPlaceholderName] = useState('cth: Ahmad Bin Razak');
+  const [placeholderEmail, setPlaceholderEmail] = useState('cth: nama@email.com');
+
   // Form fields
   const [identifier, setIdentifier] = useState(''); // for login (username / email / phone)
   const [username, setUsername] = useState(''); // for registration
@@ -42,6 +74,27 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  // Shuffle tips when opened or mode changed
+  const randomizeTips = () => {
+    const loginTip = CUSTOMER_LOGIN_TIPS[Math.floor(Math.random() * CUSTOMER_LOGIN_TIPS.length)];
+    const regTip = CUSTOMER_REGISTER_TIPS[Math.floor(Math.random() * CUSTOMER_REGISTER_TIPS.length)];
+    const rUser = RANDOM_USERNAMES[Math.floor(Math.random() * RANDOM_USERNAMES.length)];
+    const rName = RANDOM_NAMES[Math.floor(Math.random() * RANDOM_NAMES.length)];
+    const rEmail = RANDOM_EMAILS[Math.floor(Math.random() * RANDOM_EMAILS.length)];
+
+    setRandomLoginTip(loginTip);
+    setRandomRegisterTip(regTip);
+    setPlaceholderUsername(`cth: ${rUser}`);
+    setPlaceholderName(`cth: ${rName}`);
+    setPlaceholderEmail(`cth: ${rEmail}`);
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      randomizeTips();
+    }
+  }, [isOpen, authMode]);
 
   if (!isOpen) return null;
 
@@ -242,6 +295,27 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </div>
           )}
 
+          {/* Randomized Tip Banner for Customer */}
+          <div className="p-3 rounded-2xl bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/60 flex items-start justify-between gap-2.5 transition-all">
+            <div className="flex items-start gap-2.5">
+              <div className="p-1 rounded-lg bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 shrink-0 mt-0.5">
+                <Sparkles className="w-3.5 h-3.5" />
+              </div>
+              <div className="text-[11px] leading-relaxed text-emerald-900 dark:text-emerald-200">
+                <span className="font-bold">Tip {authMode === 'login' ? 'Log Masuk' : 'Pendaftaran'}: </span>
+                <span>{authMode === 'login' ? randomLoginTip : randomRegisterTip}</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={randomizeTips}
+              className="text-stone-400 hover:text-emerald-600 dark:hover:text-emerald-400 p-1 rounded-lg hover:bg-emerald-100/50 dark:hover:bg-emerald-900/40 transition-colors cursor-pointer shrink-0"
+              title="Tukar tip rawak"
+            >
+              <Shuffle className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
           {/* LOGIN MODE IDENTIFIER */}
           {authMode === 'login' && (
             <div>
@@ -255,16 +329,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   required
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
-                  placeholder="Cth: ali99 / ali@gmail.com / 012-3456789"
+                  placeholder={`${placeholderUsername.replace('cth: ', '')} / ${placeholderEmail.replace('cth: ', '')} / 012-3456789`}
                   autoCapitalize="none"
                   autoCorrect="off"
                   spellCheck={false}
-                  className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl pl-10 pr-3.5 py-2.5 text-xs sm:text-sm text-stone-900 dark:text-white focus:outline-hidden focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                  className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl pl-10 pr-3.5 py-2.5 text-xs sm:text-sm text-stone-900 dark:text-white focus:outline-hidden focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
                 />
               </div>
-              <p className="text-[11px] text-stone-400 mt-1">
-                Boleh log masuk menggunakan Username pilihan, emel, atau nombor WhatsApp.
-              </p>
             </div>
           )}
 
@@ -282,16 +353,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     required
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    placeholder="cth: ali99 (untuk log masuk pantas)"
+                    placeholder={`${placeholderUsername} (pilihan anda)`}
                     autoCapitalize="none"
                     autoCorrect="off"
                     spellCheck={false}
-                    className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl pl-10 pr-3.5 py-2.5 text-xs sm:text-sm text-stone-900 dark:text-white focus:outline-hidden focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                    className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl pl-10 pr-3.5 py-2.5 text-xs sm:text-sm text-stone-900 dark:text-white focus:outline-hidden focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
                   />
                 </div>
-                <p className="text-[11px] text-stone-400 mt-1">
-                  Cipta username unik untuk log masuk mudah pada masa akan datang.
-                </p>
               </div>
 
               <div>
@@ -305,8 +373,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="cth: Ahmad Bin Razak"
-                    className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl pl-10 pr-3.5 py-2.5 text-xs sm:text-sm text-stone-900 dark:text-white focus:outline-hidden focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                    placeholder={placeholderName}
+                    className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl pl-10 pr-3.5 py-2.5 text-xs sm:text-sm text-stone-900 dark:text-white focus:outline-hidden focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
                   />
                 </div>
               </div>
@@ -322,8 +390,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     required
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    placeholder="cth: 012-3456789"
-                    className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl pl-10 pr-3.5 py-2.5 text-xs sm:text-sm text-stone-900 dark:text-white focus:outline-hidden focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                    placeholder="cth: 012-3456789 / 011-12345678"
+                    className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl pl-10 pr-3.5 py-2.5 text-xs sm:text-sm text-stone-900 dark:text-white focus:outline-hidden focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
                   />
                 </div>
               </div>
@@ -339,8 +407,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="cth: nama@email.com"
-                    className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl pl-10 pr-3.5 py-2.5 text-xs sm:text-sm text-stone-900 dark:text-white focus:outline-hidden focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                    placeholder={placeholderEmail}
+                    className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl pl-10 pr-3.5 py-2.5 text-xs sm:text-sm text-stone-900 dark:text-white focus:outline-hidden focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
                   />
                 </div>
               </div>

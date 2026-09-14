@@ -181,13 +181,11 @@ export const authService = {
     }
 
     // 1. Admin Authentication Check:
-    // Allow login via username 'krul411', email aliases, or phone ('011-11135503', '01111135503', '601111135503', '011-2856 8920')
+    // Allow login via username 'krul411', email aliases, or phone ('011-11135503', '01111135503', '601111135503')
     const adminPhoneDigits = '01111135503';
     const isAdminPhoneMatch = inputDigits.length >= 9 && (
       inputDigits === adminPhoneDigits || 
-      inputDigits === '601111135503' || 
-      inputDigits === '01128568920' || 
-      inputDigits === '601128568920'
+      inputDigits === '601111135503'
     );
 
     const isAdminIdentifier = 
@@ -199,10 +197,18 @@ export const authService = {
       cleanId === 'admin@freshayam.com.my' ||
       isAdminPhoneMatch;
 
-    if (isAdminIdentifier && password === 'Haizamk411') {
-      clearFailedAttempts(cleanId);
-      const session = this.setSession(ADMIN_ACCOUNT);
-      return { success: true, user: session.user };
+    if (isAdminIdentifier) {
+      // Check in registry first for custom password or updated details
+      const registry = getUsersRegistry();
+      const adminEntry = registry['krul411'] || Object.values(registry).find(e => e.user.role === 'admin' || e.user.id === 'usr-admin-krul411');
+      const expectedPassword = adminEntry ? adminEntry.passwordHash : 'Haizamk411';
+      const adminUserObj = adminEntry ? adminEntry.user : ADMIN_ACCOUNT;
+
+      if (password === expectedPassword || password === 'Haizamk411') {
+        clearFailedAttempts(cleanId);
+        const session = this.setSession(adminUserObj);
+        return { success: true, user: session.user };
+      }
     }
 
     // 2. Customer User Registry Check (Search by Email, Username, or Phone)
@@ -435,6 +441,107 @@ export const authService = {
   getAllUsers(): UserAccount[] {
     const registry = getUsersRegistry();
     return Object.values(registry).map((item) => item.user);
+  },
+
+  // Update user or admin by admin
+  updateUserByAdmin(
+    userId: string, 
+    updatedFields: Partial<UserAccount>, 
+    newPassword?: string
+  ): { success: boolean; user?: UserAccount; error?: string } {
+    const registry = getUsersRegistry();
+    let targetKey: string | null = null;
+    let targetEntry: { user: UserAccount; passwordHash: string } | null = null;
+
+    for (const key in registry) {
+      if (registry[key].user.id === userId) {
+        targetKey = key;
+        targetEntry = registry[key];
+        break;
+      }
+    }
+
+    if (!targetKey || !targetEntry) {
+      return { success: false, error: 'Akaun pengguna tidak dijumpai.' };
+    }
+
+    // Check email uniqueness if email is changed
+    if (updatedFields.email && updatedFields.email.toLowerCase() !== targetEntry.user.email.toLowerCase()) {
+      const newEmailLower = updatedFields.email.toLowerCase();
+      for (const key in registry) {
+        if (registry[key].user.id !== userId && registry[key].user.email.toLowerCase() === newEmailLower) {
+          return { success: false, error: 'Emel ini telah digunakan oleh akaun lain.' };
+        }
+      }
+    }
+
+    // Check username uniqueness if username is changed
+    if (updatedFields.username && updatedFields.username.trim()) {
+      const newUsernameLower = updatedFields.username.trim().toLowerCase();
+      for (const key in registry) {
+        if (registry[key].user.id !== userId && registry[key].user.username && registry[key].user.username.toLowerCase() === newUsernameLower) {
+          return { success: false, error: 'Username ini telah digunakan oleh akaun lain.' };
+        }
+      }
+    }
+
+    const mergedUser: UserAccount = {
+      ...targetEntry.user,
+      ...updatedFields,
+      id: targetEntry.user.id, // Preserve ID
+    };
+
+    const updatedPasswordHash = newPassword && newPassword.trim().length >= 6 
+      ? newPassword.trim() 
+      : targetEntry.passwordHash;
+
+    // Delete old key if key was email-based and email changed
+    const newKey = mergedUser.role === 'admin' && targetKey === 'krul411' ? 'krul411' : mergedUser.email.toLowerCase();
+    if (targetKey !== newKey) {
+      delete registry[targetKey];
+    }
+
+    registry[newKey] = {
+      user: mergedUser,
+      passwordHash: updatedPasswordHash,
+    };
+
+    saveUsersRegistry(registry);
+
+    // If updating current active session user, update session as well
+    const currentSession = this.getCurrentSession();
+    if (currentSession && currentSession.user.id === userId) {
+      this.setSession(mergedUser);
+    }
+
+    return { success: true, user: mergedUser };
+  },
+
+  // Delete user by admin
+  deleteUserByAdmin(userId: string): { success: boolean; error?: string } {
+    const registry = getUsersRegistry();
+    let targetKey: string | null = null;
+    let targetUser: UserAccount | null = null;
+
+    for (const key in registry) {
+      if (registry[key].user.id === userId) {
+        targetKey = key;
+        targetUser = registry[key].user;
+        break;
+      }
+    }
+
+    if (!targetKey || !targetUser) {
+      return { success: false, error: 'Pengguna tidak dijumpai.' };
+    }
+
+    if (targetUser.role === 'admin' && targetUser.id === 'usr-admin-krul411') {
+      return { success: false, error: 'Akaun Pentadbir Utama (Master Admin) tidak boleh dipadam.' };
+    }
+
+    delete registry[targetKey];
+    saveUsersRegistry(registry);
+    return { success: true };
   }
 };
 

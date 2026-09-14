@@ -17,6 +17,7 @@ import {
 import { COVERAGE_AREAS } from './data/coverage';
 import { getLoyaltyStatus } from './utils/loyalty';
 import { getProductImageUrl } from './utils/productImage';
+import { getOfficialWhatsAppLink, getWhatsAppOrderLink } from './utils/whatsappHelper';
 import { authService } from './services/auth';
 import { dataStorageService } from './services/dataStorage';
 import { fonnteService } from './services/fonnteService';
@@ -43,15 +44,18 @@ import { FAQAccordion } from './components/FAQAccordion';
 import { Footer } from './components/Footer';
 import { FloatingProductOverlay, FlyingProductItem } from './components/FloatingProductOverlay';
 
-// Portals & Secure Authentication Components
+// Portals & Secure Authentication Components (Code-Split / Lazy Loaded for Performance)
 import { AuthModal } from './components/AuthModal';
 import { AdminAuthModal } from './components/AdminAuthModal';
-import { CustomerPortal } from './components/CustomerPortal';
-import { AdminPortal } from './components/AdminPortal';
 import { NotifyStockModal } from './components/NotifyStockModal';
 import { NotificationToast } from './components/NotificationToast';
 import { AllProductsPage } from './components/AllProductsPage';
 import { BackToTop } from './components/BackToTop';
+import { PortalLoadingFallback } from './components/PortalLoadingFallback';
+
+// Lazy-loaded portal components to reduce main bundle size
+const CustomerPortal = React.lazy(() => import('./components/CustomerPortal'));
+const AdminPortal = React.lazy(() => import('./components/AdminPortal'));
 
 import { 
   Search, 
@@ -594,37 +598,21 @@ export default function App() {
   };
 
   const handleOpenWhatsAppHotline = () => {
-    let digits = (siteSettings.supportPhone || '011-11135503').replace(/\D/g, '');
-    if (digits.startsWith('60')) {
-      // already 601111135503
-    } else if (digits.startsWith('0')) {
-      digits = '60' + digits.slice(1);
-    } else {
-      digits = '60' + digits;
-    }
-    const url = `https://wa.me/${digits}?text=${encodeURIComponent('Salam Khairul Fresh Food, saya ingin bertanya mengenai pesanan ayam segar.')}`;
+    const url = getOfficialWhatsAppLink(
+      'Salam Khairul Fresh Food, saya ingin bertanya mengenai pesanan ayam segar.',
+      siteSettings.supportPhone || '011-11135503'
+    );
     window.open(url, '_blank');
   };
 
   const handleQuickWhatsAppOrder = () => {
     if (cartItems.length === 0) return;
-    const itemsList = cartItems
-      .map(
-        (it) =>
-          `• ${it.product.name} (x${it.quantity}) - Potongan: ${it.selectedCut} - RM ${it.itemTotalPrice.toFixed(2)}`
-      )
-      .join('\n');
-
-    let digits = (siteSettings.supportPhone || '011-11135503').replace(/\D/g, '');
-    if (digits.startsWith('60')) {
-      // already 601111135503
-    } else if (digits.startsWith('0')) {
-      digits = '60' + digits.slice(1);
-    } else {
-      digits = '60' + digits;
-    }
-    const msg = `Salam Khairul Fresh Food,\n\nSaya ingin membuat pesanan segar berikut:\n${itemsList}\n\nJumlah: RM ${cartTotal.toFixed(2)}\nLokasi Hantar: ${selectedCity} (${selectedPostcode})\n\nMohon bantuan pengesahan dan masa slot penghantaran. Terima kasih!`;
-    const url = `https://wa.me/${digits}?text=${encodeURIComponent(msg)}`;
+    const url = getWhatsAppOrderLink(
+      cartItems,
+      cartTotal,
+      selectedCity,
+      selectedPostcode
+    );
     window.open(url, '_blank');
   };
 
@@ -984,34 +972,38 @@ export default function App() {
         }}
       />
 
-      {/* 0.1 Customer Management Portal */}
-      {currentUser && (
-        <CustomerPortal
-          isOpen={isCustomerPortalOpen}
-          onClose={() => setIsCustomerPortalOpen(false)}
-          user={currentUser}
-          onLogout={handleLogout}
-          onUpdateUser={(updated) => setCurrentUser(updated)}
-          onReorder={handleReorderFromPortal}
-          onOpenCoverage={() => {
-            setIsCustomerPortalOpen(false);
-            setIsCoverageOpen(true);
-          }}
-        />
+      {/* 0.1 Customer Management Portal (Lazy Loaded) */}
+      {currentUser && isCustomerPortalOpen && (
+        <React.Suspense fallback={<PortalLoadingFallback title="Memuatkan Portal Pelanggan..." type="customer" />}>
+          <CustomerPortal
+            isOpen={isCustomerPortalOpen}
+            onClose={() => setIsCustomerPortalOpen(false)}
+            user={currentUser}
+            onLogout={handleLogout}
+            onUpdateUser={(updated) => setCurrentUser(updated)}
+            onReorder={handleReorderFromPortal}
+            onOpenCoverage={() => {
+              setIsCustomerPortalOpen(false);
+              setIsCoverageOpen(true);
+            }}
+          />
+        </React.Suspense>
       )}
 
-      {/* 0.2 Admin Management Portal */}
-      {currentUser && currentUser.role === 'admin' && (
-        <AdminPortal
-          isOpen={isAdminPortalOpen}
-          onClose={() => setIsAdminPortalOpen(false)}
-          adminUser={currentUser}
-          onLogout={handleLogout}
-          onProductsUpdated={(prods) => setProductsList(prods)}
-          onSettingsUpdated={(settings) => setSiteSettings(settings)}
-          banners={banners}
-          onBannersUpdated={(updated) => setBanners(updated)}
-        />
+      {/* 0.2 Admin Management Portal (Lazy Loaded) */}
+      {currentUser && currentUser.role === 'admin' && isAdminPortalOpen && (
+        <React.Suspense fallback={<PortalLoadingFallback title="Memuatkan Portal Pentadbir..." type="admin" />}>
+          <AdminPortal
+            isOpen={isAdminPortalOpen}
+            onClose={() => setIsAdminPortalOpen(false)}
+            adminUser={currentUser}
+            onLogout={handleLogout}
+            onProductsUpdated={(prods) => setProductsList(prods)}
+            onSettingsUpdated={(settings) => setSiteSettings(settings)}
+            banners={banners}
+            onBannersUpdated={(updated) => setBanners(updated)}
+          />
+        </React.Suspense>
       )}
       
       {/* 1. Custom Chicken Cut & Cleaning Modal */}

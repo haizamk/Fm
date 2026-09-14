@@ -51,7 +51,8 @@ import {
   Zap,
   HelpCircle,
   Radio,
-  FolderOpen
+  FolderOpen,
+  QrCode
 } from 'lucide-react';
 import { 
   UserAccount, 
@@ -81,6 +82,7 @@ import { ThermalReceiptModal } from './ThermalReceiptModal';
 import { MediaLibraryModal } from './MediaLibraryModal';
 import { AdminMediaTab } from './AdminMediaTab';
 import { AdminWhatsAppGatewayTab } from './AdminWhatsAppGatewayTab';
+import { QRScannerModal } from './QRScannerModal';
 
 interface AdminPortalProps {
   isOpen: boolean;
@@ -153,6 +155,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [orderDateFilter, setOrderDateFilter] = useState<string>('all');
   const [selectedOrderForDetail, setSelectedOrderForDetail] = useState<OrderRecord | null>(null);
   const [thermalReceiptOrder, setThermalReceiptOrder] = useState<OrderRecord | null>(null);
+  const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<UserAccount | null>(null);
 
   // Coupon Form State
   const [isCreatingCoupon, setIsCreatingCoupon] = useState(false);
@@ -198,6 +202,21 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   // Settings form state
   const [settingsForm, setSettingsForm] = useState<SiteSettings>(siteSettings);
 
+  // Customer Management & Edit Modal State
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [customerRoleFilter, setCustomerRoleFilter] = useState<'all' | 'customer' | 'admin'>('all');
+  const [editingUser, setEditingUser] = useState<UserAccount | null>(null);
+  const [isCreatingUser, setIsCreatingUser] = useState(false);
+  const [editUserName, setEditUserName] = useState('');
+  const [editUserEmail, setEditUserEmail] = useState('');
+  const [editUserPhone, setEditUserPhone] = useState('');
+  const [editUserUsername, setEditUserUsername] = useState('');
+  const [editUserRole, setEditUserRole] = useState<'customer' | 'admin'>('customer');
+  const [editUserLoyaltyPoints, setEditUserLoyaltyPoints] = useState<number>(0);
+  const [editUserTotalSpent, setEditUserTotalSpent] = useState<number>(0);
+  const [editUserNewPassword, setEditUserNewPassword] = useState('');
+  const [showEditPassword, setShowEditPassword] = useState(false);
+
   // Feedback notifications
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
 
@@ -242,29 +261,31 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   ): string => {
     const isPickup = order.fulfillmentType === 'pickup';
 
+    const storeHelpline = `\n\nSebarang pertanyaan, hubungi WhatsApp: 011-11135503 (Khairul Fresh Food Pasar Semenyih).`;
+
     if (status === 'disahkan') {
-      return `✅ BAYARAN TELAH DISAHKAN: Pembayaran anda telah berjaya diterima & disahkan oleh Khairul Fresh Food. Pesanan anda (#${order.orderId}) sedang dijadualkan untuk pemotongan & pembungkusan.`;
+      return `✅ BAYARAN TELAH DISAHKAN: Pembayaran anda telah berjaya diterima & disahkan oleh Khairul Fresh Food. Pesanan anda (#${order.orderId}) sedang dijadualkan untuk pemotongan & pembungkusan.${storeHelpline}`;
     }
 
     if (status === 'dalam-penghantaran') {
       if (isPickup) {
-        return `🏪 PESANAN SEDIA UNTUK DIAMBIL: Ayam segar anda (#${order.orderId}) kini sedia untuk diambil di GA 59, Pasar Semenyih. Waktu pengambilan sebelum jam 12:00 Tengah Hari. Sila tunjukkan pesanan ini kepada jurujual kami di kaunter.`;
+        return `🏪 PESANAN SEDIA UNTUK DIAMBIL: Ayam segar anda (#${order.orderId}) kini sedia untuk diambil di GA 59, Pasar Semenyih. Waktu pengambilan sebelum jam 12:00 Tengah Hari. Sila tunjukkan pesanan ini kepada jurujual kami di kaunter.${storeHelpline}`;
       }
-      return `🛵 RIDER DALAM PENGHANTARAN: Ayam segar anda kini dalam perjalanan dihantar oleh Rider ${rName} (${rPhone}). Anggaran Masa Tiba (ETA): ${rEta}.`;
+      return `🛵 RIDER DALAM PENGHANTARAN: Ayam segar anda kini dalam perjalanan dihantar oleh Rider ${rName} (${rPhone}). Anggaran Masa Tiba (ETA): ${rEta}.${storeHelpline}`;
     }
 
     if (status === 'selesai') {
       if (isPickup) {
-        return `🎉 PESANAN SELESAI DIAMBIL: Pesanan ayam segar anda (#${order.orderId}) telah selamat diambil di GA 59, Pasar Semenyih. Terima kasih kerana memilih Khairul Fresh Food!`;
+        return `🎉 PESANAN SELESAI DIAMBIL: Pesanan ayam segar anda (#${order.orderId}) telah selamat diambil di GA 59, Pasar Semenyih. Terima kasih kerana memilih Khairul Fresh Food!${storeHelpline}`;
       }
-      return `🎉 PENGHANTARAN SELESAI: Pesanan ayam segar anda (#${order.orderId}) telah selamat diserahkan. Terima kasih kerana memilih Khairul Fresh Food!`;
+      return `🎉 PENGHANTARAN SELESAI: Pesanan ayam segar anda (#${order.orderId}) telah selamat diserahkan. Terima kasih kerana memilih Khairul Fresh Food!${storeHelpline}`;
     }
 
     if (status === 'sembelih-potong') {
-      return `🔪 SEDANG DIPOTONG & DISEDIAKAN: Pesanan ayam segar anda (#${order.orderId}) kini sedang diproses dan dipotong rapi mengikut arahan anda di Khairul Fresh Food Pasar Semenyih.`;
+      return `🔪 SEDANG DIPOTONG & DISEDIAKAN: Pesanan ayam segar anda (#${order.orderId}) kini sedang diproses dan dipotong rapi mengikut arahan anda di Khairul Fresh Food Pasar Semenyih.${storeHelpline}`;
     }
 
-    return `📦 PEK SEJUK DINGIN: Pesanan ayam segar anda (#${order.orderId}) telah siap dipotong dan kini disimpan dalam pek sejuk 0-4°C menunggu waktu pelepasan.`;
+    return `📦 PEK SEJUK DINGIN: Pesanan ayam segar anda (#${order.orderId}) telah siap dipotong dan kini disimpan dalam pek sejuk 0-4°C menunggu waktu pelepasan.${storeHelpline}`;
   };
 
   const openStatusUpdateModal = (order: OrderRecord, initialStatus?: OrderRecord['status']) => {
@@ -798,6 +819,167 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     setIsCreatingCoupon(true);
   };
 
+  // CUSTOMER & ADMIN MANAGEMENT HANDLERS
+  const handleOpenEditUser = (user: UserAccount) => {
+    setEditingUser(user);
+    setIsCreatingUser(false);
+    setEditUserName(user.name);
+    setEditUserEmail(user.email);
+    setEditUserPhone(user.phone || '');
+    setEditUserUsername(user.username || '');
+    setEditUserRole(user.role);
+    setEditUserLoyaltyPoints(user.loyaltyPoints || 0);
+    setEditUserTotalSpent(user.totalSpent || 0);
+    setEditUserNewPassword('');
+    setShowEditPassword(false);
+  };
+
+  const handleOpenAddUser = () => {
+    setEditingUser(null);
+    setIsCreatingUser(true);
+    setEditUserName('');
+    setEditUserEmail('');
+    setEditUserPhone('');
+    setEditUserUsername('');
+    setEditUserRole('customer');
+    setEditUserLoyaltyPoints(50);
+    setEditUserTotalSpent(0);
+    setEditUserNewPassword('');
+    setShowEditPassword(false);
+  };
+
+  const handleCloseUserModal = () => {
+    setEditingUser(null);
+    setIsCreatingUser(false);
+    setEditUserName('');
+    setEditUserEmail('');
+    setEditUserPhone('');
+    setEditUserUsername('');
+    setEditUserNewPassword('');
+  };
+
+  const handleSaveUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editUserName.trim()) {
+      showNotification('error', 'Sila masukkan nama penuh.');
+      return;
+    }
+    if (!editUserEmail.trim()) {
+      showNotification('error', 'Sila masukkan alamat emel.');
+      return;
+    }
+
+    if (isCreatingUser) {
+      if (!editUserNewPassword.trim() || editUserNewPassword.trim().length < 6) {
+        showNotification('error', 'Kata laluan untuk akaun baharu mestilah sekurang-kurangnya 6 aksara.');
+        return;
+      }
+      const regRes = await authService.register(
+        editUserName.trim(),
+        editUserEmail.trim(),
+        editUserPhone.trim(),
+        editUserNewPassword.trim(),
+        editUserUsername.trim() || undefined
+      );
+      if (!regRes.success) {
+        showNotification('error', regRes.error || 'Gagal mendaftarkan pengguna baharu.');
+        return;
+      }
+      if (editUserRole === 'admin' && regRes.user) {
+        authService.updateUserByAdmin(regRes.user.id, { role: 'admin' });
+      }
+      const updatedCustomers = authService.getAllUsers();
+      setCustomers(updatedCustomers);
+      dataStorageService.addAuditLog({
+        action: 'PENGGUNA BAHARU DIDAFTARKAN',
+        performedBy: adminUser.name,
+        details: `Akaun [${editUserName.trim()}] (${editUserRole}) berjaya didaftarkan oleh admin.`,
+        type: 'customer',
+      });
+      setAuditLogs(dataStorageService.getAuditLogs());
+      showNotification('success', `Akaun ${editUserRole === 'admin' ? 'Admin' : 'Pelanggan'} "${editUserName.trim()}" berjaya dicipta.`);
+      handleCloseUserModal();
+    } else if (editingUser) {
+      const updatePayload: Partial<UserAccount> = {
+        name: editUserName.trim(),
+        email: editUserEmail.trim(),
+        phone: editUserPhone.trim(),
+        username: editUserUsername.trim() || undefined,
+        role: editUserRole,
+        loyaltyPoints: editUserLoyaltyPoints,
+        totalSpent: editUserTotalSpent,
+      };
+
+      const result = authService.updateUserByAdmin(
+        editingUser.id,
+        updatePayload,
+        editUserNewPassword.trim() ? editUserNewPassword.trim() : undefined
+      );
+
+      if (!result.success) {
+        showNotification('error', result.error || 'Gagal mengemaskini maklumat pengguna.');
+        return;
+      }
+
+      const updatedCustomers = authService.getAllUsers();
+      setCustomers(updatedCustomers);
+
+      dataStorageService.addAuditLog({
+        action: editingUser.role === 'admin' ? 'MAKLUMAT ADMIN DIKEMASKINI' : 'MAKLUMAT PELANGGAN DIKEMASKINI',
+        performedBy: adminUser.name,
+        details: `Butiran akaun [${editUserName.trim()}] (${editingUser.email}) telah dikemaskini oleh admin.${editUserNewPassword.trim() ? ' Kata laluan telah ditukar.' : ''}`,
+        type: 'customer',
+      });
+      setAuditLogs(dataStorageService.getAuditLogs());
+      showNotification('success', `Butiran akaun "${editUserName.trim()}" berjaya dikemaskini.`);
+      handleCloseUserModal();
+    }
+  };
+
+  const handlePromptDeleteUser = (user: UserAccount) => {
+    if (user.id === adminUser.id || user.id === 'usr-admin-krul411') {
+      showNotification('error', 'Akaun Pentadbir Utama (Master Admin) tidak boleh dipadam.');
+      return;
+    }
+    setUserToDelete(user);
+  };
+
+  const handleConfirmDeleteUser = () => {
+    if (!userToDelete) return;
+    const user = userToDelete;
+    const res = authService.deleteUserByAdmin(user.id);
+    if (!res.success) {
+      showNotification('error', res.error || 'Gagal memadam pengguna.');
+      setUserToDelete(null);
+      return;
+    }
+    const updatedCustomers = authService.getAllUsers();
+    setCustomers(updatedCustomers);
+    dataStorageService.addAuditLog({
+      action: 'AKAUN PENGGUNA DIPADAM',
+      performedBy: adminUser.name,
+      details: `Akaun [${user.name}] (${user.email}) telah dipadam oleh admin.`,
+      type: 'customer',
+    });
+    setAuditLogs(dataStorageService.getAuditLogs());
+    showNotification('success', `Akaun "${user.name}" berjaya dipadam.`);
+    setUserToDelete(null);
+  };
+
+  // CUSTOMERS FILTERING
+  const filteredCustomers = customers.filter((c) => {
+    if (customerRoleFilter !== 'all' && c.role !== customerRoleFilter) return false;
+    if (customerSearch.trim()) {
+      const q = customerSearch.toLowerCase();
+      const matchName = (c.name || '').toLowerCase().includes(q);
+      const matchEmail = (c.email || '').toLowerCase().includes(q);
+      const matchPhone = (c.phone || '').includes(q);
+      const matchUsername = (c.username || '').toLowerCase().includes(q);
+      if (!matchName && !matchEmail && !matchPhone && !matchUsername) return false;
+    }
+    return true;
+  });
+
   // ORDERS FILTERING
   const filteredOrders = orders.filter((o) => {
     if (orderStatusFilter !== 'all' && o.status !== orderStatusFilter) return false;
@@ -858,6 +1040,15 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsQRScannerOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-xs cursor-pointer border border-emerald-500"
+              title="Imbas Kod QR Resit"
+            >
+              <QrCode className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Imbas Kod QR</span>
+            </button>
+
             <button
               onClick={() => {
                 onLogout();
@@ -1131,6 +1322,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     <MessageCircle className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                     <span>Auto WhatsApp Status</span>
                   </label>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsQRScannerOpen(true)}
+                    className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
+                    title="Imbas Kod QR pada resit pelanggan untuk semakan pantas"
+                  >
+                    <QrCode className="w-3.5 h-3.5" />
+                    <span>Imbas QR</span>
+                  </button>
 
                   <button
                     onClick={() => window.print()}
@@ -1485,62 +1686,189 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             </div>
           )}
 
-          {/* TAB 2: CUSTOMER DIRECTORY */}
+          {/* TAB 2: CUSTOMER & ADMIN DIRECTORY */}
           {activeTab === 'customers' && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <h3 className="text-sm font-black text-stone-900 dark:text-white">Direktori Pelanggan Berdaftar</h3>
-                  <p className="text-xs text-stone-500">Senarai akaun pelanggan, jumlah pesanan, mata ganjaran dan rekod perbelanjaan Khairul Fresh Food.</p>
+                  <h3 className="text-sm sm:text-base font-black text-stone-900 dark:text-white">
+                    Direktori Pelanggan & Pentadbir (Admin)
+                  </h3>
+                  <p className="text-xs text-stone-500">
+                    Urus akaun pelanggan & admin, kemaskini nama, emel, telefon, peranan, mata ganjaran, serta tukar kata laluan.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleOpenAddUser}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Daftar Pengguna / Admin Baharu</span>
+                </button>
+              </div>
+
+              {/* Filters & Search Bar */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+                <div className="relative flex-1">
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+                  <input
+                    type="text"
+                    placeholder="Cari mengikut nama, emel, telefon, atau username..."
+                    value={customerSearch}
+                    onChange={(e) => setCustomerSearch(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 text-xs bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl focus:outline-hidden focus:border-emerald-500 text-stone-900 dark:text-white"
+                  />
+                  {customerSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setCustomerSearch('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 text-xs"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setCustomerRoleFilter('all')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer transition-colors ${
+                      customerRoleFilter === 'all'
+                        ? 'bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900 shadow-xs'
+                        : 'bg-stone-100 text-stone-600 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-300'
+                    }`}
+                  >
+                    Semua ({customers.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCustomerRoleFilter('customer')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer transition-colors ${
+                      customerRoleFilter === 'customer'
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'bg-stone-100 text-stone-600 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-300'
+                    }`}
+                  >
+                    Pelanggan ({customers.filter((c) => c.role === 'customer').length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCustomerRoleFilter('admin')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer transition-colors ${
+                      customerRoleFilter === 'admin'
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'bg-stone-100 text-stone-600 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-300'
+                    }`}
+                  >
+                    Admin ({customers.filter((c) => c.role === 'admin').length})
+                  </button>
                 </div>
               </div>
 
-              <div className="overflow-x-auto rounded-2xl border border-stone-200 dark:border-stone-700">
+              {/* Table */}
+              <div className="overflow-x-auto rounded-2xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead className="bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 uppercase tracking-wider font-extrabold text-[10px]">
                     <tr>
-                      <th className="p-3">Nama Pelanggan</th>
+                      <th className="p-3">Nama Pengguna / Admin</th>
                       <th className="p-3">Emel & Telefon</th>
                       <th className="p-3">Peranan</th>
                       <th className="p-3">Mata Ganjaran</th>
                       <th className="p-3">Jumlah Belanja</th>
                       <th className="p-3">Tarikh Daftar</th>
-                      <th className="p-3 text-right">Alamat Tersimpan</th>
+                      <th className="p-3">Alamat</th>
+                      <th className="p-3 text-right">Tindakan</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-stone-200 dark:divide-stone-700 bg-white dark:bg-stone-900">
-                    {customers.map((c) => (
-                      <tr key={c.id} className="hover:bg-stone-50 dark:hover:bg-stone-800/50">
-                        <td className="p-3 font-bold text-stone-900 dark:text-white">
-                          {c.name}
-                        </td>
-                        <td className="p-3">
-                          <span className="block text-stone-700 dark:text-stone-300">{c.email}</span>
-                          <span className="text-[11px] text-stone-400">{c.phone || '011-11135503'}</span>
-                        </td>
-                        <td className="p-3">
-                          <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${
-                            c.role === 'admin' 
-                              ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300' 
-                              : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-                          }`}>
-                            {c.role}
-                          </span>
-                        </td>
-                        <td className="p-3 font-bold text-amber-600 dark:text-amber-400">
-                          {c.loyaltyPoints || 0} Mata
-                        </td>
-                        <td className="p-3 font-black text-emerald-700 dark:text-emerald-400 font-['Outfit']">
-                          RM {(c.totalSpent || 0).toFixed(2)}
-                        </td>
-                        <td className="p-3 text-stone-500">
-                          {new Date(c.createdAt).toLocaleDateString('ms-MY')}
-                        </td>
-                        <td className="p-3 text-right font-medium text-stone-600 dark:text-stone-300">
-                          {(c.savedAddresses || []).length} alamat
+                  <tbody className="divide-y divide-stone-200 dark:divide-stone-700">
+                    {filteredCustomers.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="p-8 text-center text-stone-400">
+                          <Users className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                          <p className="font-bold">Tiada akaun ditemui.</p>
+                          <p className="text-[11px] mt-1">Cuba kata kunci carian atau penapis peranan yang lain.</p>
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      filteredCustomers.map((c) => (
+                        <tr key={c.id} className="hover:bg-stone-50 dark:hover:bg-stone-800/50 transition-colors">
+                          <td className="p-3">
+                            <div className="flex items-center gap-2">
+                              <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-black text-xs shrink-0 ${
+                                c.role === 'admin' 
+                                  ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200'
+                                  : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200'
+                              }`}>
+                                {c.name.charAt(0).toUpperCase()}
+                              </div>
+                              <div>
+                                <span className="font-bold text-stone-900 dark:text-white block">
+                                  {c.name}
+                                </span>
+                                {c.username && (
+                                  <span className="text-[10px] text-stone-400 block font-mono">
+                                    @{c.username}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="p-3">
+                            <span className="block font-medium text-stone-800 dark:text-stone-200">{c.email}</span>
+                            <span className="text-[11px] text-stone-400 font-mono">{c.phone || '-'}</span>
+                          </td>
+                          <td className="p-3">
+                            <span className={`inline-flex items-center gap-1 text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${
+                              c.role === 'admin' 
+                                ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800' 
+                                : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                            }`}>
+                              {c.role === 'admin' && <ShieldCheck className="w-3 h-3" />}
+                              <span>{c.role}</span>
+                            </span>
+                          </td>
+                          <td className="p-3 font-bold text-amber-600 dark:text-amber-400">
+                            {c.loyaltyPoints || 0} Mata
+                          </td>
+                          <td className="p-3 font-black text-emerald-700 dark:text-emerald-400 font-['Outfit']">
+                            RM {(c.totalSpent || 0).toFixed(2)}
+                          </td>
+                          <td className="p-3 text-stone-500 whitespace-nowrap">
+                            {new Date(c.createdAt).toLocaleDateString('ms-MY')}
+                          </td>
+                          <td className="p-3 text-stone-600 dark:text-stone-300">
+                            {(c.savedAddresses || []).length} alamat
+                          </td>
+                          <td className="p-3 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditUser(c)}
+                                className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:hover:bg-emerald-900 dark:text-emerald-300 font-bold text-[11px] transition-colors cursor-pointer flex items-center gap-1"
+                                title="Edit Maklumat"
+                              >
+                                <Edit className="w-3 h-3" />
+                                <span>Edit</span>
+                              </button>
+
+                              {c.id !== adminUser.id && c.id !== 'usr-admin-krul411' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handlePromptDeleteUser(c)}
+                                  className="p-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/60 dark:hover:bg-rose-900 dark:text-rose-400 transition-colors cursor-pointer"
+                                  title="Padam Akaun"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -3552,6 +3880,290 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         isOpen={Boolean(thermalReceiptOrder)}
         onClose={() => setThermalReceiptOrder(null)}
       />
+
+      {/* MODAL: Edit / Tambah Akaun Pengguna & Admin */}
+      {(editingUser || isCreatingUser) && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white dark:bg-stone-900 w-full max-w-lg rounded-3xl border border-stone-200 dark:border-stone-800 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            
+            {/* Modal Header */}
+            <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800 flex items-center justify-between bg-stone-50/80 dark:bg-stone-800/80">
+              <div className="flex items-center gap-2.5">
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-white ${
+                  editUserRole === 'admin' ? 'bg-indigo-600' : 'bg-emerald-600'
+                }`}>
+                  {isCreatingUser ? <Plus className="w-5 h-5" /> : <Edit className="w-5 h-5" />}
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-stone-900 dark:text-white">
+                    {isCreatingUser ? 'Daftar Akaun Baharu' : `Kemaskini Akaun: ${editingUser?.name}`}
+                  </h3>
+                  <p className="text-[11px] text-stone-500">
+                    {isCreatingUser ? 'Cipta akaun pelanggan atau pentadbir baharu' : `ID: ${editingUser?.id}`}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleCloseUserModal}
+                className="p-1.5 rounded-xl text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body Form */}
+            <form onSubmit={handleSaveUser} className="p-5 overflow-y-auto space-y-4 text-xs">
+              {/* Role Selection */}
+              <div>
+                <label className="block font-bold text-stone-700 dark:text-stone-300 mb-1.5">
+                  Peranan Akaun (Role)
+                </label>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setEditUserRole('customer')}
+                    className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex items-center gap-2.5 ${
+                      editUserRole === 'customer'
+                        ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200 ring-2 ring-emerald-500/20'
+                        : 'border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-600 dark:text-stone-400'
+                    }`}
+                  >
+                    <Users className={`w-4 h-4 ${editUserRole === 'customer' ? 'text-emerald-600' : 'text-stone-400'}`} />
+                    <div>
+                      <span className="font-extrabold block text-xs">Pelanggan</span>
+                      <span className="text-[10px] opacity-75">Beli barang & kutip poin</span>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setEditUserRole('admin')}
+                    className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex items-center gap-2.5 ${
+                      editUserRole === 'admin'
+                        ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-900 dark:text-indigo-200 ring-2 ring-indigo-500/20'
+                        : 'border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-600 dark:text-stone-400'
+                    }`}
+                  >
+                    <ShieldCheck className={`w-4 h-4 ${editUserRole === 'admin' ? 'text-indigo-600' : 'text-stone-400'}`} />
+                    <div>
+                      <span className="font-extrabold block text-xs">Pentadbir (Admin)</span>
+                      <span className="text-[10px] opacity-75">Akses penuh portal admin</span>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Name & Username */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-stone-700 dark:text-stone-300 mb-1">
+                    Nama Penuh <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editUserName}
+                    onChange={(e) => setEditUserName(e.target.value)}
+                    placeholder="cth. Ahmad Faiz"
+                    className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl p-2.5 focus:outline-hidden focus:border-emerald-500 text-stone-900 dark:text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-stone-700 dark:text-stone-300 mb-1">
+                    Username (Pilihan)
+                  </label>
+                  <input
+                    type="text"
+                    value={editUserUsername}
+                    onChange={(e) => setEditUserUsername(e.target.value)}
+                    placeholder="cth. faiz99"
+                    className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl p-2.5 focus:outline-hidden focus:border-emerald-500 font-mono text-stone-900 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              {/* Email & Phone */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-stone-700 dark:text-stone-300 mb-1">
+                    Alamat Emel <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={editUserEmail}
+                    onChange={(e) => setEditUserEmail(e.target.value)}
+                    placeholder="cth. user@example.com"
+                    className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl p-2.5 focus:outline-hidden focus:border-emerald-500 text-stone-900 dark:text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-stone-700 dark:text-stone-300 mb-1">
+                    Nombor Telefon / WhatsApp
+                  </label>
+                  <input
+                    type="tel"
+                    value={editUserPhone}
+                    onChange={(e) => setEditUserPhone(e.target.value)}
+                    placeholder="011-11135503"
+                    className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl p-2.5 focus:outline-hidden focus:border-emerald-500 font-mono text-stone-900 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              {/* Points & Total Spent (For Customers/Admins) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-stone-50 dark:bg-stone-800/60 rounded-2xl border border-stone-200 dark:border-stone-700">
+                <div>
+                  <label className="block font-bold text-amber-700 dark:text-amber-400 mb-1">
+                    Mata Ganjaran (Loyalty Points)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editUserLoyaltyPoints}
+                    onChange={(e) => setEditUserLoyaltyPoints(parseInt(e.target.value) || 0)}
+                    className="w-full bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 rounded-xl p-2 font-bold text-amber-600 focus:outline-hidden"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-emerald-700 dark:text-emerald-400 mb-1">
+                    Jumlah Belanja Terkumpul (RM)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={editUserTotalSpent}
+                    onChange={(e) => setEditUserTotalSpent(parseFloat(e.target.value) || 0)}
+                    className="w-full bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 rounded-xl p-2 font-bold text-emerald-600 font-['Outfit'] focus:outline-hidden"
+                  />
+                </div>
+              </div>
+
+              {/* Password Section */}
+              <div className="p-3.5 bg-stone-100 dark:bg-stone-800 rounded-2xl border border-stone-200 dark:border-stone-700 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-stone-800 dark:text-stone-200 flex items-center gap-1.5">
+                    <Lock className="w-3.5 h-3.5 text-stone-500" />
+                    <span>{isCreatingUser ? 'Tetapkan Kata Laluan' : 'Tukar Kata Laluan (Pilihan)'}</span>
+                  </label>
+                  {!isCreatingUser && (
+                    <span className="text-[10px] text-stone-400">Biarkan kosong jika tidak mahu tukar</span>
+                  )}
+                </div>
+
+                <div className="relative">
+                  <input
+                    type={showEditPassword ? 'text' : 'password'}
+                    value={editUserNewPassword}
+                    onChange={(e) => setEditUserNewPassword(e.target.value)}
+                    placeholder={isCreatingUser ? 'Minimum 6 aksara' : 'Masukkan kata laluan baharu jika ingin menukar'}
+                    required={isCreatingUser}
+                    minLength={6}
+                    className="w-full bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 rounded-xl p-2.5 pr-10 focus:outline-hidden focus:border-emerald-500 text-stone-900 dark:text-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowEditPassword(!showEditPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
+                  >
+                    {showEditPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="pt-3 border-t border-stone-200 dark:border-stone-800 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={handleCloseUserModal}
+                  className="px-4 py-2 rounded-xl border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 font-bold hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>{isCreatingUser ? 'Cipta Pengguna' : 'Simpan Perubahan'}</span>
+                </button>
+              </div>
+            </form>
+
+          </div>
+        </div>
+      )}
+
+      {/* Delete User Confirmation Modal */}
+      {userToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-rose-100 dark:bg-rose-950/80 flex items-center justify-center text-rose-600 shrink-0">
+                <AlertCircle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-stone-900 dark:text-white text-base">
+                  Sahkan Pemadaman Akaun
+                </h3>
+                <p className="text-xs text-stone-500">Tindakan ini adalah kekal dan tidak boleh diundur.</p>
+              </div>
+            </div>
+
+            <div className="p-3.5 bg-stone-50 dark:bg-stone-800/60 rounded-xl border border-stone-200 dark:border-stone-700/60 space-y-1.5 text-xs text-stone-700 dark:text-stone-300">
+              <p>
+                Nama: <strong>{userToDelete.name}</strong>
+              </p>
+              <p>
+                Emel: <strong>{userToDelete.email}</strong>
+              </p>
+              <p>
+                Peranan: <span className="uppercase font-bold text-[10px] px-1.5 py-0.5 rounded bg-stone-200 dark:bg-stone-700">{userToDelete.role}</span>
+              </p>
+            </div>
+
+            <p className="text-xs text-stone-500">
+              Adakah anda pasti mahu memadam akaun pengguna ini daripada pangkalan data?
+            </p>
+
+            <div className="pt-2 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setUserToDelete(null)}
+                className="px-4 py-2 rounded-xl border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 font-bold hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer text-xs"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteUser}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-bold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer text-xs"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Padam Akaun</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* QR Code Scanner Modal */}
+      <QRScannerModal
+        isOpen={isQRScannerOpen}
+        onClose={() => setIsQRScannerOpen(false)}
+        orders={orders}
+        onSelectOrder={(order) => {
+          setSelectedOrderForDetail(order);
+          setActiveTab('orders');
+        }}
+      />
     </div>
   );
 };
+
+export default AdminPortal;

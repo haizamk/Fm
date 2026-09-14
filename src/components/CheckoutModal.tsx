@@ -6,7 +6,13 @@ import { dataStorageService } from '../services/dataStorage';
 import { hitpayService } from '../services/hitpayService';
 import { authService } from '../services/auth';
 import { lookupByPostcode, lookupByCity } from '../utils/postcodeHelper';
-import { InteractiveDeliveryCalendar } from './InteractiveDeliveryCalendar';
+import { 
+  getCutoffInfo, 
+  formatDeliveryDateBM, 
+  parseLocalDate, 
+  formatLocalDateStr 
+} from '../utils/dateHelper';
+import { DeliveryDateSelector } from './InteractiveDeliveryCalendar';
 import { 
   X, 
   MapPin, 
@@ -58,86 +64,6 @@ interface CheckoutModalProps {
   onLogout?: () => void;
 }
 
-const DAYS_BM = ['Ahad', 'Isnin', 'Selasa', 'Rabu', 'Khamis', 'Jumaat', 'Sabtu'];
-const MONTHS_BM = ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis'];
-
-interface OperatingDateOption {
-  dateStr: string;
-  displayLabel: string;
-  dayName: string;
-  relativeTag: string;
-  isTomorrow: boolean;
-  isDayAfterTomorrow: boolean;
-}
-
-// Helper for cut-off (11:00 PM / 23:00) and available operating dates (excluding Monday closures)
-function getCutoffInfo(count: number = 5): {
-  isCutoffPassed: boolean;
-  cutoffTimeLabel: string;
-  availableDates: OperatingDateOption[];
-  minDateStr: string;
-} {
-  const now = new Date();
-  const currentHour = now.getHours(); // 0 to 23
-  // Cut-off order is 11:00 PM (23:00) every day
-  const isCutoffPassed = currentHour >= 23;
-  // If before 11 PM: starts tomorrow (+1 day). If >= 23: starts day after tomorrow (+2 days).
-  const startDayOffset = isCutoffPassed ? 2 : 1;
-
-  const availableDates: OperatingDateOption[] = [];
-  let offset = startDayOffset;
-
-  while (availableDates.length < count) {
-    const d = new Date(now);
-    d.setDate(now.getDate() + offset);
-    const dayOfWeek = d.getDay(); // 0=Ahad, 1=Isnin, 2=Selasa...
-    const dateStr = d.toISOString().split('T')[0];
-    const dayName = DAYS_BM[dayOfWeek];
-
-    // Store is closed on Mondays (Isnin Tutup)
-    if (dayOfWeek !== 1) {
-      let relativeTag = '';
-      if (offset === 1) {
-        relativeTag = 'Esok (Paling Awal)';
-      } else if (offset === 2) {
-        relativeTag = isCutoffPassed ? 'Lusa (Paling Awal)' : 'Lusa';
-      }
-
-      availableDates.push({
-        dateStr,
-        displayLabel: `${dayName} (${d.getDate()} ${MONTHS_BM[d.getMonth()]})`,
-        dayName,
-        relativeTag,
-        isTomorrow: offset === 1,
-        isDayAfterTomorrow: offset === 2,
-      });
-    }
-    offset++;
-  }
-
-  const minDateStr = availableDates[0]?.dateStr || new Date().toISOString().split('T')[0];
-
-  return {
-    isCutoffPassed,
-    cutoffTimeLabel: '11:00 Malam',
-    availableDates,
-    minDateStr,
-  };
-}
-
-function formatDeliveryDateBM(dateStr: string): string {
-  try {
-    const d = new Date(dateStr + 'T00:00:00');
-    const dayName = DAYS_BM[d.getDay()];
-    const dayNum = d.getDate();
-    const monthName = MONTHS_BM[d.getMonth()];
-    const year = d.getFullYear();
-    return `${dayName}, ${dayNum} ${monthName} ${year}`;
-  } catch {
-    return dateStr;
-  }
-}
-
 export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   isOpen,
   onClose,
@@ -174,9 +100,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   // Fulfillment option: 'delivery' (Penghantaran ke Rumah) | 'pickup' (Ambil Sendiri di Kedai)
   const [fulfillmentType, setFulfillmentType] = useState<'delivery' | 'pickup'>('delivery');
 
-  // Available operating dates based on 11:00 PM Cut-off
-  const cutoffInfo = getCutoffInfo(5);
-  const initialDateStr = cutoffInfo.availableDates[0]?.dateStr || new Date().toISOString().split('T')[0];
+  // Available operating dates based on 11:00 PM Cut-off (strictly skips current day; after 11pm starts Day After Tomorrow)
+  const cutoffInfo = getCutoffInfo(6);
+  const initialDateStr = cutoffInfo.availableDates[0]?.dateStr || cutoffInfo.minDateStr;
 
   // Customer form states
   const [fullName, setFullName] = useState('');
@@ -359,17 +285,16 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   // Handler for custom date picker to guard Monday closures and past/today cut-offs
   const handleDateChange = (chosenDate: string) => {
     if (chosenDate < cutoffInfo.minDateStr) {
-      setMondayWarning(`⚠️ Pesanan hari ini tidak boleh dipilih. Penghantaran paling awal yang dibuka adalah ${formatDeliveryDateBM(cutoffInfo.minDateStr)} (Cut-off: 11:00 Malam).`);
+      setMondayWarning(`⚠️ Slot tarikh yang dipilih tidak sah. Penghantaran paling awal yang dibuka adalah ${formatDeliveryDateBM(cutoffInfo.minDateStr)} (Waktu cut-off: 11:00 Malam).`);
       setDeliveryDate(cutoffInfo.minDateStr);
       return;
     }
 
-    const d = new Date(chosenDate + 'T00:00:00');
+    const d = parseLocalDate(chosenDate);
     if (d.getDay() === 1) { // Monday
-      setMondayWarning('⚠️ Khairul Fresh Food ditutup setiap hari Isnin untuk rehat pasar & ladang. Sila pilih hari Selasa hingga Ahad.');
-      // Advance by 1 day to Tuesday
+      setMondayWarning('⚠️ Khairul Fresh Food ditutup setiap hari Isnin untuk rehat pasar & ladang. Tarikh dianjakkan ke hari Selasa.');
       d.setDate(d.getDate() + 1);
-      setDeliveryDate(d.toISOString().split('T')[0]);
+      setDeliveryDate(formatLocalDateStr(d));
     } else {
       setMondayWarning(null);
       setDeliveryDate(chosenDate);
@@ -1134,13 +1059,14 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               </div>
             )}
 
-            {/* Interactive Delivery Calendar */}
+            {/* Simple Clean Delivery Date Selector (No cluttered monthly calendar, strict cut-off enforcement) */}
             <div className="mb-4">
-              <InteractiveDeliveryCalendar
+              <DeliveryDateSelector
                 selectedDate={deliveryDate}
                 minDateStr={cutoffInfo.minDateStr}
                 isCutoffPassed={cutoffInfo.isCutoffPassed}
-                availableQuickDates={cutoffInfo.availableDates}
+                availableDates={cutoffInfo.availableDates}
+                fulfillmentType={fulfillmentType}
                 onSelectDate={(newDate) => {
                   setMondayWarning(null);
                   handleDateChange(newDate);

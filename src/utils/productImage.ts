@@ -15,19 +15,25 @@ export const DEFAULT_PRODUCT_IMAGES: Record<string, string> = {
 
 /**
  * Resolves the image URL for the given product.
- * Returns the product's custom image if present, or falls back to official high quality image.
+ * Returns the product's custom image if present. If image is undefined, falls back to default; if explicitly empty (''), respects the deleted/cleared state.
  */
 export function getProductImageUrl(product?: Partial<Product> | null): string {
   if (!product) return '';
 
-  if (typeof product.image === 'string' && product.image.trim().length > 5) {
+  if (typeof product.image === 'string') {
     const trimmed = product.image.trim();
+    if (trimmed.length === 0) {
+      // Intentionally cleared/deleted by admin -> do not restore default image
+      return '';
+    }
     // Ignore revoked blob URLs from previous browser sessions that fail on reload
-    if (!trimmed.startsWith('blob:')) {
+    if (!trimmed.startsWith('blob:') && trimmed.length > 5) {
       return trimmed;
     }
+    return '';
   }
 
+  // If image property was never defined (new uninitialized item), fallback to default preset
   if (product.id && DEFAULT_PRODUCT_IMAGES[product.id]) {
     return DEFAULT_PRODUCT_IMAGES[product.id];
   }

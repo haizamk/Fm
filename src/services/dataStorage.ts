@@ -296,10 +296,14 @@ const INITIAL_AUDIT_LOGS: AdminAuditLog[] = [
 ];
 
 // Helper to push to Firestore in background safely
-async function syncDocToFirestore(collectionName: string, docId: string, data: any) {
+async function syncDocToFirestore(collectionName: string, docId: string, data: any, merge: boolean = false) {
   try {
     const docRef = doc(db, collectionName, docId);
-    await setDoc(docRef, data, { merge: true });
+    if (merge) {
+      await setDoc(docRef, data, { merge: true });
+    } else {
+      await setDoc(docRef, data);
+    }
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, `${collectionName}/${docId}`);
   }
@@ -349,17 +353,8 @@ export const dataStorageService = {
             cloudProds.push(docSnap.data() as Product);
           });
           if (cloudProds.length > 0) {
-            const mappedProds = cloudProds.map(p => {
-              if (!p.image || p.image.trim().length === 0) {
-                const defaultP = PRODUCTS.find(dp => dp.id === p.id);
-                if (defaultP && defaultP.image) {
-                  return { ...p, image: defaultP.image };
-                }
-              }
-              return p;
-            });
-            localStorage.setItem(PRODUCTS_KEY, JSON.stringify(mappedProds));
-            callback(mappedProds);
+            localStorage.setItem(PRODUCTS_KEY, JSON.stringify(cloudProds));
+            callback(cloudProds);
           }
         }
       }, (err) => {
@@ -576,17 +571,7 @@ export const dataStorageService = {
       if (saved) {
         const parsed: Product[] = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          // Ensure products with empty image get their official default image
-          const filled = parsed.map(p => {
-            if (!p.image || p.image.trim().length === 0) {
-              const defaultP = PRODUCTS.find(dp => dp.id === p.id);
-              if (defaultP && defaultP.image) {
-                return { ...p, image: defaultP.image };
-              }
-            }
-            return p;
-          });
-          return filled;
+          return parsed;
         }
       }
     } catch {
@@ -616,12 +601,12 @@ export const dataStorageService = {
       console.warn('Local storage products save warning:', e);
     }
 
-    // Sync each product to Firestore
+    // Sync each product to Firestore without merge to properly overwrite cleared fields like image
     try {
       const batch = writeBatch(db);
       products.forEach((p) => {
         const pRef = doc(db, 'products', p.id);
-        batch.set(pRef, p, { merge: true });
+        batch.set(pRef, p);
       });
       batch.commit().catch(e => console.warn('Firestore products batch sync error:', e));
     } catch (e) {
@@ -647,7 +632,7 @@ export const dataStorageService = {
     } else {
       list = [updatedProduct, ...current];
     }
-    syncDocToFirestore('products', updatedProduct.id, updatedProduct);
+    syncDocToFirestore('products', updatedProduct.id, updatedProduct, false);
     return this.saveProducts(list, adminName, `Produk "${updatedProduct.name}" (RM ${updatedProduct.price.toFixed(2)}) dikemaskini.`);
   },
 
@@ -665,93 +650,14 @@ export const dataStorageService = {
   getMediaLibrary(): MediaItem[] {
     try {
       const saved = localStorage.getItem(MEDIA_LIBRARY_KEY);
-      if (saved) {
+      if (saved !== null) {
         const parsed: MediaItem[] = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch (e) {
       console.warn('Error reading media library:', e);
     }
-    const defaultMedia: MediaItem[] = [
-      {
-        id: 'media-ayam-kampung',
-        name: 'Ayam Kampung Organik Segar',
-        url: 'https://images.unsplash.com/photo-1587593810167-a84920ea0781?auto=format&fit=crop&q=80&w=900',
-        category: 'ayam-seekor',
-        uploadedBy: 'Sistem Khairul FRESH',
-        uploadedAt: new Date().toISOString(),
-      },
-      {
-        id: 'media-ayam-standard',
-        name: 'Ayam Segar Standard (Pasar Semenyih)',
-        url: 'https://images.unsplash.com/photo-1604503468506-a8da13d82791?auto=format&fit=crop&q=80&w=900',
-        category: 'ayam-seekor',
-        uploadedBy: 'Sistem Khairul FRESH',
-        uploadedAt: new Date().toISOString(),
-      },
-      {
-        id: 'media-ayam-pencen',
-        name: 'Ayam Tua / Pencen Segar',
-        url: 'https://images.unsplash.com/photo-1548567117-0429762db801?auto=format&fit=crop&q=80&w=900',
-        category: 'ayam-seekor',
-        uploadedBy: 'Sistem Khairul FRESH',
-        uploadedAt: new Date().toISOString(),
-      },
-      {
-        id: 'media-whole-leg',
-        name: 'Whole-leg Segar',
-        url: 'https://images.unsplash.com/photo-1588168333986-5078d3ae3976?auto=format&fit=crop&q=80&w=900',
-        category: 'bahagian-ayam',
-        uploadedBy: 'Sistem Khairul FRESH',
-        uploadedAt: new Date().toISOString(),
-      },
-      {
-        id: 'media-kepak',
-        name: 'Kepak Ayam Segar',
-        url: 'https://images.unsplash.com/photo-1567620832903-9fc6debc209f?auto=format&fit=crop&q=80&w=900',
-        category: 'bahagian-ayam',
-        uploadedBy: 'Sistem Khairul FRESH',
-        uploadedAt: new Date().toISOString(),
-      },
-      {
-        id: 'media-dada',
-        name: 'Dada Ayam Segar',
-        url: 'https://images.unsplash.com/photo-1604503468506-a8da13d82791?auto=format&fit=crop&q=80&w=900',
-        category: 'bahagian-ayam',
-        uploadedBy: 'Sistem Khairul FRESH',
-        uploadedAt: new Date().toISOString(),
-      },
-      {
-        id: 'media-organ',
-        name: 'Hati / Pedal Ayam Segar',
-        url: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&q=80&w=900',
-        category: 'bahagian-ayam',
-        uploadedBy: 'Sistem Khairul FRESH',
-        uploadedAt: new Date().toISOString(),
-      },
-      {
-        id: 'media-kaki',
-        name: 'Kaki Ayam Bersih',
-        url: 'https://images.unsplash.com/photo-1587593810167-a84920ea0781?auto=format&fit=crop&q=80&w=900',
-        category: 'bahagian-ayam',
-        uploadedBy: 'Sistem Khairul FRESH',
-        uploadedAt: new Date().toISOString(),
-      },
-      {
-        id: 'media-rangka',
-        name: 'Rangka Ayam Segar',
-        url: 'https://images.unsplash.com/photo-1548567117-0429762db801?auto=format&fit=crop&q=80&w=900',
-        category: 'bahagian-ayam',
-        uploadedBy: 'Sistem Khairul FRESH',
-        uploadedAt: new Date().toISOString(),
-      },
-    ];
-    try {
-      localStorage.setItem(MEDIA_LIBRARY_KEY, JSON.stringify(defaultMedia));
-    } catch {
-      // ignore
-    }
-    return defaultMedia;
+    return [];
   },
 
   saveMediaLibrary(items: MediaItem[]): void {

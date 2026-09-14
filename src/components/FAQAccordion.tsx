@@ -12,6 +12,7 @@ import {
   RefreshCw 
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { getOfficialWhatsAppLink } from '../utils/whatsappHelper';
 
 interface FAQItem {
   id: string;
@@ -305,7 +306,7 @@ export const FAQAccordion: React.FC = () => {
           </div>
 
           <a
-            href={`https://wa.me/601111135503?text=${encodeURIComponent(isEn ? 'Hello Khairul Fresh Food, I have an inquiry regarding fresh chicken orders...' : 'Salam Khairul Fresh Food, saya ada pertanyaan mengenai pesanan ayam segar...')}`}
+            href={getOfficialWhatsAppLink(isEn ? 'Hello Khairul Fresh Food, I have an inquiry regarding fresh chicken orders...' : 'Salam Khairul Fresh Food, saya ada pertanyaan mengenai pesanan ayam segar...')}
             target="_blank"
             rel="noopener noreferrer"
             className="bg-white hover:bg-stone-100 text-emerald-900 font-extrabold text-xs sm:text-sm px-5 py-3 rounded-2xl transition-colors shrink-0 flex items-center gap-2 cursor-pointer shadow-sm"

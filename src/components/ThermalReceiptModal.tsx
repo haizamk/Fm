@@ -448,6 +448,14 @@ export const ThermalReceiptModal: React.FC<ThermalReceiptModalProps> = ({
         ` : ''}
 
         <div class="footer-box">
+          <div style="margin: 6px auto; text-align: center;">
+            <img 
+              src="https://api.qrserver.com/v1/create-qr-code/?size=110x110&data=${encodeURIComponent(order.orderId)}" 
+              alt="QR Code Pesanan" 
+              style="width: 80px; height: 80px; display: block; margin: 0 auto;" 
+            />
+            <div style="font-size: 8.5px; font-weight: bold; margin-top: 2px;">IMBAS UNTUK STATUS & PICKUP</div>
+          </div>
           <div class="bold">*** AYAM SEGAR SEMBELIH PAGI ***</div>
           <div>${receiptSettings.footerNotes || 'Dibungkus Bersih & Mengikut Sunnah'}</div>
           <div>Terima kasih atas sokongan anda!</div>
@@ -707,7 +715,17 @@ export const ThermalReceiptModal: React.FC<ThermalReceiptModalProps> = ({
             )}
 
             {/* Footer */}
-            <div className="text-center pt-4 mt-3 border-t border-dashed border-black text-[10px] space-y-1 text-stone-700">
+            <div className="text-center pt-3 mt-3 border-t border-dashed border-black text-[10px] space-y-1 text-stone-700">
+              <div className="flex flex-col items-center justify-center py-1">
+                <img 
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(order.orderId)}`}
+                  alt="QR Code Resit"
+                  className="w-16 h-16 object-contain"
+                />
+                <span className="text-[9px] font-bold text-stone-600 mt-1">
+                  IMBAS KOD QR PESANAN
+                </span>
+              </div>
               <div className="font-black">*** AYAM SEGAR SEMBELIH PAGI ***</div>
               <div>{receiptSettings.footerNotes || 'Dibungkus Bersih & Rapi untuk Anda'}</div>
               <div className="text-[9px]">Simpan dalam suhu sejuk 0°C - 4°C</div>

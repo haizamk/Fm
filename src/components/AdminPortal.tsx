@@ -199,7 +199,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [settingsForm, setSettingsForm] = useState<SiteSettings>(siteSettings);
 
   // Feedback notifications
-  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
 
   // Realtime Firestore Subscription for Admin Portal
   useEffect(() => {
@@ -227,7 +227,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
   if (!isOpen) return null;
 
-  const showNotification = (type: 'success' | 'error', text: string) => {
+  const showNotification = (type: 'success' | 'error' | 'info', text: string) => {
     setFeedback({ type, text });
     setTimeout(() => setFeedback(null), 3500);
   };
@@ -885,6 +885,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           <div className={`px-6 py-2 text-xs font-bold flex items-center gap-2 ${
             feedback.type === 'success' 
               ? 'bg-emerald-100 dark:bg-emerald-950/90 text-emerald-900 dark:text-emerald-200 border-b border-emerald-200 dark:border-emerald-800' 
+              : feedback.type === 'info'
+              ? 'bg-blue-100 dark:bg-blue-950/90 text-blue-900 dark:text-blue-200 border-b border-blue-200 dark:border-blue-800'
               : 'bg-rose-100 dark:bg-rose-950/90 text-rose-900 dark:text-rose-200 border-b border-rose-200 dark:border-rose-800'
           }`}>
             {feedback.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
@@ -2531,6 +2533,89 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 </button>
               </div>
 
+              {/* Kawalan Stok & Paparan Kotak Penebat Dingin (Cooler Box) */}
+              <div className="p-5 bg-stone-50 dark:bg-stone-800/80 rounded-3xl border border-stone-200 dark:border-stone-700 space-y-4 shadow-xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-3 border-stone-200 dark:border-stone-700">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-bold text-lg shadow-xs shrink-0 ${
+                      settingsForm.enableCoolerBoxOption ? 'bg-blue-600 text-white' : 'bg-stone-200 dark:bg-stone-700 text-stone-500 dark:text-stone-400'
+                    }`}>
+                      🧊
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="text-xs sm:text-sm font-black uppercase text-stone-900 dark:text-white">
+                          Pilihan Kotak Penebat Dingin (Cooler Box)
+                        </h3>
+                        <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border ${
+                          settingsForm.enableCoolerBoxOption 
+                            ? 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800' 
+                            : 'bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950 dark:text-rose-300 dark:border-rose-800'
+                        }`}>
+                          {settingsForm.enableCoolerBoxOption ? '🟢 Papar / Ada Stok' : '🔴 Sembunyi / Stok Habis'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5">
+                        Kawal paparan pilihan Cooler Box di checkout & pop-up pemotongan. Sembunyikan jika stok kotak habis.
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextState = !settingsForm.enableCoolerBoxOption;
+                      const updated: SiteSettings = {
+                        ...settingsForm,
+                        enableCoolerBoxOption: nextState,
+                      };
+                      setSettingsForm(updated);
+                      const saved = dataStorageService.saveSiteSettings(updated, adminUser.name);
+                      setSiteSettings(saved);
+                      onSettingsUpdated(saved);
+                      setAuditLogs(dataStorageService.getAuditLogs());
+                      showNotification(
+                        nextState ? 'success' : 'info',
+                        nextState 
+                          ? 'Kotak Penebat Dingin (Cooler Box) kini DIPAPARKAN kepada pelanggan.' 
+                          : 'Kotak Penebat Dingin (Cooler Box) kini DISEMBUNYIKAN (Stok Habis) daripada pelanggan.'
+                      );
+                    }}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 shrink-0 shadow-xs ${
+                      settingsForm.enableCoolerBoxOption
+                        ? 'bg-rose-600 hover:bg-rose-700 text-white'
+                        : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                    }`}
+                  >
+                    {settingsForm.enableCoolerBoxOption ? (
+                      <>
+                        <EyeOff className="w-3.5 h-3.5" />
+                        <span>Sembunyi Pilihan Cooler Box (Habis Stok)</span>
+                      </>
+                    ) : (
+                      <>
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>Papar Pilihan Cooler Box (Ada Stok)</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 text-xs space-y-1">
+                  <div className="flex items-center gap-1.5 font-bold text-stone-800 dark:text-stone-200">
+                    <Package className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                    <span>Status Semasa Untuk Pelanggan:</span>
+                  </div>
+                  <p className="text-[11px] text-stone-600 dark:text-stone-400 leading-relaxed">
+                    {settingsForm.enableCoolerBoxOption ? (
+                      <span>Pelanggan boleh memilih pilihan <strong>Kotak Cooler Box Penebat</strong> (+RM5.00 jika bawah 10 unit / +RM10.00 jika 10-30 unit) semasa membuat pesanan.</span>
+                    ) : (
+                      <span>Pilihan Cooler Box <strong>disembunyikan sepenuhnya</strong> di bahagian pemilihan pemotongan dan borang checkout. Pesanan pelanggan akan diproses menggunakan <strong>Bungkusan Biasa Bersama Ais (Percuma)</strong>.</span>
+                    )}
+                  </p>
+                </div>
+              </div>
+
               <form onSubmit={handleSaveSettings} className="p-5 bg-stone-50 dark:bg-stone-800/80 rounded-3xl border border-stone-200 dark:border-stone-700 space-y-4">
                 <div className="flex items-center justify-between border-b pb-2 border-stone-200 dark:border-stone-700">
                   <h3 className="text-xs font-black uppercase text-stone-900 dark:text-white">
@@ -2617,7 +2702,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     />
                   </div>
 
-                  <div className="pt-2">
+                  <div className="pt-2 space-y-2">
                     <label className="flex items-center gap-2 cursor-pointer font-bold text-stone-800 dark:text-stone-200">
                       <input
                         type="checkbox"
@@ -2626,6 +2711,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         className="rounded-sm text-emerald-600"
                       />
                       <span>Buka Sistem Pesanan Dalam Talian (Online Ordering Active)</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 cursor-pointer font-bold text-stone-800 dark:text-stone-200">
+                      <input
+                        type="checkbox"
+                        checked={settingsForm.enableCoolerBoxOption ?? false}
+                        onChange={(e) => setSettingsForm({ ...settingsForm, enableCoolerBoxOption: e.target.checked })}
+                        className="rounded-sm text-blue-600"
+                      />
+                      <span>Aktifkan Pilihan Kotak Penebat Dingin (Cooler Box) untuk Pelanggan (Nyah-tanda jika stok habis)</span>
                     </label>
                   </div>
                 </div>

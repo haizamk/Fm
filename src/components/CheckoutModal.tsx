@@ -233,10 +233,19 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [hitpayStatusText, setHitpayStatusText] = useState<string>('');
 
   // Packaging selection (Bungkusan Biasa vs Cooler Box)
-  const initialHasCoolerBox = items.some((it) => it.packaging === 'cooler-box');
+  const siteSettings = dataStorageService.getSiteSettings();
+  const showCoolerBoxOption = siteSettings.enableCoolerBoxOption ?? false;
+  const initialHasCoolerBox = showCoolerBoxOption && items.some((it) => it.packaging === 'cooler-box');
   const [packagingType, setPackagingType] = useState<'bungkusan-biasa-ais' | 'cooler-box'>(
     initialHasCoolerBox ? 'cooler-box' : 'bungkusan-biasa-ais'
   );
+
+  // Sync if showCoolerBoxOption is disabled
+  useEffect(() => {
+    if (!showCoolerBoxOption && packagingType === 'cooler-box') {
+      setPackagingType('bungkusan-biasa-ais');
+    }
+  }, [showCoolerBoxOption]);
 
   if (!isOpen) return null;
 
@@ -1255,7 +1264,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               </div>
             )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div className={`grid grid-cols-1 ${showCoolerBoxOption ? 'sm:grid-cols-2' : ''} gap-2.5`}>
               {/* Option 1: Bungkusan Biasa */}
               <button
                 type="button"
@@ -1281,33 +1290,35 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 </div>
               </button>
 
-              {/* Option 2: Cooler Box */}
-              <button
-                type="button"
-                onClick={() => setPackagingType('cooler-box')}
-                className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between relative ${
-                  packagingType === 'cooler-box'
-                    ? 'border-blue-600 bg-blue-50/60 dark:bg-blue-950/40 ring-2 ring-blue-500/20 shadow-xs'
-                    : 'border-stone-200 dark:border-stone-700 hover:border-stone-300 dark:hover:border-stone-600 bg-white dark:bg-stone-900'
-                }`}
-              >
-                <div>
-                  <div className="flex items-center justify-between gap-2 mb-1">
-                    <span className="font-bold text-xs text-stone-900 dark:text-white flex items-center gap-1.5">
-                      <span>🧊 Kotak Cooler Box Penebat</span>
-                    </span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                      {totalUnits < 10 ? '+RM 5.00' : '+RM 10.00'}
-                    </span>
+              {/* Option 2: Cooler Box (Hanya dipaparkan jika diaktifkan oleh admin) */}
+              {showCoolerBoxOption && (
+                <button
+                  type="button"
+                  onClick={() => setPackagingType('cooler-box')}
+                  className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between relative ${
+                    packagingType === 'cooler-box'
+                      ? 'border-blue-600 bg-blue-50/60 dark:bg-blue-950/40 ring-2 ring-blue-500/20 shadow-xs'
+                      : 'border-stone-200 dark:border-stone-700 hover:border-stone-300 dark:hover:border-stone-600 bg-white dark:bg-stone-900'
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <span className="font-bold text-xs text-stone-900 dark:text-white flex items-center gap-1.5">
+                        <span>🧊 Kotak Cooler Box Penebat</span>
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                        {totalUnits < 10 ? '+RM 5.00' : '+RM 10.00'}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-stone-600 dark:text-stone-300 leading-snug">
+                      Kotak polisterin penebat dingin + ais batu padat tahan suhu 0°C berjam-jam.
+                    </p>
+                    <div className="mt-1.5 text-[10px] font-bold text-blue-700 dark:text-blue-300">
+                      {totalUnits < 10 ? '• Caj RM5 (<10 unit)' : '• Caj RM10 (10-30 unit)'}
+                    </div>
                   </div>
-                  <p className="text-[11px] text-stone-600 dark:text-stone-300 leading-snug">
-                    Kotak polisterin penebat dingin + ais batu padat tahan suhu 0°C berjam-jam.
-                  </p>
-                  <div className="mt-1.5 text-[10px] font-bold text-blue-700 dark:text-blue-300">
-                    {totalUnits < 10 ? '• Caj RM5 (<10 unit)' : '• Caj RM10 (10-30 unit)'}
-                  </div>
-                </div>
-              </button>
+                </button>
+              )}
             </div>
           </div>
 

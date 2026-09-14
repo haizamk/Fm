@@ -348,6 +348,7 @@ export interface SiteSettings {
     autoNotifyCustomer: boolean;
   };
   thermalReceiptSettings?: ThermalReceiptSettings;
+  enableCoolerBoxOption?: boolean;
 }
 
 export interface AdminAuditLog {

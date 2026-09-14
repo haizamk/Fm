@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { ProductImage } from './ProductImage';
 import { useLanguage } from '../context/LanguageContext';
+import { dataStorageService } from '../services/dataStorage';
 
 interface ProductCutModalProps {
   product: Product | null;
@@ -55,6 +56,15 @@ export const ProductCutModal: React.FC<ProductCutModalProps> = ({
   onAddToCart,
 }) => {
   const { t, isEn, tProduct, tCut, tCleaning, tPackaging } = useLanguage();
+
+  const siteSettings = dataStorageService.getSiteSettings();
+  const showCoolerBox = siteSettings.enableCoolerBoxOption ?? false;
+  const activePackagingOptions = PACKAGING_OPTIONS.filter((pack) => {
+    if (pack.id === 'cooler-box' && !showCoolerBox) {
+      return false;
+    }
+    return true;
+  });
 
   // Cut options list (Standard or custom product-specific cuts)
   const availableCutOptions = product?.customCutOptions && product.customCutOptions.length > 0
@@ -555,8 +565,8 @@ export const ProductCutModal: React.FC<ProductCutModalProps> = ({
               </label>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-              {PACKAGING_OPTIONS.map((pack) => {
+            <div className={`grid grid-cols-1 ${activePackagingOptions.length > 1 ? 'sm:grid-cols-2' : ''} gap-2.5`}>
+              {activePackagingOptions.map((pack) => {
                 const isSelected = packaging === pack.id;
                 const packTrans = tPackaging(pack.id, pack.label, pack.description);
 

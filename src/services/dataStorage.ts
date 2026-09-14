@@ -278,6 +278,7 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
     storeAddress: 'Pasar Sementara Semenyih, Gerai GA 59',
     storePhone: '011-11135503',
   },
+  enableCoolerBoxOption: false,
 };
 
 // Initial Seed Orders (Fresh & Empty)
@@ -874,6 +875,9 @@ export const dataStorageService = {
         }
         if (!parsed.thermalReceiptSettings) {
           parsed.thermalReceiptSettings = DEFAULT_SITE_SETTINGS.thermalReceiptSettings;
+        }
+        if (parsed.enableCoolerBoxOption === undefined) {
+          parsed.enableCoolerBoxOption = false;
         }
         parsed.supportPhone = '011-11135503';
         return parsed;

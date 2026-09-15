@@ -52,6 +52,15 @@ import { NotificationToast } from './components/NotificationToast';
 import { AllProductsPage } from './components/AllProductsPage';
 import { BackToTop } from './components/BackToTop';
 import { PortalLoadingFallback } from './components/PortalLoadingFallback';
+import { 
+  updateSeoTags, 
+  injectStructuredData, 
+  getShareableUrl, 
+  copyShareableLink,
+  findProductBySlugOrId,
+  getProductCleanUrl,
+  getProductSlug
+} from './utils/seoHelper';
 
 // Lazy-loaded portal components to reduce main bundle size
 const CustomerPortal = React.lazy(() => import('./components/CustomerPortal'));
@@ -75,7 +84,10 @@ import {
   Lock,
   ArrowRight,
   Grid,
-  Layers
+  Layers,
+  Share2,
+  Copy,
+  Link as LinkIcon
 } from 'lucide-react';
 
 export default function App() {
@@ -333,6 +345,206 @@ export default function App() {
       setDeliveryCouponDiscount(0);
     }
   };
+
+  // Share link feedback toast
+  const [shareToast, setShareToast] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
+
+  const handleCopyLink = async (customUrl?: string, customMsg?: string) => {
+    const url = customUrl || (typeof window !== 'undefined' ? window.location.href : '');
+    const ok = await copyShareableLink(url);
+    if (ok) {
+      setShareToast({
+        show: true,
+        message: customMsg || 'Pautan halaman berjaya disalin! Sedia untuk dikongsi ke WhatsApp atau media sosial.'
+      });
+      setTimeout(() => {
+        setShareToast({ show: false, message: '' });
+      }, 3500);
+    }
+  };
+
+  // 1. Synchronize URL on First Mount (Deep-linking, Clean Slug URLs & SEO)
+  useEffect(() => {
+    try {
+      const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
+      const params = new URLSearchParams(window.location.search);
+      const urlKategori = params.get('kategori') as ProductCategory | null;
+      const urlHalaman = params.get('halaman');
+      const urlModal = params.get('modal');
+      
+      // Check for user-friendly short URLs (/p/ayam-segar-standard or /produk/...)
+      let urlProductQuery: string | null = null;
+      if (pathname.startsWith('/p/')) {
+        urlProductQuery = decodeURIComponent(pathname.replace(/^\/p\//, '').replace(/\/$/, ''));
+      } else if (pathname.startsWith('/produk/')) {
+        urlProductQuery = decodeURIComponent(pathname.replace(/^\/produk\//, '').replace(/\/$/, ''));
+      } else {
+        urlProductQuery = params.get('p') || params.get('produk') || params.get('id');
+      }
+
+      if (urlKategori && urlKategori !== 'semua') {
+        setSelectedCategory(urlKategori);
+        setCurrentView('all-products');
+      } else if (urlHalaman === 'semua-produk' || urlHalaman === 'katalog') {
+        setCurrentView('all-products');
+      }
+
+      if (urlModal === 'portal') {
+        if (authService.getCurrentUser()) {
+          setIsCustomerPortalOpen(true);
+        } else {
+          setIsAuthModalOpen(true);
+        }
+      } else if (urlModal === 'admin') {
+        const u = authService.getCurrentUser();
+        if (u?.role === 'admin') {
+          setIsAdminPortalOpen(true);
+        } else {
+          setIsAdminAuthModalOpen(true);
+        }
+      } else if (urlModal === 'semak-pesanan' || urlModal === 'tracking') {
+        setIsTrackingOpen(true);
+      } else if (urlModal === 'kalkulator') {
+        setIsCalculatorOpen(true);
+      } else if (urlModal === 'resepi' || urlModal === 'potongan') {
+        setIsRecipeOpen(true);
+      } else if (urlModal === 'liputan' || urlModal === 'kawasan') {
+        setIsCoverageOpen(true);
+      } else if (urlModal === 'loyalty' || urlModal === 'ganjaran') {
+        setIsLoyaltyOpen(true);
+      } else if (urlModal === 'login' || urlModal === 'daftar') {
+        setIsAuthModalOpen(true);
+      }
+
+      // Auto-open product modal if clean slug or ID is provided
+      if (urlProductQuery) {
+        const allProds = dataStorageService.getProducts();
+        const matched = findProductBySlugOrId(urlProductQuery, allProds);
+        if (matched) {
+          setSelectedProductForCut(matched);
+          setIsCutModalOpen(true);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  // 2. Dynamic SEO & Clean URL Synchronization
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+
+      // Category
+      if (selectedCategory && selectedCategory !== 'semua') {
+        params.set('kategori', selectedCategory);
+      } else {
+        params.delete('kategori');
+      }
+
+      // View
+      if (currentView === 'all-products') {
+        params.set('halaman', 'semua-produk');
+      } else {
+        params.delete('halaman');
+      }
+
+      // Modals
+      if (isCustomerPortalOpen) {
+        params.set('modal', 'portal');
+      } else if (isAdminPortalOpen || isAdminAuthModalOpen) {
+        params.set('modal', 'admin');
+      } else if (isTrackingOpen) {
+        params.set('modal', 'semak-pesanan');
+      } else if (isCalculatorOpen) {
+        params.set('modal', 'kalkulator');
+      } else if (isRecipeOpen) {
+        params.set('modal', 'resepi');
+      } else if (isCoverageOpen) {
+        params.set('modal', 'liputan');
+      } else if (isLoyaltyOpen) {
+        params.set('modal', 'ganjaran');
+      } else if (isAuthModalOpen) {
+        params.set('modal', 'login');
+      } else {
+        params.delete('modal');
+      }
+
+      // Clean Product URL path: /p/ayam-segar-standard
+      let targetPath = '/';
+      if (isCutModalOpen && selectedProductForCut) {
+        const cleanSlug = getProductSlug(selectedProductForCut);
+        targetPath = `/p/${cleanSlug}`;
+        params.delete('p');
+        params.delete('produk');
+      } else {
+        params.delete('p');
+        params.delete('produk');
+      }
+
+      const newQuery = params.toString();
+      const newUrl = newQuery ? `${targetPath}?${newQuery}` : targetPath;
+      window.history.replaceState({}, '', newUrl);
+
+      // Update document SEO tags and title
+      if (isCutModalOpen && selectedProductForCut) {
+        updateSeoTags({ product: selectedProductForCut, canonicalUrl: `${window.location.origin}/p/${getProductSlug(selectedProductForCut)}` });
+      } else if (isCustomerPortalOpen) {
+        updateSeoTags({ 
+          title: 'Portal Pelanggan & Ganjaran Ahli', 
+          description: 'Urus pesanan harian, semak baki mata ganjaran & jejak status penghantaran ayam segar anda.' 
+        });
+      } else if (isAdminPortalOpen) {
+        updateSeoTags({ title: 'Portal Pentadbir Khairul Fresh Food' });
+      } else if (isTrackingOpen) {
+        updateSeoTags({ 
+          title: 'Semak Status Pesanan & Live Tracking', 
+          description: 'Jejak status penyediaan dan penghantaran pesanan ayam segar anda secara langsung di Pasar Semenyih.' 
+        });
+      } else if (isRecipeOpen) {
+        updateSeoTags({
+          title: 'Panduan Resepi & Pilihan Potongan Ayam',
+          description: 'Panduan jenis potongan ayam berserta cadangan masakan kari, sup, goreng berempah, kurma dan bakar.'
+        });
+      } else if (isCalculatorOpen) {
+        updateSeoTags({
+          title: 'Kalkulator Tempahan Kenduri & Katering',
+          description: 'Kira anggaran kuantiti ayam segar dan jenis potongan untuk jamuan kenduri atau restoran.'
+        });
+      } else if (currentView === 'all-products') {
+        updateSeoTags({
+          category: selectedCategory,
+          title: selectedCategory !== 'semua' ? undefined : 'Katalog Keseluruhan Ayam & Daging Segar',
+          description: 'Pilihan lengkap ayam segar harian, ayam kampung, daging lembu tempatan, kambing, tulang sup & ayam perap di Pasar Semenyih.'
+        });
+      } else {
+        updateSeoTags();
+      }
+    } catch {
+      // ignore
+    }
+  }, [
+    selectedCategory,
+    currentView,
+    isCutModalOpen,
+    selectedProductForCut,
+    isCustomerPortalOpen,
+    isAdminPortalOpen,
+    isAdminAuthModalOpen,
+    isTrackingOpen,
+    isCalculatorOpen,
+    isRecipeOpen,
+    isCoverageOpen,
+    isLoyaltyOpen,
+    isAuthModalOpen
+  ]);
+
+  // 3. Inject Google Schema.org JSON-LD structured data when products list changes
+  useEffect(() => {
+    if (productsList && productsList.length > 0) {
+      injectStructuredData(productsList);
+    }
+  }, [productsList]);
 
   // Keep coupon discount updated if cart total changes
   useEffect(() => {
@@ -715,9 +927,13 @@ export default function App() {
           onNotifyStock={(p) => setStockNotifyProduct(p)}
           onBackToHome={() => {
             setCurrentView('home');
+            setSelectedCategory('semua');
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
+          initialCategory={selectedCategory}
           initialSearchQuery={searchQuery}
+          onCategoryChange={(cat) => setSelectedCategory(cat)}
+          onShare={(url, msg) => handleCopyLink(url, msg)}
         />
       ) : (
         <>
@@ -1136,6 +1352,16 @@ export default function App() {
         items={flyingItems}
         onAnimationComplete={handleFlyingAnimationComplete}
       />
+
+      {/* 13. Floating Link Copied / SEO Share Feedback Toast */}
+      {shareToast.show && (
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-3 bg-stone-900/95 dark:bg-stone-100/95 text-white dark:text-stone-900 rounded-2xl shadow-2xl backdrop-blur-md flex items-center gap-3 border border-emerald-500/40 text-xs font-bold animate-in fade-in slide-in-from-bottom-3 duration-300 max-w-sm w-full mx-4 sm:w-auto">
+          <div className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0">
+            <Check className="w-3.5 h-3.5" />
+          </div>
+          <span className="flex-1">{shareToast.message}</span>
+        </div>
+      )}
 
     </div>
   );

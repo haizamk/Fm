@@ -190,7 +190,7 @@ export interface OrderRecord {
   deliveryFee: number;
   discount: number;
   total: number;
-  status: 'disahkan' | 'sembelih-potong' | 'pembungkusan-sejuk' | 'dalam-penghantaran' | 'selesai' | 'dibatalkan';
+  status: 'menunggu_bayaran' | 'disahkan' | 'sembelih-potong' | 'pembungkusan-sejuk' | 'dalam-penghantaran' | 'selesai' | 'dibatalkan';
   createdAt: string;
   estimatedDeliveryText: string;
   fulfillmentType?: 'delivery' | 'pickup';

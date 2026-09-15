@@ -1,4 +1,14 @@
 import { UserAccount, AuthSession, SavedAddress } from '../types';
+import { db } from './firebase';
+import { 
+  collection, 
+  doc, 
+  setDoc, 
+  getDocs, 
+  onSnapshot, 
+  deleteDoc, 
+  Unsubscribe 
+} from 'firebase/firestore';
 
 // Admin Account Configuration
 export const ADMIN_ACCOUNT: UserAccount = {
@@ -27,16 +37,44 @@ try {
   // ignore
 }
 
+// Helper to push user to Cloud Firestore (offline-safe)
+async function syncUserToCloud(user: UserAccount, passwordHash?: string) {
+  try {
+    const customerDocRef = doc(db, 'customers', user.id);
+    await setDoc(customerDocRef, user, { merge: true });
+
+    if (passwordHash) {
+      const userDocRef = doc(db, 'users', user.id);
+      await setDoc(userDocRef, { ...user, passwordHash }, { merge: true });
+    }
+  } catch (e) {
+    console.info('[Auth] Local offline storage active for user:', user.username || user.email);
+  }
+}
+
 // Initialize users registry in localStorage
 function getUsersRegistry(): Record<string, { user: UserAccount; passwordHash: string }> {
   try {
     const saved = localStorage.getItem(STORAGE_USERS_KEY);
-    if (saved) return JSON.parse(saved);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed && typeof parsed === 'object') {
+        // Ensure admin account always exists and is up to date
+        if (!parsed['krul411']) {
+          parsed['krul411'] = {
+            user: ADMIN_ACCOUNT,
+            passwordHash: 'Haizamk411',
+          };
+          localStorage.setItem(STORAGE_USERS_KEY, JSON.stringify(parsed));
+        }
+        return parsed;
+      }
+    }
   } catch {
     // fallback
   }
 
-  // Initial users: Admin only (no demo customers)
+  // Initial users: Admin only (no dummy customers)
   const initial: Record<string, { user: UserAccount; passwordHash: string }> = {
     'krul411': {
       user: ADMIN_ACCOUNT,
@@ -58,6 +96,12 @@ function saveUsersRegistry(registry: Record<string, { user: UserAccount; passwor
     localStorage.setItem(STORAGE_USERS_KEY, JSON.stringify(registry));
   } catch {
     // ignore
+  }
+  // Dispatch real-time window notification so any listening UI (Admin/Customer portal) updates immediately
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('khairul_fresh_users_updated', {
+      detail: Object.values(registry).map(entry => entry.user)
+    }));
   }
 }
 
@@ -365,7 +409,195 @@ export const authService = {
 
     saveUsersRegistry(registry);
     this.setSession(newUser);
+    syncUserToCloud(newUser, password);
+
     return { success: true, user: newUser };
+  },
+
+  // Record customer from an order (Guest checkout or Member checkout)
+  recordCustomerFromOrder(
+    customerInfo: { fullName: string; email?: string; phone: string },
+    orderTotal: number = 0,
+    addressInfo?: { address?: string; city?: string; postcode?: string; state?: string }
+  ): UserAccount {
+    const registry = getUsersRegistry();
+    const cleanPhone = customerInfo.phone.trim();
+    const phoneDigits = cleanPhone.replace(/\D/g, '');
+    const cleanEmail = (customerInfo.email || '').trim().toLowerCase();
+    const cleanName = customerInfo.fullName.trim();
+
+    // Check if user already exists by email, phone, or name
+    let existingEntryKey: string | null = null;
+    let existingUser: UserAccount | null = null;
+
+    for (const key in registry) {
+      const u = registry[key].user;
+      if (cleanEmail && u.email && u.email.toLowerCase() === cleanEmail) {
+        existingEntryKey = key;
+        existingUser = u;
+        break;
+      }
+      if (cleanPhone && u.phone && u.phone.replace(/\D/g, '') === phoneDigits) {
+        existingEntryKey = key;
+        existingUser = u;
+        break;
+      }
+      if (cleanName && u.name && u.name.toLowerCase() === cleanName.toLowerCase()) {
+        existingEntryKey = key;
+        existingUser = u;
+        break;
+      }
+    }
+
+    const earnedPoints = Math.floor(orderTotal); // 1 RM = 1 Point
+
+    if (existingUser && existingEntryKey) {
+      const updatedUser: UserAccount = {
+        ...existingUser,
+        name: cleanName || existingUser.name,
+        phone: cleanPhone || existingUser.phone,
+        email: cleanEmail || existingUser.email,
+        totalSpent: (existingUser.totalSpent || 0) + orderTotal,
+        loyaltyPoints: (existingUser.loyaltyPoints || 0) + earnedPoints,
+        lastLogin: new Date().toISOString(),
+      };
+
+      if (addressInfo && addressInfo.address && addressInfo.address.trim()) {
+        const savedAddrs = updatedUser.savedAddresses || [];
+        const addrExists = savedAddrs.some(a => a.address.toLowerCase() === addressInfo.address?.toLowerCase());
+        if (!addrExists) {
+          savedAddrs.push({
+            id: `addr-${Date.now()}`,
+            label: 'Alamat Penghantaran',
+            fullName: cleanName,
+            phone: cleanPhone,
+            address: addressInfo.address,
+            city: addressInfo.city || 'Semenyih',
+            postcode: addressInfo.postcode || '43500',
+            state: addressInfo.state || 'Selangor',
+            isDefault: savedAddrs.length === 0,
+          });
+          updatedUser.savedAddresses = savedAddrs;
+        }
+      }
+
+      registry[existingEntryKey] = {
+        ...registry[existingEntryKey],
+        user: updatedUser,
+      };
+
+      saveUsersRegistry(registry);
+      syncUserToCloud(updatedUser, registry[existingEntryKey].passwordHash);
+      return updatedUser;
+    }
+
+    // Create a new Customer profile record for the customer
+    const generatedUsername = cleanEmail 
+      ? cleanEmail.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '')
+      : `pelanggan_${cleanPhone.slice(-4) || Date.now().toString().slice(-4)}`;
+
+    const fallbackEmail = cleanEmail || `${generatedUsername}@freshayam.local`;
+    const defaultPassword = `Kff${cleanPhone.slice(-4) || '1234'}`;
+
+    const newCustomerUser: UserAccount = {
+      id: `usr-cust-${Date.now().toString().slice(-6)}`,
+      username: generatedUsername,
+      email: fallbackEmail,
+      name: cleanName || 'Pelanggan Khairul Fresh Food',
+      role: 'customer',
+      phone: cleanPhone,
+      createdAt: new Date().toISOString(),
+      lastLogin: new Date().toISOString(),
+      loyaltyPoints: 50 + earnedPoints, // 50 Welcome bonus + order points
+      totalSpent: orderTotal,
+      savedAddresses: addressInfo && addressInfo.address ? [
+        {
+          id: `addr-${Date.now()}`,
+          label: 'Alamat Penghantaran',
+          fullName: cleanName,
+          phone: cleanPhone,
+          address: addressInfo.address,
+          city: addressInfo.city || 'Semenyih',
+          postcode: addressInfo.postcode || '43500',
+          state: addressInfo.state || 'Selangor',
+          isDefault: true,
+        }
+      ] : [],
+      emailVerified: true,
+      phoneVerified: true,
+      twoFactorEnabled: false,
+    };
+
+    const regKey = fallbackEmail.toLowerCase();
+    registry[regKey] = {
+      user: newCustomerUser,
+      passwordHash: defaultPassword,
+    };
+
+    saveUsersRegistry(registry);
+    syncUserToCloud(newCustomerUser, defaultPassword);
+    return newCustomerUser;
+  },
+
+  // Subscribe to real-time user updates (from Firestore and local events)
+  subscribeUsers(callback: (users: UserAccount[]) => void): Unsubscribe {
+    const firestoreHandler = () => {
+      try {
+        const custCol = collection(db, 'customers');
+        return onSnapshot(custCol, (snapshot) => {
+          if (!snapshot.empty) {
+            const registry = getUsersRegistry();
+            let hasNew = false;
+            snapshot.forEach((docSnap) => {
+              const cloudUser = docSnap.data() as UserAccount;
+              if (cloudUser && cloudUser.id) {
+                const key = (cloudUser.email || cloudUser.username || cloudUser.id).toLowerCase();
+                if (!registry[key] || registry[key].user.totalSpent !== cloudUser.totalSpent || registry[key].user.loyaltyPoints !== cloudUser.loyaltyPoints) {
+                  registry[key] = {
+                    user: cloudUser,
+                    passwordHash: registry[key]?.passwordHash || 'Kff12345',
+                  };
+                  hasNew = true;
+                }
+              }
+            });
+            if (hasNew) {
+              try {
+                localStorage.setItem(STORAGE_USERS_KEY, JSON.stringify(registry));
+              } catch {}
+            }
+            callback(Object.values(registry).map(item => item.user));
+          }
+        }, (err) => {
+          console.info('[Auth] Offline subscription mode active');
+        });
+      } catch {
+        return () => {};
+      }
+    };
+
+    const unsubCloud = firestoreHandler();
+
+    // Also listen to local window events
+    const handleLocalUpdate = (e: Event) => {
+      const customEvent = e as CustomEvent<UserAccount[]>;
+      if (customEvent.detail) {
+        callback(customEvent.detail);
+      } else {
+        callback(this.getAllUsers());
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('khairul_fresh_users_updated', handleLocalUpdate);
+    }
+
+    return () => {
+      unsubCloud();
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('khairul_fresh_users_updated', handleLocalUpdate);
+      }
+    };
   },
 
   // Update Profile
@@ -394,6 +626,7 @@ export const authService = {
 
     saveUsersRegistry(registry);
     this.setSession(mergedUser);
+    syncUserToCloud(mergedUser, entry.passwordHash);
     return mergedUser;
   },
 

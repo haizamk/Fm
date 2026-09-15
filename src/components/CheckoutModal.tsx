@@ -43,7 +43,9 @@ import {
   LogOut,
   Bookmark,
   PlusCircle,
-  Check
+  Check,
+  RefreshCw,
+  Loader2
 } from 'lucide-react';
 
 interface CheckoutModalProps {
@@ -83,8 +85,16 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 }) => {
   // Authentication & Logged in state
   const [loggedInUser, setLoggedInUser] = useState<UserAccount | null>(() => currentUser || authService.getCurrentUser());
-  const [authTab, setAuthTab] = useState<'guest' | 'login'>('login');
+  const [authTab, setAuthTab] = useState<'register' | 'login' | 'guest'>('register');
   
+  // Registration form states
+  const [regUsername, setRegUsername] = useState('');
+  const [regPassword, setRegPassword] = useState('');
+  const [showRegPassword, setShowRegPassword] = useState(false);
+  const [regLoading, setRegLoading] = useState(false);
+  const [regError, setRegError] = useState('');
+  const [regSuccessMsg, setRegSuccessMsg] = useState('');
+
   // Inline Login form states
   const [loginIdentifier, setLoginIdentifier] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -114,90 +124,6 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
   const [address, setAddress] = useState('');
-
-  // Sync logged in user & auto-populate on open or auth state change
-  useEffect(() => {
-    const user = currentUser || authService.getCurrentUser();
-    setLoggedInUser(user);
-    if (user) {
-      if (!fullName) setFullName(user.name || '');
-      if (!phone) setPhone(user.phone || '');
-      if (!email) setEmail(user.email || '');
-
-      // Check for saved addresses
-      if (user.savedAddresses && user.savedAddresses.length > 0) {
-        const defaultAddr = user.savedAddresses.find((a) => a.isDefault) || user.savedAddresses[0];
-        if (defaultAddr && !address) {
-          setSelectedSavedAddressId(defaultAddr.id);
-          setAddress(defaultAddr.address);
-          handlePostcodeChange(defaultAddr.postcode);
-          if (defaultAddr.city) setCity(defaultAddr.city);
-          if (defaultAddr.state) setState(defaultAddr.state);
-        }
-      }
-    } else {
-      if (defaultPostcode && !postcode) {
-        handlePostcodeChange(defaultPostcode);
-      }
-      if (defaultCity && !city) {
-        handleCityChange(defaultCity);
-      }
-    }
-  }, [isOpen, currentUser]);
-
-  // Date & Slot selection
-  const [deliveryDate, setDeliveryDate] = useState(initialDateStr);
-  const [mondayWarning, setMondayWarning] = useState<string | null>(null);
-  const [deliverySlot, setDeliverySlot] = useState<DeliverySlotId>('pagi');
-  const [pickupTime, setPickupTime] = useState<string>('09:00 AM');
-
-  // Payment - HitPay as exclusive payment gateway
-  const [paymentMethod, setPaymentMethod] = useState<'hitpay' | 'duitnow' | 'fpx' | 'cod' | 'whatsapp'>('hitpay');
-  const [orderNotes, setOrderNotes] = useState('');
-  const [deliveryInstructions, setDeliveryInstructions] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [hitpayStatusText, setHitpayStatusText] = useState<string>('');
-
-  // Packaging selection (Bungkusan Biasa vs Cooler Box)
-  const siteSettings = dataStorageService.getSiteSettings();
-  const showCoolerBoxOption = siteSettings.enableCoolerBoxOption ?? false;
-  const initialHasCoolerBox = showCoolerBoxOption && items.some((it) => it.packaging === 'cooler-box');
-  const [packagingType, setPackagingType] = useState<'bungkusan-biasa-ais' | 'cooler-box'>(
-    initialHasCoolerBox ? 'cooler-box' : 'bungkusan-biasa-ais'
-  );
-
-  // Sync if showCoolerBoxOption is disabled
-  useEffect(() => {
-    if (!showCoolerBoxOption && packagingType === 'cooler-box') {
-      setPackagingType('bungkusan-biasa-ais');
-    }
-  }, [showCoolerBoxOption]);
-
-  if (!isOpen) return null;
-
-  // Total quantity of units in cart & Max 30 limit check
-  const totalUnits = items.reduce((sum, item) => sum + (item.quantity || 0), 0);
-  const isOverMaxLimit = totalUnits > 30;
-
-  // Strict 3 Zones Only:
-  // 1. Semenyih (43500) -> RM 6.00
-  // 2. Beranang (43700) -> RM 9.00
-  // 3. Kajang (43000) -> RM 15.00
-  const getZoneMatch = (inputPostcode: string, inputCity: string) => {
-    const pc = (inputPostcode || '').trim();
-    const ct = (inputCity || '').trim().toLowerCase();
-
-    if (pc === '43500' || ct.includes('semenyih')) {
-      return { isSupported: true, zoneName: 'Semenyih', standardPostcode: '43500', fee: 6.00 };
-    }
-    if (pc === '43700' || ct.includes('beranang')) {
-      return { isSupported: true, zoneName: 'Beranang', standardPostcode: '43700', fee: 9.00 };
-    }
-    if (pc === '43000' || ct.includes('kajang')) {
-      return { isSupported: true, zoneName: 'Kajang', standardPostcode: '43000', fee: 15.00 };
-    }
-    return { isSupported: false, zoneName: '', standardPostcode: '', fee: 0 };
-  };
 
   // Vice-versa: input poskod -> auto set bandar & negeri
   const handlePostcodeChange = (newCode: string) => {
@@ -241,6 +167,98 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         setState(match.state);
       }
     }
+  };
+
+  // Sync logged in user & auto-populate on open or auth state change
+  useEffect(() => {
+    const user = currentUser || authService.getCurrentUser();
+    setLoggedInUser(user);
+    if (user) {
+      if (!fullName) setFullName(user.name || '');
+      if (!phone) setPhone(user.phone || '');
+      if (!email) setEmail(user.email || '');
+
+      // Check for saved addresses
+      if (user.savedAddresses && user.savedAddresses.length > 0) {
+        const defaultAddr = user.savedAddresses.find((a) => a.isDefault) || user.savedAddresses[0];
+        if (defaultAddr && !address) {
+          setSelectedSavedAddressId(defaultAddr.id);
+          setAddress(defaultAddr.address);
+          handlePostcodeChange(defaultAddr.postcode);
+          if (defaultAddr.city) setCity(defaultAddr.city);
+          if (defaultAddr.state) setState(defaultAddr.state);
+        }
+      }
+    } else {
+      if (defaultPostcode && !postcode) {
+        handlePostcodeChange(defaultPostcode);
+      }
+      if (defaultCity && !city) {
+        handleCityChange(defaultCity);
+      }
+    }
+  }, [isOpen, currentUser]);
+
+  // Date & Slot selection
+  const [deliveryDate, setDeliveryDate] = useState(initialDateStr);
+  const [mondayWarning, setMondayWarning] = useState<string | null>(null);
+  const [deliverySlot, setDeliverySlot] = useState<DeliverySlotId>('pagi');
+  const [pickupTime, setPickupTime] = useState<string>('09:00 AM');
+
+  // Payment state & HitPay Gateway modal data
+  const [paymentMethod, setPaymentMethod] = useState<'hitpay' | 'duitnow' | 'cod'>('hitpay');
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [hitpayScreenData, setHitpayScreenData] = useState<{
+    isOpen: boolean;
+    paymentUrl: string;
+    paymentId: string;
+    order: OrderRecord;
+    isSimulated: boolean;
+    message?: string;
+  } | null>(null);
+  const [checkingPaymentStatus, setCheckingPaymentStatus] = useState<boolean>(false);
+  const [orderNotes, setOrderNotes] = useState('');
+  const [deliveryInstructions, setDeliveryInstructions] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [hitpayStatusText, setHitpayStatusText] = useState<string>('');
+
+  // Packaging selection (Bungkusan Biasa vs Cooler Box)
+  const siteSettings = dataStorageService.getSiteSettings();
+  const showCoolerBoxOption = siteSettings.enableCoolerBoxOption ?? false;
+  const initialHasCoolerBox = showCoolerBoxOption && items.some((it) => it.packaging === 'cooler-box');
+  const [packagingType, setPackagingType] = useState<'bungkusan-biasa-ais' | 'cooler-box'>(
+    initialHasCoolerBox ? 'cooler-box' : 'bungkusan-biasa-ais'
+  );
+
+  // Sync if showCoolerBoxOption is disabled
+  useEffect(() => {
+    if (!showCoolerBoxOption && packagingType === 'cooler-box') {
+      setPackagingType('bungkusan-biasa-ais');
+    }
+  }, [showCoolerBoxOption]);
+
+  // Total quantity of units in cart & Max 30 limit check
+  const totalUnits = items.reduce((sum, item) => sum + (item.quantity || 0), 0);
+  const isOverMaxLimit = totalUnits > 30;
+
+  // Strict 3 Zones Only:
+  // 1. Semenyih (43500) -> RM 6.00
+  // 2. Beranang (43700) -> RM 9.00
+  // 3. Kajang (43000) -> RM 15.00
+  const getZoneMatch = (inputPostcode: string, inputCity: string) => {
+    const pc = (inputPostcode || '').trim();
+    const ct = (inputCity || '').trim().toLowerCase();
+
+    if (pc === '43500' || ct.includes('semenyih')) {
+      return { isSupported: true, zoneName: 'Semenyih', standardPostcode: '43500', fee: 6.00 };
+    }
+    if (pc === '43700' || ct.includes('beranang')) {
+      return { isSupported: true, zoneName: 'Beranang', standardPostcode: '43700', fee: 9.00 };
+    }
+    if (pc === '43000' || ct.includes('kajang')) {
+      return { isSupported: true, zoneName: 'Kajang', standardPostcode: '43000', fee: 15.00 };
+    }
+    return { isSupported: false, zoneName: '', standardPostcode: '', fee: 0 };
   };
 
   // Price calculations
@@ -353,6 +371,59 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     }
   };
 
+  // Inline Registration Handler
+  const handleInlineRegister = async () => {
+    if (!regUsername.trim()) {
+      setRegError('Sila masukkan username / ID pengguna pilihan anda.');
+      return;
+    }
+    if (regUsername.trim().length < 3) {
+      setRegError('Username mestilah sekurang-kurangnya 3 aksara.');
+      return;
+    }
+    if (!fullName.trim()) {
+      setRegError('Sila masukkan nama penuh anda.');
+      return;
+    }
+    if (!phone.trim()) {
+      setRegError('Sila masukkan nombor telefon WhatsApp anda.');
+      return;
+    }
+    if (!regPassword || regPassword.length < 6) {
+      setRegError('Kata laluan mestilah sekurang-kurangnya 6 aksara.');
+      return;
+    }
+
+    setRegLoading(true);
+    setRegError('');
+    setRegSuccessMsg('');
+
+    try {
+      const cleanUser = regUsername.trim().toLowerCase().replace(/^@/, '');
+      const targetEmail = email.trim() || `${cleanUser}@freshayam.local`;
+      const res = await authService.register(
+        fullName.trim(),
+        targetEmail,
+        phone.trim(),
+        regPassword,
+        cleanUser
+      );
+
+      if (res.success && res.user) {
+        setLoggedInUser(res.user);
+        if (onLoginSuccess) onLoginSuccess(res.user);
+        setRegSuccessMsg(`Tahniah ${res.user.name}! Akaun @${res.user.username} berjaya didaftarkan (+50 Mata Ganjaran Percuma).`);
+        setRegPassword('');
+      } else {
+        setRegError(res.error || 'Pendaftaran akaun gagal. Sila cuba lagi.');
+      }
+    } catch {
+      setRegError('Ralat berlaku semasa pendaftaran. Sila cuba lagi.');
+    } finally {
+      setRegLoading(false);
+    }
+  };
+
   const handleInlineLogout = () => {
     authService.logout();
     setLoggedInUser(null);
@@ -389,8 +460,31 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       }
     }
 
+    // If customer typed a username and password in register mode, ensure they get registered right away
+    let activeUser = loggedInUser;
+    if (!activeUser && regUsername.trim() && regPassword && regPassword.length >= 6) {
+      try {
+        const cleanUser = regUsername.trim().toLowerCase().replace(/^@/, '');
+        const targetEmail = email.trim() || `${cleanUser}@freshayam.local`;
+        const regRes = await authService.register(
+          fullName.trim(),
+          targetEmail,
+          phone.trim(),
+          regPassword,
+          cleanUser
+        );
+        if (regRes.success && regRes.user) {
+          activeUser = regRes.user;
+          setLoggedInUser(regRes.user);
+          if (onLoginSuccess) onLoginSuccess(regRes.user);
+        }
+      } catch (e) {
+        console.error('Registration at checkout note:', e);
+      }
+    }
+
     setIsSubmitting(true);
-    setHitpayStatusText('Menghubungkan ke Gateway HitPay...');
+    setPaymentError(null);
 
     const randomId = 'KFF-' + Math.floor(10000 + Math.random() * 90000);
     const formattedDate = formatDeliveryDateBM(deliveryDate);
@@ -424,8 +518,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         pickupTime: fulfillmentType === 'pickup' ? pickupTime : undefined,
         deliveryDate,
         deliverySlot,
-        paymentMethod: 'hitpay',
-        hitpayStatus: 'completed',
+        paymentMethod,
+        hitpayStatus: paymentMethod === 'hitpay' ? 'pending' : 'completed',
         hitpayReference: randomId,
         orderNotes,
         deliveryInstructions,
@@ -436,7 +530,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       packagingType,
       discount: activeItemDiscount,
       total,
-      status: 'disahkan',
+      status: paymentMethod === 'cod' ? 'disahkan' : 'menunggu_bayaran',
       createdAt: new Date().toISOString(),
       estimatedDeliveryText,
       fulfillmentType,
@@ -470,37 +564,264 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       }
     }
 
-    try {
-      setHitpayStatusText('Memproses Pembayaran HitPay (FPX / DuitNow / E-Wallet)...');
-      const hitpayRes = await hitpayService.createPaymentRequest(newOrder, hitpayConfig);
-      
-      newOrder.customer.hitpayPaymentId = hitpayRes.id;
-      newOrder.customer.hitpayReference = hitpayRes.reference_number || randomId;
-      newOrder.customer.hitpayStatus = (hitpayRes.status as any) || 'completed';
+    // 1. HITPAY PAYMENT GATEWAY FLOW
+    if (paymentMethod === 'hitpay') {
+      setHitpayStatusText('Menghubungkan ke Gerbang Bayaran Rasmi HitPay...');
 
-      if (activeItemCoupon?.code) {
-        dataStorageService.recordCouponUsage(activeItemCoupon.code);
-      }
-      if (activeDeliveryCoupon?.code) {
-        dataStorageService.recordCouponUsage(activeDeliveryCoupon.code);
-      }
+      try {
+        const hitpayRes = await hitpayService.createPaymentRequest(newOrder, hitpayConfig);
 
-      setTimeout(() => {
+        if (!hitpayRes || !hitpayRes.url) {
+          throw new Error(hitpayRes?.message || 'Gagal menjana pautan bayaran HitPay. Sila semak konfigurasi API.');
+        }
+
+        newOrder.customer.hitpayPaymentId = hitpayRes.id;
+        newOrder.customer.hitpayReference = hitpayRes.reference_number || randomId;
+
+        // Record coupon usage
+        if (activeItemCoupon?.code) {
+          dataStorageService.recordCouponUsage(activeItemCoupon.code);
+        }
+        if (activeDeliveryCoupon?.code) {
+          dataStorageService.recordCouponUsage(activeDeliveryCoupon.code);
+        }
+
+        // Check if HitPay returned a simulated demo response or real live/sandbox response
+        if (hitpayRes.isSimulated) {
+          // Demo / Simulator mode: API Key was not provided or live server bypassed
+          newOrder.status = 'disahkan';
+          newOrder.customer.hitpayStatus = 'completed';
+          dataStorageService.saveOrder(newOrder);
+
+          setIsSubmitting(false);
+          setHitpayStatusText('');
+          onCompleteOrder(newOrder);
+        } else {
+          // Real Live or Sandbox HitPay Gateway request:
+          // 1. Save order with status 'menunggu_bayaran'
+          newOrder.status = 'menunggu_bayaran';
+          newOrder.customer.hitpayStatus = 'pending';
+          dataStorageService.saveOrder(newOrder);
+
+          // 2. Open HitPay payment window
+          try {
+            window.open(hitpayRes.url, '_blank');
+          } catch {
+            // Browser popup blocker fallback
+          }
+
+          // 3. Open the active HitPay Pending Gateway Screen
+          setHitpayScreenData({
+            isOpen: true,
+            paymentUrl: hitpayRes.url,
+            paymentId: hitpayRes.id,
+            order: newOrder,
+            isSimulated: false,
+            message: hitpayRes.message,
+          });
+
+          setIsSubmitting(false);
+          setHitpayStatusText('');
+        }
+      } catch (err: any) {
+        console.error('HitPay request error:', err);
         setIsSubmitting(false);
         setHitpayStatusText('');
-        onCompleteOrder(newOrder);
-      }, 700);
-    } catch (err) {
-      console.error('HitPay request error:', err);
-      // Fallback completion
-      if (appliedCoupon?.code) {
-        dataStorageService.recordCouponUsage(appliedCoupon.code);
+        setPaymentError(
+          err.message || 'Ralat sambungan ke gateway HitPay. Sila semak semula API Key dalam Tetapan Admin atau gunakan pilihan DuitNow / Tunai.'
+        );
       }
+      return;
+    }
+
+    // 2. DUITNOW QR & BANK TRANSFER MANUAL FLOW
+    if (paymentMethod === 'duitnow') {
+      newOrder.status = 'menunggu_bayaran';
+      newOrder.customer.hitpayStatus = 'pending';
+      if (activeItemCoupon?.code) dataStorageService.recordCouponUsage(activeItemCoupon.code);
+      if (activeDeliveryCoupon?.code) dataStorageService.recordCouponUsage(activeDeliveryCoupon.code);
+
+      dataStorageService.saveOrder(newOrder);
       setIsSubmitting(false);
-      setHitpayStatusText('');
       onCompleteOrder(newOrder);
+      return;
+    }
+
+    // 3. CASH ON PICKUP / COD FLOW
+    if (paymentMethod === 'cod') {
+      newOrder.status = 'disahkan';
+      newOrder.customer.hitpayStatus = 'completed';
+      if (activeItemCoupon?.code) dataStorageService.recordCouponUsage(activeItemCoupon.code);
+      if (activeDeliveryCoupon?.code) dataStorageService.recordCouponUsage(activeDeliveryCoupon.code);
+
+      dataStorageService.saveOrder(newOrder);
+      setIsSubmitting(false);
+      onCompleteOrder(newOrder);
+      return;
     }
   };
+
+  if (!isOpen) return null;
+
+  // Render HitPay Waiting / Action Screen if payment request is active
+  if (hitpayScreenData?.isOpen && hitpayScreenData.order) {
+    const pendingOrder = hitpayScreenData.order;
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-stone-950/80 backdrop-blur-sm overflow-y-auto animate-fade-in">
+        <div 
+          className="relative w-full max-w-lg bg-white dark:bg-stone-900 rounded-3xl shadow-2xl border border-stone-200 dark:border-stone-800 overflow-hidden my-6 flex flex-col transition-colors"
+          role="dialog"
+        >
+          {/* Header */}
+          <div className="bg-stone-900 dark:bg-stone-950 text-white p-5 flex items-center justify-between border-b border-stone-800">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black text-sm shadow-md">
+                HP
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold font-['Outfit']">
+                  Gerbang Bayaran HitPay
+                </h3>
+                <p className="text-xs text-stone-400">
+                  FPX • DuitNow QR • E-Wallet • Kad Bank
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-full text-stone-400 hover:text-white hover:bg-stone-800 transition-colors cursor-pointer"
+              aria-label="Tutup"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="p-6 space-y-5 text-stone-800 dark:text-stone-200">
+            {/* Status Card */}
+            <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-200 dark:border-amber-800/80 text-center space-y-2">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300 text-xs font-black uppercase tracking-wide">
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+                <span>Menunggu Pembayaran Selesai</span>
+              </div>
+              
+              <div className="py-1">
+                <span className="text-xs text-stone-500 dark:text-stone-400 font-bold block">
+                  Jumlah Perlu Dibayar:
+                </span>
+                <span className="text-2xl sm:text-3xl font-black text-emerald-700 dark:text-emerald-400 font-['Outfit']">
+                  RM {pendingOrder.total.toFixed(2)}
+                </span>
+              </div>
+
+              <div className="text-xs text-stone-600 dark:text-stone-300 flex items-center justify-center gap-2">
+                <span>No. Rujukan Tempahan:</span>
+                <span className="font-mono font-black text-stone-900 dark:text-white bg-stone-200 dark:bg-stone-800 px-2 py-0.5 rounded-md">
+                  #{pendingOrder.orderId}
+                </span>
+              </div>
+            </div>
+
+            {/* Instruction Notice */}
+            <p className="text-xs text-stone-600 dark:text-stone-300 text-center leading-relaxed">
+              Tetingkap bayaran HitPay telah dibuka. Jika tetingkap tidak terbuka secara automatik, sila klik butang di bawah untuk membuka halaman bayaran selamat HitPay.
+            </p>
+
+            {/* Primary Action: Open HitPay Payment Window */}
+            <div className="space-y-2.5">
+              <a
+                href={hitpayScreenData.paymentUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-3.5 px-5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 transition-all cursor-pointer"
+              >
+                <ExternalLink className="w-4 h-4" />
+                <span>Buka Halaman Bayaran HitPay Sekarang</span>
+              </a>
+
+              {/* Status Checker */}
+              <button
+                type="button"
+                disabled={checkingPaymentStatus}
+                onClick={async () => {
+                  setCheckingPaymentStatus(true);
+                  const siteSettings = dataStorageService.getSiteSettings();
+                  const cfg = siteSettings.hitpayConfig || { apiKey: '', isSandbox: true };
+                  const res = await hitpayService.checkPaymentStatus(
+                    hitpayScreenData.paymentId,
+                    cfg.apiKey,
+                    cfg.isSandbox
+                  );
+                  setCheckingPaymentStatus(false);
+
+                  if (res.status === 'completed') {
+                    const completedOrder: OrderRecord = {
+                      ...pendingOrder,
+                      status: 'disahkan',
+                      customer: {
+                        ...pendingOrder.customer,
+                        hitpayStatus: 'completed',
+                      },
+                    };
+                    dataStorageService.saveOrder(completedOrder);
+                    setHitpayScreenData(null);
+                    onCompleteOrder(completedOrder);
+                  } else {
+                    alert(
+                      `Status bayaran HitPay semasa: ${
+                        res.status === 'pending' ? 'Belum Selesai (Pending)' : res.status
+                      }\n\nSila lengkapkan transaksi FPX / DuitNow di laman HitPay sebelum menyemak semula.`
+                    );
+                  }
+                }}
+                className="w-full py-2.5 px-4 rounded-xl border-2 border-emerald-600 text-emerald-700 dark:text-emerald-300 font-bold text-xs hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                {checkingPaymentStatus ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
+                ) : (
+                  <RefreshCw className="w-4 h-4 text-emerald-600" />
+                )}
+                <span>Semak Status Pembayaran HitPay Terkini</span>
+              </button>
+
+              {/* Direct confirmation fallback */}
+              <button
+                type="button"
+                onClick={() => {
+                  const completedOrder: OrderRecord = {
+                    ...pendingOrder,
+                    status: 'disahkan',
+                    customer: {
+                      ...pendingOrder.customer,
+                      hitpayStatus: 'completed',
+                    },
+                  };
+                  dataStorageService.saveOrder(completedOrder);
+                  setHitpayScreenData(null);
+                  onCompleteOrder(completedOrder);
+                }}
+                className="w-full py-2.5 px-4 rounded-xl bg-stone-900 dark:bg-stone-800 hover:bg-stone-950 text-white font-bold text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
+              >
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                <span>Saya Telah Selesai Buat Bayaran</span>
+              </button>
+            </div>
+
+            {/* Back button */}
+            <div className="pt-2 text-center">
+              <button
+                type="button"
+                onClick={() => setHitpayScreenData(null)}
+                className="text-xs text-stone-500 hover:text-stone-800 dark:hover:text-stone-200 underline font-medium cursor-pointer"
+              >
+                ⬅️ Kembali & Tukar Kaedah Pembayaran
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-stone-950/75 backdrop-blur-xs overflow-y-auto animate-fade-in">
@@ -684,36 +1005,167 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             </div>
           ) : (
             <div className="rounded-2xl border border-stone-200 dark:border-stone-800 bg-stone-50/80 dark:bg-stone-900/80 overflow-hidden shadow-2xs">
-              {/* Tab Selector Buttons */}
-              <div className="flex border-b border-stone-200 dark:border-stone-800 bg-stone-100 dark:bg-stone-800/60 p-1 gap-1">
+              {/* 3-Tab Selector Buttons */}
+              <div className="grid grid-cols-3 border-b border-stone-200 dark:border-stone-800 bg-stone-100 dark:bg-stone-800/60 p-1 gap-1">
                 <button
                   type="button"
-                  onClick={() => setAuthTab('login')}
-                  className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                    authTab === 'login'
-                      ? 'bg-white dark:bg-stone-900 text-emerald-700 dark:text-emerald-400 shadow-xs border border-stone-200 dark:border-stone-700'
+                  onClick={() => {
+                    setAuthTab('register');
+                    setRegError('');
+                  }}
+                  className={`py-2 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer text-center ${
+                    authTab === 'register'
+                      ? 'bg-white dark:bg-stone-900 text-emerald-700 dark:text-emerald-400 shadow-xs border border-emerald-300 dark:border-emerald-700'
                       : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 hover:bg-stone-200/60 dark:hover:bg-stone-700/60'
                   }`}
                 >
-                  <LogIn className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Sudah Berdaftar? Log Masuk</span>
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                  <span className="truncate">Daftar Ahli (+50 Mata)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthTab('login');
+                    setLoginError('');
+                  }}
+                  className={`py-2 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer text-center ${
+                    authTab === 'login'
+                      ? 'bg-white dark:bg-stone-900 text-emerald-700 dark:text-emerald-400 shadow-xs border border-emerald-300 dark:border-emerald-700'
+                      : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 hover:bg-stone-200/60 dark:hover:bg-stone-700/60'
+                  }`}
+                >
+                  <LogIn className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span className="truncate">Log Masuk</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setAuthTab('guest')}
-                  className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  className={`py-2 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer text-center ${
                     authTab === 'guest'
                       ? 'bg-white dark:bg-stone-900 text-stone-900 dark:text-white shadow-xs border border-stone-200 dark:border-stone-700'
                       : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 hover:bg-stone-200/60 dark:hover:bg-stone-700/60'
                   }`}
                 >
-                  <User className="w-3.5 h-3.5 text-stone-500" />
-                  <span>Pelanggan Baharu / Tetamu</span>
+                  <User className="w-3.5 h-3.5 text-stone-500 shrink-0" />
+                  <span className="truncate">Pesan Tetamu</span>
                 </button>
               </div>
 
-              {/* Tab 1 Content: Login Form */}
+              {/* Tab 1 Content: Register Form */}
+              {authTab === 'register' && (
+                <div className="p-4 bg-white dark:bg-stone-900 space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <h4 className="text-xs font-black text-stone-900 dark:text-white flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                        <span>Daftar Akaun Ahli Khairul Fresh Food</span>
+                        <span className="px-1.5 py-0.5 text-[10px] bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 font-extrabold rounded-md">
+                          Percuma 50 Mata
+                        </span>
+                      </h4>
+                      <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5">
+                        Cipta username & kata laluan anda di bawah. Akaun akan didaftarkan & anda boleh log masuk ke Customer Portal serta-merta!
+                      </p>
+                    </div>
+                  </div>
+
+                  {regError && (
+                    <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>{regError}</span>
+                    </div>
+                  )}
+
+                  {regSuccessMsg && (
+                    <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs flex items-center gap-2 font-medium">
+                      <CheckCircle2 className="w-4 h-4 shrink-0" />
+                      <span>{regSuccessMsg}</span>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="block text-[11px] font-bold text-stone-700 dark:text-stone-300 mb-1">
+                        Username / ID Pengguna *
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-xs font-bold">@</span>
+                        <input
+                          type="text"
+                          value={regUsername}
+                          onChange={(e) => {
+                            setRegUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_.]/g, ''));
+                            if (regError) setRegError('');
+                          }}
+                          placeholder="cth: amir88 atau siti_fresh"
+                          className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl pl-7 pr-3 py-2 text-xs text-stone-900 dark:text-white focus:bg-white focus:border-emerald-500 focus:outline-hidden"
+                        />
+                      </div>
+                      <span className="text-[10px] text-stone-400 mt-0.5 block">
+                        Digunakan untuk log masuk ke Customer Portal
+                      </span>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-stone-700 dark:text-stone-300 mb-1">
+                        Cipta Kata Laluan *
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showRegPassword ? 'text' : 'password'}
+                          value={regPassword}
+                          onChange={(e) => {
+                            setRegPassword(e.target.value);
+                            if (regError) setRegError('');
+                          }}
+                          placeholder="Minima 6 aksara"
+                          className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl px-3 py-2 pr-9 text-xs text-stone-900 dark:text-white focus:bg-white focus:border-emerald-500 focus:outline-hidden"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowRegPassword(!showRegPassword)}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 p-0.5 cursor-pointer"
+                        >
+                          {showRegPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                      <span className="text-[10px] text-stone-400 mt-0.5 block">
+                        Simpan kata laluan ini untuk semak pesanan nanti
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1 gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => setAuthTab('guest')}
+                      className="text-[11px] text-stone-500 hover:text-stone-700 font-semibold cursor-pointer underline"
+                    >
+                      Tidak mahu kata laluan? Teruskan sebagai tetamu →
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={regLoading || !regUsername.trim() || !regPassword || !fullName.trim() || !phone.trim()}
+                      onClick={handleInlineRegister}
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer disabled:opacity-40 transition-all"
+                    >
+                      {regLoading ? (
+                        <span>Mendaftarkan...</span>
+                      ) : (
+                        <>
+                          <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                          <span>Daftar Sekarang (+50 Mata)</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Tab 2 Content: Login Form */}
               {authTab === 'login' && (
                 <div className="p-4 bg-white dark:bg-stone-900 space-y-3">
                   <div>
@@ -745,7 +1197,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                           setLoginIdentifier(e.target.value);
                           if (loginError) setLoginError('');
                         }}
-                        placeholder="cth: 011-11135503 atau emel"
+                        placeholder="cth: amir88 atau 011-11135503"
                         className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl px-3 py-2 text-xs text-stone-900 dark:text-white focus:bg-white focus:border-emerald-500 focus:outline-hidden"
                       />
                     </div>
@@ -785,10 +1237,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   <div className="flex items-center justify-between pt-1 gap-2 flex-wrap">
                     <button
                       type="button"
-                      onClick={() => setAuthTab('guest')}
-                      className="text-[11px] text-stone-500 hover:text-emerald-600 font-semibold cursor-pointer underline"
+                      onClick={() => setAuthTab('register')}
+                      className="text-[11px] text-emerald-600 dark:text-emerald-400 hover:underline font-bold cursor-pointer"
                     >
-                      Tiada akaun? Teruskan isi borang sebagai tetamu →
+                      Belum ada akaun? Daftar Ahli Percuma (+50 Mata) →
                     </button>
 
                     <button
@@ -810,17 +1262,27 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 </div>
               )}
 
-              {/* Tab 2 Content: Guest note */}
+              {/* Tab 3 Content: Guest note */}
               {authTab === 'guest' && (
-                <div className="px-4 py-2.5 bg-stone-50 dark:bg-stone-900/40 flex items-center justify-between text-xs text-stone-500 dark:text-stone-400">
+                <div className="px-4 py-3 bg-stone-50 dark:bg-stone-900/40 flex flex-wrap items-center justify-between gap-2 text-xs text-stone-500 dark:text-stone-400">
                   <span>📝 Anda sedang mengisi maklumat sebagai pelanggan terus / tetamu.</span>
-                  <button
-                    type="button"
-                    onClick={() => setAuthTab('login')}
-                    className="text-emerald-600 dark:text-emerald-400 font-bold hover:underline cursor-pointer"
-                  >
-                    Ada akaun? Log Masuk
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setAuthTab('register')}
+                      className="text-amber-600 dark:text-amber-400 font-bold hover:underline cursor-pointer flex items-center gap-1"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Daftar Ahli (+50 Mata)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAuthTab('login')}
+                      className="text-emerald-600 dark:text-emerald-400 font-bold hover:underline cursor-pointer"
+                    >
+                      Log Masuk
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -855,7 +1317,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   required
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  placeholder=""
+                  placeholder="cth: Ahmad Bin Abdullah"
                   className="w-full bg-stone-50 dark:bg-stone-800/80 border border-stone-200 dark:border-stone-700 rounded-xl px-3 py-2 text-xs sm:text-sm text-stone-900 dark:text-white placeholder:text-stone-400 focus:bg-white dark:focus:bg-stone-800 focus:border-emerald-500 focus:outline-hidden transition-colors"
                 />
               </div>
@@ -869,7 +1331,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   required
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  placeholder=""
+                  placeholder="cth: 011-11135503 atau 0123456789"
                   className="w-full bg-stone-50 dark:bg-stone-800/80 border border-stone-200 dark:border-stone-700 rounded-xl px-3 py-2 text-xs sm:text-sm text-stone-900 dark:text-white placeholder:text-stone-400 focus:bg-white dark:focus:bg-stone-800 focus:border-emerald-500 focus:outline-hidden transition-colors"
                 />
               </div>
@@ -882,7 +1344,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder=""
+                  placeholder="cth: ahmad@gmail.com (pilihan)"
                   className="w-full bg-stone-50 dark:bg-stone-800/80 border border-stone-200 dark:border-stone-700 rounded-xl px-3 py-2 text-xs sm:text-sm text-stone-900 dark:text-white placeholder:text-stone-400 focus:bg-white dark:focus:bg-stone-800 focus:border-emerald-500 focus:outline-hidden transition-colors"
                 />
               </div>
@@ -1248,104 +1710,244 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             </div>
           </div>
 
-          {/* SECTION 4: KAEDAH PEMBAYARAN (HitPay Payment Gateway) */}
+          {/* SECTION 4: KAEDAH PEMBAYARAN */}
           <div className="pt-2 border-t border-stone-100 dark:border-stone-800">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-xs sm:text-sm font-extrabold text-stone-900 dark:text-white uppercase tracking-wide flex items-center gap-2">
                 <CreditCard className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                <span>4. Kaedah Pembayaran (HitPay Gateway Rasmi)</span>
+                <span>4. Kaedah Pembayaran</span>
               </h3>
               <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
                 <ShieldCheck className="w-3 h-3" />
-                <span>HitPay Verified</span>
+                <span>Pembayaran Selamat</span>
               </span>
             </div>
 
-            {/* HitPay Gateway Container */}
-            <div className="p-4 rounded-2xl border-2 border-emerald-500/80 bg-linear-to-br from-emerald-50/50 via-white to-stone-50 dark:from-emerald-950/30 dark:via-stone-900 dark:to-stone-900 shadow-xs space-y-3.5">
-              
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black text-sm shadow-md">
+            {/* Payment Method Selector Tabs */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mb-4">
+              {/* Option 1: HitPay Gateway (Default) */}
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('hitpay')}
+                className={`p-3 rounded-2xl border-2 text-left transition-all cursor-pointer flex flex-col justify-between ${
+                  paymentMethod === 'hitpay'
+                    ? 'border-emerald-600 bg-emerald-50/70 dark:bg-emerald-950/40 text-stone-900 dark:text-white shadow-sm ring-2 ring-emerald-500/30'
+                    : 'border-stone-200 dark:border-stone-700 hover:border-stone-300 dark:hover:border-stone-600 bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-300'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-black text-xs">
                     HP
                   </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-extrabold text-stone-900 dark:text-white text-xs sm:text-sm">
-                        HitPay Malaysia Payment Gateway
-                      </h4>
-                      <span className="text-[10px] font-black px-1.5 py-0.5 rounded-sm bg-emerald-600 text-white">
-                        Satu-satunya Kaedah Rasmi
-                      </span>
+                  <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full bg-emerald-600 text-white">
+                    Disyorkan
+                  </span>
+                </div>
+                <div>
+                  <h5 className="font-extrabold text-xs text-stone-900 dark:text-white">
+                    HitPay Gateway
+                  </h5>
+                  <p className="text-[10px] text-stone-500 dark:text-stone-400 mt-0.5">
+                    FPX, DuitNow QR, TNG, Card
+                  </p>
+                </div>
+              </button>
+
+              {/* Option 2: DuitNow Manual */}
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('duitnow')}
+                className={`p-3 rounded-2xl border-2 text-left transition-all cursor-pointer flex flex-col justify-between ${
+                  paymentMethod === 'duitnow'
+                    ? 'border-pink-600 bg-pink-50/70 dark:bg-pink-950/40 text-stone-900 dark:text-white shadow-sm ring-2 ring-pink-500/30'
+                    : 'border-stone-200 dark:border-stone-700 hover:border-stone-300 dark:hover:border-stone-600 bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-300'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <div className="w-7 h-7 rounded-lg bg-pink-600 text-white flex items-center justify-center font-black text-xs">
+                    <QrCode className="w-4 h-4" />
+                  </div>
+                  <span className="text-[9px] font-bold text-pink-600 dark:text-pink-400">
+                    Manual Bank
+                  </span>
+                </div>
+                <div>
+                  <h5 className="font-extrabold text-xs text-stone-900 dark:text-white">
+                    DuitNow / Transfer
+                  </h5>
+                  <p className="text-[10px] text-stone-500 dark:text-stone-400 mt-0.5">
+                    Maybank & Resit WhatsApp
+                  </p>
+                </div>
+              </button>
+
+              {/* Option 3: Tunai / COD */}
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('cod')}
+                className={`p-3 rounded-2xl border-2 text-left transition-all cursor-pointer flex flex-col justify-between ${
+                  paymentMethod === 'cod'
+                    ? 'border-amber-600 bg-amber-50/70 dark:bg-amber-950/40 text-stone-900 dark:text-white shadow-sm ring-2 ring-amber-500/30'
+                    : 'border-stone-200 dark:border-stone-700 hover:border-stone-300 dark:hover:border-stone-600 bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-300'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <div className="w-7 h-7 rounded-lg bg-amber-600 text-white flex items-center justify-center font-black text-xs">
+                    <Banknote className="w-4 h-4" />
+                  </div>
+                  <span className="text-[9px] font-bold text-amber-700 dark:text-amber-400">
+                    {fulfillmentType === 'pickup' ? 'Di Kaunter' : 'Semasa Terima'}
+                  </span>
+                </div>
+                <div>
+                  <h5 className="font-extrabold text-xs text-stone-900 dark:text-white">
+                    {fulfillmentType === 'pickup' ? 'Tunai Di Kaunter' : 'Tunai / COD'}
+                  </h5>
+                  <p className="text-[10px] text-stone-500 dark:text-stone-400 mt-0.5">
+                    Bayar Semasa Ambil/Terima
+                  </p>
+                </div>
+              </button>
+            </div>
+
+            {/* TAB CONTENT: HITPAY */}
+            {paymentMethod === 'hitpay' && (
+              <div className="p-4 rounded-2xl border-2 border-emerald-500/80 bg-linear-to-br from-emerald-50/50 via-white to-stone-50 dark:from-emerald-950/30 dark:via-stone-900 dark:to-stone-900 shadow-xs space-y-3.5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black text-sm shadow-md">
+                      HP
                     </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-extrabold text-stone-900 dark:text-white text-xs sm:text-sm">
+                          HitPay Malaysia Payment Gateway
+                        </h4>
+                        <span className="text-[10px] font-black px-1.5 py-0.5 rounded-sm bg-emerald-600 text-white">
+                          Automatik & Serta-Merta
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-stone-600 dark:text-stone-300 mt-0.5">
+                        Anda akan dibawa ke laman rasmi HitPay untuk melengkapkan pembayaran FPX Online Banking, DuitNow QR, atau Kad Bank.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Supported Channels Badges */}
+                <div className="pt-2 border-t border-stone-200/70 dark:border-stone-800">
+                  <span className="text-[10px] font-bold text-stone-500 dark:text-stone-400 uppercase tracking-wider block mb-2">
+                    Saluran Pembayaran Yang Diterima Di Bawah HitPay:
+                  </span>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                    <div className="p-2 rounded-xl bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-lg bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 flex items-center justify-center shrink-0">
+                        <Banknote className="w-3.5 h-3.5" />
+                      </div>
+                      <div>
+                        <span className="font-bold text-[11px] text-stone-900 dark:text-white block">FPX Online</span>
+                        <span className="text-[9px] text-stone-500">18+ Bank Tempatan</span>
+                      </div>
+                    </div>
+
+                    <div className="p-2 rounded-xl bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-lg bg-pink-100 dark:bg-pink-950 text-pink-700 dark:text-pink-300 flex items-center justify-center shrink-0">
+                        <QrCode className="w-3.5 h-3.5" />
+                      </div>
+                      <div>
+                        <span className="font-bold text-[11px] text-stone-900 dark:text-white block">DuitNow QR</span>
+                        <span className="text-[9px] text-stone-500">Imbas Semua Aplikasi</span>
+                      </div>
+                    </div>
+
+                    <div className="p-2 rounded-xl bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-lg bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 flex items-center justify-center shrink-0">
+                        <Smartphone className="w-3.5 h-3.5" />
+                      </div>
+                      <div>
+                        <span className="font-bold text-[11px] text-stone-900 dark:text-white block">E-Wallet</span>
+                        <span className="text-[9px] text-stone-500">TNG, Grab, Shopee</span>
+                      </div>
+                    </div>
+
+                    <div className="p-2 rounded-xl bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-lg bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 flex items-center justify-center shrink-0">
+                        <CreditCard className="w-3.5 h-3.5" />
+                      </div>
+                      <div>
+                        <span className="font-bold text-[11px] text-stone-900 dark:text-white block">Kad Bank</span>
+                        <span className="text-[9px] text-stone-500">Visa / Mastercard</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 text-[10px] text-emerald-800 dark:text-emerald-300 bg-emerald-100/50 dark:bg-emerald-950/40 p-2 rounded-xl border border-emerald-200 dark:border-emerald-800/60">
+                  <Lock className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                  <span>Enkripsi SSL 256-Bit HitPay Payment Gateway • Diluluskan Bank Negara Malaysia & PayNet</span>
+                </div>
+              </div>
+            )}
+
+            {/* TAB CONTENT: DUITNOW MANUAL */}
+            {paymentMethod === 'duitnow' && (
+              <div className="p-4 rounded-2xl border-2 border-pink-500/80 bg-pink-50/40 dark:bg-pink-950/30 space-y-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-pink-600 text-white flex items-center justify-center shrink-0 shadow-md">
+                    <QrCode className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-stone-900 dark:text-white text-xs sm:text-sm">
+                      DuitNow QR & Pindahan Bank Manual
+                    </h4>
                     <p className="text-[11px] text-stone-600 dark:text-stone-300 mt-0.5">
-                      Bayaran selamat secara dalam talian dengan pemprosesan serta-merta tanpa perlu muat naik resit.
+                      Sila pindahkan bayaran ke akaun rasmi kami dan hantarkan resit ke WhatsApp Khairul FRESH Food.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-white dark:bg-stone-900 border border-pink-200 dark:border-pink-800 space-y-1.5 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-stone-500 font-semibold">Bank:</span>
+                    <span className="font-black text-stone-900 dark:text-white">Maybank Berhad</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-stone-500 font-semibold">Nama Akaun:</span>
+                    <span className="font-black text-stone-900 dark:text-white">KHAIRUL FRESH FOOD</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-stone-500 font-semibold">No. Akaun:</span>
+                    <span className="font-mono font-black text-emerald-700 dark:text-emerald-400 text-sm tracking-wide">5628 3461 9820</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-stone-500 font-semibold">Rujukan Pesanan:</span>
+                    <span className="font-bold text-stone-900 dark:text-white">No. Telefon Pelanggan</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB CONTENT: COD / TUNAI */}
+            {paymentMethod === 'cod' && (
+              <div className="p-4 rounded-2xl border-2 border-amber-500/80 bg-amber-50/40 dark:bg-amber-950/30 space-y-2">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-600 text-white flex items-center justify-center shrink-0 shadow-md">
+                    <Banknote className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-stone-900 dark:text-white text-xs sm:text-sm">
+                      {fulfillmentType === 'pickup' ? 'Bayaran Tunai di Kaunter Pasar' : 'Bayaran Tunai Semasa Penghantaran (COD)'}
+                    </h4>
+                    <p className="text-[11px] text-stone-600 dark:text-stone-300 mt-0.5">
+                      {fulfillmentType === 'pickup'
+                        ? 'Sila sediakan wang tunai secukupnya semasa mengambil pesanan di Gerai Pasar Semenyih.'
+                        : 'Sila bayar tunai kepada penghantar (rider) kami apabila ayam segar dihantar ke alamat anda.'}
                     </p>
                   </div>
                 </div>
               </div>
-
-              {/* Supported Channels Badges */}
-              <div className="pt-2 border-t border-stone-200/70 dark:border-stone-800">
-                <span className="text-[10px] font-bold text-stone-500 dark:text-stone-400 uppercase tracking-wider block mb-2">
-                  Saluran Pembayaran Yang Diterima Di Bawah HitPay:
-                </span>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                  
-                  {/* FPX Banking */}
-                  <div className="p-2 rounded-xl bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-lg bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 flex items-center justify-center shrink-0">
-                      <Banknote className="w-3.5 h-3.5" />
-                    </div>
-                    <div>
-                      <span className="font-bold text-[11px] text-stone-900 dark:text-white block">FPX Online</span>
-                      <span className="text-[9px] text-stone-500">18+ Bank Tempatan</span>
-                    </div>
-                  </div>
-
-                  {/* DuitNow QR */}
-                  <div className="p-2 rounded-xl bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-lg bg-pink-100 dark:bg-pink-950 text-pink-700 dark:text-pink-300 flex items-center justify-center shrink-0">
-                      <QrCode className="w-3.5 h-3.5" />
-                    </div>
-                    <div>
-                      <span className="font-bold text-[11px] text-stone-900 dark:text-white block">DuitNow QR</span>
-                      <span className="text-[9px] text-stone-500">Imbas Semua Aplikasi</span>
-                    </div>
-                  </div>
-
-                  {/* E-Wallets */}
-                  <div className="p-2 rounded-xl bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-lg bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 flex items-center justify-center shrink-0">
-                      <Smartphone className="w-3.5 h-3.5" />
-                    </div>
-                    <div>
-                      <span className="font-bold text-[11px] text-stone-900 dark:text-white block">E-Wallet</span>
-                      <span className="text-[9px] text-stone-500">TNG, GrabPay, Shopee</span>
-                    </div>
-                  </div>
-
-                  {/* Cards */}
-                  <div className="p-2 rounded-xl bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-lg bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 flex items-center justify-center shrink-0">
-                      <CreditCard className="w-3.5 h-3.5" />
-                    </div>
-                    <div>
-                      <span className="font-bold text-[11px] text-stone-900 dark:text-white block">Kad Bank</span>
-                      <span className="text-[9px] text-stone-500">Visa / Mastercard</span>
-                    </div>
-                  </div>
-
-                </div>
-              </div>
-
-              {/* Security info bar */}
-              <div className="flex items-center gap-2 text-[10px] text-emerald-800 dark:text-emerald-300 bg-emerald-100/50 dark:bg-emerald-950/40 p-2 rounded-xl border border-emerald-200 dark:border-emerald-800/60">
-                <Lock className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
-                <span>Enkripsi SSL 256-Bit HitPay Payment Gateway • Diluluskan oleh Bank Negara Malaysia & PayNet</span>
-              </div>
-            </div>
+            )}
           </div>
 
           {/* SECTION 4: RINGKASAN PESANAN & TOTAL */}
@@ -1485,6 +2087,17 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               <span>Jaminan Kualiti Khairul FRESH Food: Ayam segar berkualiti & Halal Dijamin.</span>
             </div>
           </div>
+
+          {/* Payment Error Alert if any */}
+          {paymentError && (
+            <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border-2 border-rose-300 dark:border-rose-800 text-rose-800 dark:text-rose-200 flex items-start gap-3 animate-fade-in text-xs">
+              <AlertCircle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+              <div>
+                <strong className="font-bold block">Ralat Pembayaran:</strong>
+                <p className="mt-0.5 leading-relaxed">{paymentError}</p>
+              </div>
+            </div>
+          )}
 
           {/* Action Buttons */}
           <div className="pt-2 flex items-center justify-end gap-3 shrink-0">

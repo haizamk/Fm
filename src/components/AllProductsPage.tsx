@@ -1,7 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Product, ProductCategory } from '../types';
 import { PRODUCT_CATEGORIES } from '../data/products';
 import { ProductCard } from './ProductCard';
+import { getShareableUrl, copyShareableLink } from '../utils/seoHelper';
 import { 
   ArrowLeft, 
   ArrowUp,
@@ -12,7 +13,9 @@ import {
   ShoppingBag,
   RotateCcw,
   Percent,
-  Layers
+  Layers,
+  Share2,
+  Check
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -26,6 +29,8 @@ interface AllProductsPageProps {
   onBackToHome: () => void;
   initialCategory?: ProductCategory;
   initialSearchQuery?: string;
+  onCategoryChange?: (cat: ProductCategory) => void;
+  onShare?: (url: string, msg?: string) => void;
 }
 
 type SortOption = 'default' | 'price-asc' | 'price-desc' | 'savings-desc' | 'rating-desc';
@@ -40,6 +45,8 @@ export const AllProductsPage: React.FC<AllProductsPageProps> = ({
   onBackToHome,
   initialCategory = 'semua',
   initialSearchQuery = '',
+  onCategoryChange,
+  onShare,
 }) => {
   const { t, isEn, tCategoryName } = useLanguage();
   const [searchQuery, setSearchQuery] = useState<string>(initialSearchQuery);
@@ -48,6 +55,31 @@ export const AllProductsPage: React.FC<AllProductsPageProps> = ({
   const [showOnlyFavorites, setShowOnlyFavorites] = useState<boolean>(false);
   const [showOnlyPromo, setShowOnlyPromo] = useState<boolean>(false);
   const [showOnlyLowStock, setShowOnlyLowStock] = useState<boolean>(false);
+  const [copiedCategoryLink, setCopiedCategoryLink] = useState<boolean>(false);
+
+  useEffect(() => {
+    setSelectedCategory(initialCategory);
+  }, [initialCategory]);
+
+  const handleSelectCat = (catId: ProductCategory) => {
+    setSelectedCategory(catId);
+    onCategoryChange?.(catId);
+  };
+
+  const handleShareCategory = async () => {
+    const directUrl = getShareableUrl({
+      kategori: selectedCategory,
+    });
+    if (onShare) {
+      onShare(directUrl, `Pautan ${selectedCategory !== 'semua' ? selectedCategory.replace('-', ' ') : 'katalog'} disalin!`);
+      return;
+    }
+    const success = await copyShareableLink(directUrl);
+    if (success) {
+      setCopiedCategoryLink(true);
+      setTimeout(() => setCopiedCategoryLink(false), 2500);
+    }
+  };
 
   // Filtered and sorted products
   const filteredProducts = useMemo(() => {
@@ -214,7 +246,7 @@ export const AllProductsPage: React.FC<AllProductsPageProps> = ({
                 return (
                   <button
                     key={cat.id}
-                    onClick={() => setSelectedCategory(cat.id)}
+                    onClick={() => handleSelectCat(cat.id as ProductCategory)}
                     className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
                       isSelected
                         ? 'bg-emerald-600 text-white shadow-xs'
@@ -227,8 +259,31 @@ export const AllProductsPage: React.FC<AllProductsPageProps> = ({
               })}
             </div>
 
-            {/* Quick Toggle Badges */}
+            {/* Quick Toggle Badges & Category Link Share */}
             <div className="flex items-center gap-2 shrink-0 flex-wrap">
+              {/* Share Category Link Button */}
+              <button
+                type="button"
+                onClick={handleShareCategory}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border ${
+                  copiedCategoryLink
+                    ? 'bg-emerald-600 text-white border-emerald-600'
+                    : 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900 border-emerald-200 dark:border-emerald-800'
+                }`}
+                title={isEn ? "Share link for this category / view" : "Salin pautan untuk kategori atau paparan ini"}
+              >
+                {copiedCategoryLink ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-white" />
+                    <span>{isEn ? 'Link Copied!' : 'Pautan Disalin!'}</span>
+                  </>
+                ) : (
+                  <>
+                    <Share2 className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
+                    <span>{isEn ? 'Share View' : 'Kongsi Pautan'}</span>
+                  </>
+                )}
+              </button>
               {/* Promo Only */}
               <button
                 onClick={() => setShowOnlyPromo(!showOnlyPromo)}

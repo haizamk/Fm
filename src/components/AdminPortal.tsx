@@ -83,6 +83,7 @@ import { MediaLibraryModal } from './MediaLibraryModal';
 import { AdminMediaTab } from './AdminMediaTab';
 import { AdminWhatsAppGatewayTab } from './AdminWhatsAppGatewayTab';
 import { QRScannerModal } from './QRScannerModal';
+import { getProductCleanUrl, slugify, copyShareableLink } from '../utils/seoHelper';
 
 interface AdminPortalProps {
   isOpen: boolean;
@@ -223,6 +224,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   // Realtime Firestore Subscription for Admin Portal
   useEffect(() => {
     if (!isOpen) return;
+    // Initial fetch of latest users
+    setCustomers(authService.getAllUsers());
+
     const unsubOrders = dataStorageService.subscribeOrders((liveOrders) => {
       setOrders(liveOrders);
     });
@@ -235,12 +239,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     const unsubCoupons = dataStorageService.subscribeCoupons((liveCoupons) => {
       setCoupons(liveCoupons);
     });
+    const unsubUsers = authService.subscribeUsers((liveUsers) => {
+      setCustomers(liveUsers);
+    });
 
     return () => {
       unsubOrders();
       unsubProducts();
       unsubSettings();
       unsubCoupons();
+      unsubUsers();
     };
   }, [isOpen]);
 
@@ -1944,6 +1952,11 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         placeholder="cth: Ayam Bulat Segar Pasar Semenyih (Gred A)"
                         className="w-full bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 rounded-xl p-2.5 font-bold focus:outline-hidden focus:border-emerald-500"
                       />
+                      {prodName && (
+                        <p className="text-[11px] font-mono text-emerald-700 dark:text-emerald-400 mt-1 flex items-center gap-1">
+                          <span className="font-sans font-bold">Pautan Mesra Pengguna:</span> /p/{slugify(prodName)}
+                        </p>
+                      )}
                     </div>
 
                     <div>
@@ -2299,6 +2312,20 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         </button>
 
                         <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const cleanUrl = getProductCleanUrl(product, { format: 'path' });
+                              const ok = await copyShareableLink(cleanUrl);
+                              if (ok) {
+                                showNotification('success', `Pautan mesra pengguna untuk ${product.name} berjaya disalin: ${cleanUrl}`);
+                              }
+                            }}
+                            className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 hover:text-emerald-800 cursor-pointer"
+                            title="Salin Pautan Mesra Pengguna (/p/...)"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                          </button>
                           <button
                             onClick={() => handleOpenEditProduct(product)}
                             className="p-1.5 rounded-lg bg-stone-100 dark:bg-stone-700 text-stone-700 dark:text-stone-200 hover:bg-emerald-50 hover:text-emerald-700 cursor-pointer"

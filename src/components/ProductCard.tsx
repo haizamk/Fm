@@ -1,9 +1,10 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { Product } from '../types';
-import { Star, Scissors, Plus, ShieldCheck, Check, Heart, Scale, Flame, AlertCircle, Sparkles, Bell, Layers } from 'lucide-react';
+import { Star, Scissors, Plus, ShieldCheck, Check, Heart, Scale, Flame, AlertCircle, Sparkles, Bell, Layers, Share2 } from 'lucide-react';
 import { calculatePricePerKg } from '../utils/pricing';
 import { ProductImage } from './ProductImage';
 import { useLanguage } from '../context/LanguageContext';
+import { getProductCleanUrl, copyShareableLink } from '../utils/seoHelper';
 
 interface ProductCardProps {
   product: Product;
@@ -12,6 +13,7 @@ interface ProductCardProps {
   onNotifyStock?: (product: Product) => void;
   isFavorite?: boolean;
   onToggleFavorite?: (productId: string) => void;
+  onShareProduct?: (product: Product) => void;
   index?: number;
 }
 
@@ -22,11 +24,27 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   onNotifyStock,
   isFavorite = false,
   onToggleFavorite,
+  onShareProduct,
   index = 0,
 }) => {
   const { t, isEn, tProduct } = useLanguage();
   const cardRef = useRef<HTMLDivElement>(null);
   const transProd = tProduct(product);
+  const [copiedShare, setCopiedShare] = useState<boolean>(false);
+
+  const handleShareClick = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onShareProduct) {
+      onShareProduct(product);
+      return;
+    }
+    const directUrl = getProductCleanUrl(product, { format: 'path' });
+    const success = await copyShareableLink(directUrl);
+    if (success) {
+      setCopiedShare(true);
+      setTimeout(() => setCopiedShare(false), 2000);
+    }
+  };
 
   // Weight variations calculations if present
   const hasWeightOptions = Boolean(product.hasWeightOptions && product.weightOptions && product.weightOptions.length > 0);
@@ -68,29 +86,51 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           containerClassName="w-full h-full cursor-pointer"
         />
 
-        {/* Favorite Button (Heart Icon) */}
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleFavorite?.(product.id);
-          }}
-          aria-label={isFavorite ? (isEn ? `Remove ${transProd.name} from favorites` : `Buang ${transProd.name} dari kegemaran`) : (isEn ? `Save ${transProd.name} to favorites` : `Simpan ${transProd.name} ke kegemaran`)}
-          title={isFavorite ? (isEn ? "Saved in Favorites (Click to remove)" : "Tersimpan dalam Kegemaran (Klik untuk buang)") : (isEn ? "Save to Favorites" : "Simpan ke Kegemaran")}
-          className={`absolute top-2.5 right-2.5 z-20 w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 shadow-md cursor-pointer ${
-            isFavorite
-              ? 'bg-white dark:bg-stone-800 text-rose-500 shadow-rose-500/25 scale-105 ring-2 ring-rose-300 dark:ring-rose-900'
-              : 'bg-white/85 dark:bg-stone-900/80 hover:bg-white dark:hover:bg-stone-800 text-stone-600 dark:text-stone-300 hover:text-rose-500 hover:scale-110'
-          }`}
-        >
-          <Heart
-            className={`w-4 h-4 transition-all duration-300 ${
-              isFavorite 
-                ? 'fill-rose-500 text-rose-500 animate-pulse' 
-                : 'stroke-[2.2] text-stone-700 dark:text-stone-300 hover:text-rose-500'
+        {/* Action Buttons: Share & Favorite */}
+        <div className="absolute top-2.5 right-2.5 z-20 flex items-center gap-1.5">
+          {/* Share Direct Link Button */}
+          <button
+            type="button"
+            onClick={handleShareClick}
+            aria-label={isEn ? `Share ${transProd.name} link` : `Kongsi pautan ${transProd.name}`}
+            title={copiedShare ? (isEn ? "Link copied to clipboard!" : "Pautan produk disalin!") : (isEn ? "Share / Copy Product Link" : "Kongsi / Salin Pautan Produk")}
+            className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 shadow-md cursor-pointer ${
+              copiedShare
+                ? 'bg-emerald-600 text-white shadow-emerald-600/30 scale-105'
+                : 'bg-white/85 dark:bg-stone-900/80 hover:bg-white dark:hover:bg-stone-800 text-stone-600 dark:text-stone-300 hover:text-emerald-600 hover:scale-110'
             }`}
-          />
-        </button>
+          >
+            {copiedShare ? (
+              <Check className="w-4 h-4 text-white" />
+            ) : (
+              <Share2 className="w-3.5 h-3.5 stroke-[2.2]" />
+            )}
+          </button>
+
+          {/* Favorite Button (Heart Icon) */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleFavorite?.(product.id);
+            }}
+            aria-label={isFavorite ? (isEn ? `Remove ${transProd.name} from favorites` : `Buang ${transProd.name} dari kegemaran`) : (isEn ? `Save ${transProd.name} to favorites` : `Simpan ${transProd.name} ke kegemaran`)}
+            title={isFavorite ? (isEn ? "Saved in Favorites (Click to remove)" : "Tersimpan dalam Kegemaran (Klik untuk buang)") : (isEn ? "Save to Favorites" : "Simpan ke Kegemaran")}
+            className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 shadow-md cursor-pointer ${
+              isFavorite
+                ? 'bg-white dark:bg-stone-800 text-rose-500 shadow-rose-500/25 scale-105 ring-2 ring-rose-300 dark:ring-rose-900'
+                : 'bg-white/85 dark:bg-stone-900/80 hover:bg-white dark:hover:bg-stone-800 text-stone-600 dark:text-stone-300 hover:text-rose-500 hover:scale-110'
+            }`}
+          >
+            <Heart
+              className={`w-4 h-4 transition-all duration-300 ${
+                isFavorite 
+                  ? 'fill-rose-500 text-rose-500 animate-pulse' 
+                  : 'stroke-[2.2] text-stone-700 dark:text-stone-300 hover:text-rose-500'
+              }`}
+            />
+          </button>
+        </div>
 
         {/* Top Badges */}
         <div className="absolute top-2.5 left-2.5 flex flex-col gap-1 z-10">

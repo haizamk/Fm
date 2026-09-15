@@ -25,10 +25,15 @@ import {
   Flame,
   Layers,
   AlertCircle,
+  Share2,
+  Link2,
+  Copy,
+  ExternalLink,
 } from 'lucide-react';
 import { ProductImage } from './ProductImage';
 import { useLanguage } from '../context/LanguageContext';
 import { dataStorageService } from '../services/dataStorage';
+import { getProductCleanUrl, getWhatsAppShareUrl, copyShareableLink } from '../utils/seoHelper';
 
 interface ProductCutModalProps {
   product: Product | null;
@@ -92,6 +97,21 @@ export const ProductCutModal: React.FC<ProductCutModalProps> = ({
   const [packaging, setPackaging] = useState<PackagingOptionId>('bungkusan-biasa-ais');
   const [specialNotes, setSpecialNotes] = useState('');
   const [quantity, setQuantity] = useState(1);
+  const [isCopiedCleanUrl, setIsCopiedCleanUrl] = useState<boolean>(false);
+  const [showShareDetails, setShowShareDetails] = useState<boolean>(false);
+
+  const cleanProductUrl = product ? getProductCleanUrl(product, { format: 'path' }) : '';
+  const cleanShortPath = product ? `/p/${product.id}` : '';
+  const whatsappShareUrl = product ? getWhatsAppShareUrl(product) : '';
+
+  const handleCopyCleanUrl = async () => {
+    if (!cleanProductUrl) return;
+    const ok = await copyShareableLink(cleanProductUrl);
+    if (ok) {
+      setIsCopiedCleanUrl(true);
+      setTimeout(() => setIsCopiedCleanUrl(false), 2200);
+    }
+  };
 
   // Sync state when product changes
   useEffect(() => {
@@ -116,18 +136,16 @@ export const ProductCutModal: React.FC<ProductCutModalProps> = ({
     }
   }, [product?.id, isOpen]);
 
-  if (!isOpen || !product) return null;
-
-  const transProd = tProduct(product);
+  const transProd = product ? tProduct(product) : { name: '', subtitle: '', description: '', freshnessType: '' };
 
   // Calculate active selections and price
-  const activeWeightOpt = product.weightOptions?.find(o => o.id === selectedWeightOptId) || defaultWeightOpt;
-  const activeOrganVar = product.organVariations?.find((v) => v.id === selectedOrganVarId) || null;
+  const activeWeightOpt = product?.weightOptions?.find(o => o.id === selectedWeightOptId) || defaultWeightOpt;
+  const activeOrganVar = product?.organVariations?.find((v) => v.id === selectedOrganVarId) || null;
 
-  let baseUnitPrice = product.price;
-  if (product.hasWeightOptions && activeWeightOpt) {
+  let baseUnitPrice = product ? product.price : 0;
+  if (product?.hasWeightOptions && activeWeightOpt) {
     baseUnitPrice = activeWeightOpt.price;
-  } else if (product.hasOrganVariations && activeOrganVar) {
+  } else if (product?.hasOrganVariations && activeOrganVar) {
     baseUnitPrice = activeOrganVar.price;
   }
 
@@ -150,6 +168,7 @@ export const ProductCutModal: React.FC<ProductCutModalProps> = ({
   const totalItemPrice = unitPriceTotal * quantity;
 
   const handleConfirm = () => {
+    if (!product) return;
     if (quantity > 30) {
       setValidationError(isEn ? 'Maximum order is 30 units per delivery trip.' : 'Maksimum pesanan adalah 30 unit bagi satu trip penghantaran.');
       return;
@@ -174,6 +193,8 @@ export const ProductCutModal: React.FC<ProductCutModalProps> = ({
     );
     onClose();
   };
+
+  if (!isOpen || !product) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-stone-950/70 backdrop-blur-xs overflow-y-auto animate-fade-in">
@@ -227,6 +248,61 @@ export const ProductCutModal: React.FC<ProductCutModalProps> = ({
 
         {/* Scrollable Configuration Body */}
         <div className="p-4 sm:p-6 overflow-y-auto space-y-6 flex-1 text-stone-800 dark:text-stone-200">
+          
+          {/* USER-FRIENDLY CLEAN PRODUCT LINK / SHARE BANNER */}
+          <div className="bg-stone-50 dark:bg-stone-800/80 border border-stone-200 dark:border-stone-700/80 rounded-2xl p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                <Link2 className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-emerald-600/15 text-emerald-700 dark:text-emerald-400">
+                    {isEn ? 'Short & Friendly URL' : 'Pautan Mesra Pengguna'}
+                  </span>
+                </div>
+                <div className="text-xs font-mono text-stone-600 dark:text-stone-300 truncate mt-0.5 select-all">
+                  {cleanShortPath} <span className="text-[11px] text-stone-400 font-sans">({cleanProductUrl})</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+              <button
+                type="button"
+                onClick={handleCopyCleanUrl}
+                className={`text-xs font-bold px-3 py-1.5 rounded-xl border transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs ${
+                  isCopiedCleanUrl
+                    ? 'bg-emerald-600 border-emerald-600 text-white'
+                    : 'bg-white dark:bg-stone-700 hover:bg-stone-100 dark:hover:bg-stone-600 text-stone-700 dark:text-stone-200 border-stone-300 dark:border-stone-600'
+                }`}
+                title={isEn ? "Copy short product link" : "Salin pautan produk yang ringkas & mesra pengguna"}
+              >
+                {isCopiedCleanUrl ? (
+                  <>
+                    <Check className="w-3.5 h-3.5" />
+                    <span>{isEn ? 'Copied!' : 'Disalin!'}</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>{isEn ? 'Copy Link' : 'Salin Pautan'}</span>
+                  </>
+                )}
+              </button>
+
+              <a
+                href={whatsappShareUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs font-bold px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                title={isEn ? "Share product on WhatsApp" : "Kongsi produk terus ke WhatsApp"}
+              >
+                <Share2 className="w-3.5 h-3.5" />
+                <span>WhatsApp</span>
+              </a>
+            </div>
+          </div>
           
           {/* STEP 1: PILIHAN BERAT AYAM & KUANTITI AVAILABLE */}
           {product.hasWeightOptions && product.weightOptions && product.weightOptions.length > 0 && (

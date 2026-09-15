@@ -12,6 +12,7 @@ import {
 } from '../types';
 import { PRODUCTS } from '../data/products';
 import { db } from './firebase';
+import { authService } from './auth';
 import { 
   collection, 
   doc, 
@@ -468,6 +469,26 @@ export const dataStorageService = {
 
     // Push to Firebase Firestore
     syncDocToFirestore('orders', newOrder.orderId, newOrder);
+
+    // Auto-record customer into user registry & Firestore customer directory
+    try {
+      authService.recordCustomerFromOrder(
+        {
+          fullName: newOrder.customer.fullName,
+          email: newOrder.customer.email,
+          phone: newOrder.customer.phone,
+        },
+        newOrder.total,
+        {
+          address: newOrder.customer.address,
+          city: newOrder.customer.city,
+          postcode: newOrder.customer.postcode,
+          state: newOrder.customer.state,
+        }
+      );
+    } catch (err) {
+      console.info('Auto customer record note:', err);
+    }
 
     this.addAuditLog({
       action: 'Pesanan Baru Masuk',

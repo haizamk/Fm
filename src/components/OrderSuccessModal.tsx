@@ -3,6 +3,7 @@ import { OrderRecord } from '../types';
 import { getCutLabel } from '../data/products';
 import { downloadReceiptPDF, sendReceiptPDFToWhatsApp } from '../utils/pdfReceipt';
 import { getWhatsAppOrderConfirmationLink } from '../utils/whatsappHelper';
+import { DuitNowOCBCQR } from './DuitNowOCBCQR';
 import confetti from 'canvas-confetti';
 import { 
   CheckCircle2, 
@@ -293,40 +294,73 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
             )}
           </div>
 
-          {/* HitPay Online Payment Verification Card */}
-          <div className="p-4 rounded-2xl bg-emerald-50/80 dark:bg-emerald-950/50 border border-emerald-300 dark:border-emerald-800 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black text-sm shrink-0 shadow-md">
-                HP
-              </div>
-              <div className="text-xs space-y-0.5 text-stone-700 dark:text-stone-300">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-black uppercase text-emerald-800 dark:text-emerald-300 tracking-wider">
-                    HitPay Malaysia Gateway
-                  </span>
-                  <span className="text-[9px] font-black px-1.5 py-0.5 rounded-sm bg-emerald-600 text-white">
-                    Bayaran Disahkan
+          {/* Payment Details Card (HitPay vs DuitNow QR OCBC) */}
+          {order.customer.paymentMethod === 'duitnow' ? (
+            <div className="space-y-3">
+              <div className="p-4 rounded-2xl bg-pink-50/70 dark:bg-pink-950/40 border-2 border-pink-400 dark:border-pink-800">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-pink-600 text-white flex items-center justify-center font-bold text-xs shadow-xs">
+                      <QrCode className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-black uppercase text-pink-700 dark:text-pink-300 tracking-wider block">
+                        Kaedah Bayaran: DuitNow QR (OCBC Bank)
+                      </span>
+                      <h4 className="text-sm font-extrabold text-stone-900 dark:text-white">
+                        Sila Lengkapkan Pindahan & Hantar Resit
+                      </h4>
+                    </div>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-full bg-amber-500 text-white text-[10px] font-bold">
+                    Menunggu Resit
                   </span>
                 </div>
-                <h4 className="font-extrabold text-stone-900 dark:text-white text-sm">
-                  Jumlah Dibayar: RM {order.total.toFixed(2)}
-                </h4>
-                <p className="text-[11px] text-stone-600 dark:text-stone-300">
-                  Rujukan HitPay: <span className="font-mono font-bold text-emerald-800 dark:text-emerald-300">{order.customer.hitpayReference || order.orderId}</span>
-                </p>
+
+                <DuitNowOCBCQR
+                  orderTotal={order.total}
+                  orderId={order.orderId}
+                  customerName={order.customer.fullName}
+                  customerPhone={order.customer.phone}
+                  compact
+                />
               </div>
             </div>
+          ) : (
+            <div className="p-4 rounded-2xl bg-emerald-50/80 dark:bg-emerald-950/50 border border-emerald-300 dark:border-emerald-800 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black text-sm shrink-0 shadow-md">
+                  HP
+                </div>
+                <div className="text-xs space-y-0.5 text-stone-700 dark:text-stone-300">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black uppercase text-emerald-800 dark:text-emerald-300 tracking-wider">
+                      HitPay Malaysia Gateway
+                    </span>
+                    <span className="text-[9px] font-black px-1.5 py-0.5 rounded-sm bg-emerald-600 text-white">
+                      Bayaran Disahkan
+                    </span>
+                  </div>
+                  <h4 className="font-extrabold text-stone-900 dark:text-white text-sm">
+                    Jumlah Dibayar: RM {order.total.toFixed(2)}
+                  </h4>
+                  <p className="text-[11px] text-stone-600 dark:text-stone-300">
+                    Rujukan HitPay: <span className="font-mono font-bold text-emerald-800 dark:text-emerald-300">{order.customer.hitpayReference || order.orderId}</span>
+                  </p>
+                </div>
+              </div>
 
-            <div className="text-right shrink-0">
-              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-800 dark:text-emerald-200 bg-emerald-100 dark:bg-emerald-900/60 px-2.5 py-1 rounded-full border border-emerald-300 dark:border-emerald-800">
-                <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                <span>Transaksi Selesai</span>
-              </span>
-              <span className="block text-[9px] text-stone-500 mt-1">
-                FPX / DuitNow / E-Wallet / Kad
-              </span>
+              <div className="text-right shrink-0">
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-800 dark:text-emerald-200 bg-emerald-100 dark:bg-emerald-900/60 px-2.5 py-1 rounded-full border border-emerald-300 dark:border-emerald-800">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                  <span>Transaksi Selesai</span>
+                </span>
+                <span className="block text-[9px] text-stone-500 mt-1">
+                  FPX / DuitNow / E-Wallet / Kad
+                </span>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Items Summary Table */}
           <div>
@@ -389,7 +423,7 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
                 Jadual & Bayaran:
               </span>
               <div className="space-y-1 text-stone-600 dark:text-stone-300">
-                <div>Kaedah Bayaran: <strong className="text-emerald-700 dark:text-emerald-400">HITPAY GATEWAY (DALAM TALIAN)</strong></div>
+                <div>Kaedah Bayaran: <strong className="text-emerald-700 dark:text-emerald-400">{order.customer.paymentMethod === 'duitnow' ? 'DUITNOW QR (OCBC BANK)' : 'HITPAY GATEWAY (DALAM TALIAN)'}</strong></div>
                 <div>Kos Hantar: <strong>{order.deliveryFee === 0 ? 'Percuma' : `RM ${order.deliveryFee.toFixed(2)}`}</strong></div>
                 <div>Jumlah Bayaran: <strong className="text-emerald-800 dark:text-emerald-400">RM {order.total.toFixed(2)}</strong></div>
               </div>

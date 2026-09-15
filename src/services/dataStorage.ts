@@ -264,6 +264,14 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
     enabledMethods: ['fpx', 'duitnow', 'card', 'grabpay', 'tng', 'shopeepay'],
     webhookUrl: 'https://ais-dev-ibciauzkghto525j7ma3h5-707200717362.asia-east1.run.app/api/hitpay/webhook',
   },
+  duitnowConfig: {
+    bankName: 'OCBC Bank (Malaysia) Berhad',
+    accountName: 'KHAIRUL FRESH AND FROZEN FOOD',
+    accountNumber: '70 6116 3993',
+    orderReferenceGuide: 'No. Telefon Pelanggan / no pesanan',
+    qrImageUrl: '',
+    isActive: true,
+  },
   fonnteConfig: {
     token: '',
     adminPhone: '011-11135503',

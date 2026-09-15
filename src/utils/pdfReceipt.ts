@@ -78,7 +78,10 @@ export function generateReceiptPDF(order: OrderRecord): jsPDF {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(emeraldPrimary[0], emeraldPrimary[1], emeraldPrimary[2]);
-  doc.text('LUNAS (HitPay Malaysia)', margin + 4, y + 19.5);
+  const paymentMethodLabel = order.customer.paymentMethod === 'duitnow' 
+    ? 'DuitNow QR (OCBC Bank)' 
+    : 'LUNAS (HitPay Malaysia)';
+  doc.text(paymentMethodLabel, margin + 4, y + 19.5);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);

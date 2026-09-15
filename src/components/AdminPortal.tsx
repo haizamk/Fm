@@ -52,7 +52,9 @@ import {
   HelpCircle,
   Radio,
   FolderOpen,
-  QrCode
+  QrCode,
+  Image as ImageIcon,
+  Upload
 } from 'lucide-react';
 import { 
   UserAccount, 
@@ -83,6 +85,7 @@ import { MediaLibraryModal } from './MediaLibraryModal';
 import { AdminMediaTab } from './AdminMediaTab';
 import { AdminWhatsAppGatewayTab } from './AdminWhatsAppGatewayTab';
 import { QRScannerModal } from './QRScannerModal';
+import { DuitNowStandeeVisual } from './DuitNowOCBCQR';
 import { getProductCleanUrl, slugify, copyShareableLink } from '../utils/seoHelper';
 
 interface AdminPortalProps {
@@ -134,6 +137,22 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [showSalt, setShowSalt] = useState(false);
   const [copiedHitpayWebhook, setCopiedHitpayWebhook] = useState(false);
   const [copiedHitpayRedirect, setCopiedHitpayRedirect] = useState(false);
+
+  // DuitNow QR & OCBC Bank State
+  const initialDuitNow = siteSettings.duitnowConfig || {
+    bankName: 'OCBC Bank (Malaysia) Berhad',
+    accountName: 'KHAIRUL FRESH AND FROZEN FOOD',
+    accountNumber: '70 6116 3993',
+    orderReferenceGuide: 'No. Telefon Pelanggan / no pesanan',
+    qrImageUrl: '',
+    isActive: true,
+  };
+  const [duitnowBankName, setDuitnowBankName] = useState(initialDuitNow.bankName || 'OCBC Bank (Malaysia) Berhad');
+  const [duitnowAccountName, setDuitnowAccountName] = useState(initialDuitNow.accountName || 'KHAIRUL FRESH AND FROZEN FOOD');
+  const [duitnowAccountNumber, setDuitnowAccountNumber] = useState(initialDuitNow.accountNumber || '70 6116 3993');
+  const [duitnowQrImage, setDuitnowQrImage] = useState(initialDuitNow.qrImageUrl || '');
+  const [duitnowIsActive, setDuitnowIsActive] = useState(initialDuitNow.isActive ?? true);
+  const [duitnowFileInputRef] = useState<React.RefObject<HTMLInputElement | null>>({ current: null });
 
   // Fonnte WhatsApp Gateway State
   const initialFonnte = fonnteService.getConfig();
@@ -560,6 +579,14 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         enabledMethods: hitpayMethods,
         webhookUrl: typeof window !== 'undefined' ? `${window.location.origin}/api/hitpay/webhook` : '',
         redirectUrl: typeof window !== 'undefined' ? window.location.origin : '',
+      },
+      duitnowConfig: {
+        bankName: duitnowBankName.trim() || 'OCBC Bank (Malaysia) Berhad',
+        accountName: duitnowAccountName.trim() || 'KHAIRUL FRESH AND FROZEN FOOD',
+        accountNumber: duitnowAccountNumber.trim() || '70 6116 3993',
+        orderReferenceGuide: 'No. Telefon Pelanggan / no pesanan',
+        qrImageUrl: duitnowQrImage,
+        isActive: duitnowIsActive,
       }
     };
     const saved = dataStorageService.saveSiteSettings(updatedSettings, adminUser.name);
@@ -567,7 +594,39 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     setSettingsForm(saved);
     onSettingsUpdated(saved);
     setAuditLogs(dataStorageService.getAuditLogs());
-    showNotification('success', 'Tetapan laman & Gateway HitPay berjaya dikemaskini.');
+    showNotification('success', 'Tetapan laman, DuitNow QR & Gateway berjaya dikemaskini.');
+  };
+
+  // DUITNOW SPECIFIC HANDLER
+  const handleSaveDuitNowConfig = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const updatedDuitNow = {
+      bankName: duitnowBankName.trim() || 'OCBC Bank (Malaysia) Berhad',
+      accountName: duitnowAccountName.trim() || 'KHAIRUL FRESH AND FROZEN FOOD',
+      accountNumber: duitnowAccountNumber.trim() || '70 6116 3993',
+      orderReferenceGuide: 'No. Telefon Pelanggan / no pesanan',
+      qrImageUrl: duitnowQrImage,
+      isActive: duitnowIsActive,
+    };
+
+    const newSettings: SiteSettings = {
+      ...siteSettings,
+      duitnowConfig: updatedDuitNow,
+    };
+
+    const saved = dataStorageService.saveSiteSettings(newSettings, adminUser.name);
+    setSiteSettings(saved);
+    setSettingsForm(saved);
+    onSettingsUpdated(saved);
+
+    dataStorageService.addAuditLog({
+      action: 'TETAPAN DUITNOW QR DIKEMASKINI',
+      performedBy: adminUser.name,
+      details: `Maklumat bank DuitNow dikemaskini. Akaun: [${duitnowAccountName}] (${duitnowAccountNumber}) - ${duitnowBankName}`,
+      type: 'system',
+    });
+    setAuditLogs(dataStorageService.getAuditLogs());
+    showNotification('success', 'Maklumat DuitNow QR & Akaun Bank OCBC berjaya disimpan!');
   };
 
   // HITPAY SPECIFIC HANDLERS
@@ -3807,6 +3866,185 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 </div>
 
               </form>
+
+              {/* CARD 2: DUITNOW QR RASMI & AKAUN BANK OCBC */}
+              <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-stone-900 border-2 border-pink-500/80 shadow-xl space-y-6">
+                
+                {/* Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-pink-100 dark:border-pink-900/60">
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-12 h-12 rounded-2xl bg-[#ED0058] text-white flex items-center justify-center shadow-md shrink-0">
+                      <QrCode className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="text-base sm:text-lg font-black text-stone-900 dark:text-white font-['Outfit']">
+                          DuitNow QR & Pindahan Bank OCBC
+                        </h3>
+                        <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-pink-100 dark:bg-pink-950/80 text-pink-700 dark:text-pink-300 border border-pink-300 dark:border-pink-800">
+                          Malaysia National QR
+                        </span>
+                      </div>
+                      <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
+                        Tetapan akaun bank peniaga dan gambar standee QR DuitNow asal untuk dipaparkan kepada pelanggan semasa checkout.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <label className="flex items-center gap-2 cursor-pointer bg-stone-100 dark:bg-stone-800 px-3 py-1.5 rounded-xl border border-stone-200 dark:border-stone-700">
+                      <input
+                        type="checkbox"
+                        checked={duitnowIsActive}
+                        onChange={(e) => setDuitnowIsActive(e.target.checked)}
+                        className="rounded-sm w-4 h-4 text-pink-600"
+                      />
+                      <span className="text-xs font-bold text-stone-800 dark:text-stone-200">
+                        {duitnowIsActive ? 'DuitNow Aktif' : 'DuitNow Ditutup'}
+                      </span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Body Content */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                  
+                  {/* Left Column: Standee Preview & Image Upload */}
+                  <div className="lg:col-span-5 flex flex-col items-center p-4 rounded-2xl bg-stone-50 dark:bg-stone-950/50 border border-stone-200 dark:border-stone-800">
+                    <span className="text-xs font-black uppercase text-stone-700 dark:text-stone-300 mb-3 flex items-center gap-1.5">
+                      <ImageIcon className="w-4 h-4 text-pink-600" />
+                      <span>Pratonton Standee QR Asal</span>
+                    </span>
+
+                    <div className="mb-4">
+                      <DuitNowStandeeVisual 
+                        merchantName={duitnowAccountName} 
+                        customImage={duitnowQrImage} 
+                        compact={true}
+                      />
+                    </div>
+
+                    {/* Image Controls */}
+                    <div className="w-full space-y-2">
+                      <input
+                        type="file"
+                        id="duitnow-upload-input"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onload = () => {
+                              const base64 = reader.result as string;
+                              setDuitnowQrImage(base64);
+                              localStorage.setItem('khairul_duitnow_qr_img', base64);
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() => document.getElementById('duitnow-upload-input')?.click()}
+                        className="w-full py-2 px-3 rounded-xl bg-pink-600 hover:bg-pink-700 active:bg-pink-800 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
+                      >
+                        <Upload className="w-4 h-4" />
+                        <span>{duitnowQrImage ? 'Tukar Gambar Standee Asal' : 'Muat Naik Gambar Standee Asal'}</span>
+                      </button>
+
+                      {duitnowQrImage && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDuitnowQrImage('');
+                            localStorage.removeItem('khairul_duitnow_qr_img');
+                          }}
+                          className="w-full py-1.5 px-3 rounded-xl bg-stone-200 hover:bg-stone-300 dark:bg-stone-800 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 font-bold text-[11px] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5" />
+                          <span>Guna Kod QR Dinamik EMVCo</span>
+                        </button>
+                      )}
+
+                      <p className="text-[10px] text-stone-500 text-center leading-relaxed">
+                        Tip: Muat naik gambar asal standee OCBC (PNG/JPG) untuk memastikan pelanggan sentiasa melihat gambar asli tanpa AI.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Right Column: Bank Details Form */}
+                  <div className="lg:col-span-7 space-y-4">
+                    
+                    {/* Bank Name */}
+                    <div>
+                      <label className="text-xs font-bold text-stone-700 dark:text-stone-300 block mb-1">
+                        Nama Bank
+                      </label>
+                      <input
+                        type="text"
+                        value={duitnowBankName}
+                        onChange={(e) => setDuitnowBankName(e.target.value)}
+                        className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 dark:text-white font-medium focus:outline-hidden focus:border-pink-500"
+                        placeholder="cth: OCBC Bank (Malaysia) Berhad"
+                      />
+                    </div>
+
+                    {/* Account Name */}
+                    <div>
+                      <label className="text-xs font-bold text-stone-700 dark:text-stone-300 block mb-1">
+                        Nama Akaun / Pedagang (Merchant)
+                      </label>
+                      <input
+                        type="text"
+                        value={duitnowAccountName}
+                        onChange={(e) => setDuitnowAccountName(e.target.value)}
+                        className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 dark:text-white font-bold focus:outline-hidden focus:border-pink-500 uppercase tracking-tight"
+                        placeholder="cth: KHAIRUL FRESH AND FROZEN FOOD"
+                      />
+                    </div>
+
+                    {/* Account Number */}
+                    <div>
+                      <label className="text-xs font-bold text-stone-700 dark:text-stone-300 block mb-1">
+                        Nombor Akaun Bank
+                      </label>
+                      <input
+                        type="text"
+                        value={duitnowAccountNumber}
+                        onChange={(e) => setDuitnowAccountNumber(e.target.value)}
+                        className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl px-3.5 py-2.5 text-sm text-emerald-700 dark:text-emerald-400 font-mono font-black focus:outline-hidden focus:border-pink-500 tracking-wider"
+                        placeholder="cth: 70 6116 3993"
+                      />
+                    </div>
+
+                    {/* Reference Instructions */}
+                    <div className="p-3 bg-pink-50/50 dark:bg-pink-950/20 rounded-xl border border-pink-200 dark:border-pink-900/40 text-xs space-y-1">
+                      <strong className="text-pink-900 dark:text-pink-200 font-bold block">
+                        Format Rujukan Pesanan Pelanggan:
+                      </strong>
+                      <p className="text-stone-600 dark:text-stone-400 text-[11px] leading-relaxed">
+                        Sistem secara automatik memformatkan rujukan pesanan sebagai <code className="font-mono font-bold bg-white dark:bg-stone-800 px-1 py-0.5 rounded border border-pink-200 dark:border-stone-700">No. Telefon Pelanggan / #NoPesanan</code> dan menyediakan butang hantar resit ke WhatsApp rasmi <strong>011-11135503</strong>.
+                      </p>
+                    </div>
+
+                    {/* Save Button */}
+                    <div className="pt-2 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => handleSaveDuitNowConfig()}
+                        className="w-full sm:w-auto px-6 py-2.5 bg-pink-600 hover:bg-pink-700 active:bg-pink-800 text-white font-bold text-xs rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        <Save className="w-4 h-4" />
+                        <span>Simpan Tetapan DuitNow QR OCBC</span>
+                      </button>
+                    </div>
+
+                  </div>
+                </div>
+
+              </div>
             </div>
           )}
 

@@ -13,6 +13,7 @@ import {
   formatLocalDateStr 
 } from '../utils/dateHelper';
 import { DeliveryDateSelector } from './InteractiveDeliveryCalendar';
+import { DuitNowOCBCQR } from './DuitNowOCBCQR';
 import { 
   X, 
   MapPin, 
@@ -85,7 +86,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 }) => {
   // Authentication & Logged in state
   const [loggedInUser, setLoggedInUser] = useState<UserAccount | null>(() => currentUser || authService.getCurrentUser());
-  const [authTab, setAuthTab] = useState<'register' | 'login' | 'guest'>('register');
+  const [authTab, setAuthTab] = useState<'register' | 'login'>('register');
   
   // Registration form states
   const [regUsername, setRegUsername] = useState('');
@@ -206,7 +207,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [pickupTime, setPickupTime] = useState<string>('09:00 AM');
 
   // Payment state & HitPay Gateway modal data
-  const [paymentMethod, setPaymentMethod] = useState<'hitpay' | 'duitnow' | 'cod'>('hitpay');
+  const [paymentMethod, setPaymentMethod] = useState<'hitpay' | 'duitnow'>('hitpay');
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [hitpayScreenData, setHitpayScreenData] = useState<{
     isOpen: boolean;
@@ -460,26 +461,72 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       }
     }
 
-    // If customer typed a username and password in register mode, ensure they get registered right away
+    // MANDATORY REGISTRATION / LOGIN CHECK:
+    // Every order must be registered to an account.
     let activeUser = loggedInUser;
-    if (!activeUser && regUsername.trim() && regPassword && regPassword.length >= 6) {
-      try {
-        const cleanUser = regUsername.trim().toLowerCase().replace(/^@/, '');
-        const targetEmail = email.trim() || `${cleanUser}@freshayam.local`;
-        const regRes = await authService.register(
-          fullName.trim(),
-          targetEmail,
-          phone.trim(),
-          regPassword,
-          cleanUser
-        );
-        if (regRes.success && regRes.user) {
-          activeUser = regRes.user;
-          setLoggedInUser(regRes.user);
-          if (onLoginSuccess) onLoginSuccess(regRes.user);
+    if (!activeUser) {
+      if (authTab === 'login') {
+        if (!loginIdentifier.trim() || !loginPassword) {
+          alert('Sila masukkan Username / Emel dan Kata Laluan anda untuk log masuk sebelum membuat pesanan.');
+          return;
         }
-      } catch (e) {
-        console.error('Registration at checkout note:', e);
+        setLoginLoading(true);
+        try {
+          const loginRes = await authService.login(loginIdentifier, loginPassword);
+          if (loginRes.success && loginRes.user) {
+            activeUser = loginRes.user;
+            setLoggedInUser(loginRes.user);
+            if (onLoginSuccess) onLoginSuccess(loginRes.user);
+          } else {
+            alert(loginRes.error || 'Log masuk gagal. Sila semak semula maklumat log masuk anda.');
+            setLoginLoading(false);
+            return;
+          }
+        } catch {
+          alert('Ralat semasa log masuk. Sila cuba lagi.');
+          setLoginLoading(false);
+          return;
+        } finally {
+          setLoginLoading(false);
+        }
+      } else {
+        // authTab === 'register'
+        if (!regUsername.trim()) {
+          alert('Sila cipta Username / ID Pengguna di bahagian atas untuk mendaftar akaun ahli sebelum membuat pesanan.');
+          return;
+        }
+        if (!regPassword || regPassword.length < 6) {
+          alert('Sila masukkan Kata Laluan pendaftaran (sekurang-kurangnya 6 aksara).');
+          return;
+        }
+
+        setRegLoading(true);
+        try {
+          const cleanUser = regUsername.trim().toLowerCase().replace(/^@/, '');
+          const targetEmail = email.trim() || `${cleanUser}@freshayam.local`;
+          const regRes = await authService.register(
+            fullName.trim(),
+            targetEmail,
+            phone.trim(),
+            regPassword,
+            cleanUser
+          );
+          if (regRes.success && regRes.user) {
+            activeUser = regRes.user;
+            setLoggedInUser(regRes.user);
+            if (onLoginSuccess) onLoginSuccess(regRes.user);
+          } else {
+            alert(regRes.error || 'Pendaftaran akaun gagal. Sila cuba username lain.');
+            setRegLoading(false);
+            return;
+          }
+        } catch {
+          alert('Ralat semasa pendaftaran akaun. Sila cuba lagi.');
+          setRegLoading(false);
+          return;
+        } finally {
+          setRegLoading(false);
+        }
       }
     }
 
@@ -519,7 +566,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         deliveryDate,
         deliverySlot,
         paymentMethod,
-        hitpayStatus: paymentMethod === 'hitpay' ? 'pending' : 'completed',
+        hitpayStatus: 'pending',
         hitpayReference: randomId,
         orderNotes,
         deliveryInstructions,
@@ -530,7 +577,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       packagingType,
       discount: activeItemDiscount,
       total,
-      status: paymentMethod === 'cod' ? 'disahkan' : 'menunggu_bayaran',
+      status: 'menunggu_bayaran',
       createdAt: new Date().toISOString(),
       estimatedDeliveryText,
       fulfillmentType,
@@ -538,9 +585,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       appliedCoupon: [activeItemCoupon?.code, activeDeliveryCoupon?.code].filter(Boolean).join(', ') || undefined,
     };
 
-    if (loggedInUser && saveAddressToAccount && fulfillmentType === 'delivery') {
+    if (activeUser && saveAddressToAccount && fulfillmentType === 'delivery') {
       try {
-        const alreadySaved = loggedInUser.savedAddresses?.some(
+        const alreadySaved = activeUser.savedAddresses?.some(
           (a) => a.address.trim().toLowerCase() === address.trim().toLowerCase() && a.postcode.trim() === postcode.trim()
         );
         if (!alreadySaved) {
@@ -552,10 +599,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             postcode,
             city,
             state,
-            isDefault: (loggedInUser.savedAddresses?.length || 0) === 0,
+            isDefault: (activeUser.savedAddresses?.length || 0) === 0,
           });
           setLoggedInUser({
-            ...loggedInUser,
+            ...activeUser,
             savedAddresses: updatedAddresses,
           });
         }
@@ -586,49 +633,36 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           dataStorageService.recordCouponUsage(activeDeliveryCoupon.code);
         }
 
-        // Check if HitPay returned a simulated demo response or real live/sandbox response
-        if (hitpayRes.isSimulated) {
-          // Demo / Simulator mode: API Key was not provided or live server bypassed
-          newOrder.status = 'disahkan';
-          newOrder.customer.hitpayStatus = 'completed';
-          dataStorageService.saveOrder(newOrder);
+        // Save order with status 'menunggu_bayaran'
+        newOrder.status = 'menunggu_bayaran';
+        newOrder.customer.hitpayStatus = 'pending';
+        dataStorageService.saveOrder(newOrder);
 
-          setIsSubmitting(false);
-          setHitpayStatusText('');
-          onCompleteOrder(newOrder);
-        } else {
-          // Real Live or Sandbox HitPay Gateway request:
-          // 1. Save order with status 'menunggu_bayaran'
-          newOrder.status = 'menunggu_bayaran';
-          newOrder.customer.hitpayStatus = 'pending';
-          dataStorageService.saveOrder(newOrder);
-
-          // 2. Open HitPay payment window
-          try {
-            window.open(hitpayRes.url, '_blank');
-          } catch {
-            // Browser popup blocker fallback
-          }
-
-          // 3. Open the active HitPay Pending Gateway Screen
-          setHitpayScreenData({
-            isOpen: true,
-            paymentUrl: hitpayRes.url,
-            paymentId: hitpayRes.id,
-            order: newOrder,
-            isSimulated: false,
-            message: hitpayRes.message,
-          });
-
-          setIsSubmitting(false);
-          setHitpayStatusText('');
+        // Open HitPay payment window
+        try {
+          window.open(hitpayRes.url, '_blank');
+        } catch {
+          // Browser popup blocker fallback
         }
+
+        // Open the active HitPay Pending Gateway Screen
+        setHitpayScreenData({
+          isOpen: true,
+          paymentUrl: hitpayRes.url,
+          paymentId: hitpayRes.id,
+          order: newOrder,
+          isSimulated: false,
+          message: hitpayRes.message,
+        });
+
+        setIsSubmitting(false);
+        setHitpayStatusText('');
       } catch (err: any) {
         console.error('HitPay request error:', err);
         setIsSubmitting(false);
         setHitpayStatusText('');
         setPaymentError(
-          err.message || 'Ralat sambungan ke gateway HitPay. Sila semak semula API Key dalam Tetapan Admin atau gunakan pilihan DuitNow / Tunai.'
+          err.message || 'Ralat sambungan ke gateway HitPay. Sila semak semula API Key dalam Tetapan Admin atau gunakan pilihan DuitNow / Transfer.'
         );
       }
       return;
@@ -638,19 +672,6 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     if (paymentMethod === 'duitnow') {
       newOrder.status = 'menunggu_bayaran';
       newOrder.customer.hitpayStatus = 'pending';
-      if (activeItemCoupon?.code) dataStorageService.recordCouponUsage(activeItemCoupon.code);
-      if (activeDeliveryCoupon?.code) dataStorageService.recordCouponUsage(activeDeliveryCoupon.code);
-
-      dataStorageService.saveOrder(newOrder);
-      setIsSubmitting(false);
-      onCompleteOrder(newOrder);
-      return;
-    }
-
-    // 3. CASH ON PICKUP / COD FLOW
-    if (paymentMethod === 'cod') {
-      newOrder.status = 'disahkan';
-      newOrder.customer.hitpayStatus = 'completed';
       if (activeItemCoupon?.code) dataStorageService.recordCouponUsage(activeItemCoupon.code);
       if (activeDeliveryCoupon?.code) dataStorageService.recordCouponUsage(activeDeliveryCoupon.code);
 
@@ -1005,8 +1026,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             </div>
           ) : (
             <div className="rounded-2xl border border-stone-200 dark:border-stone-800 bg-stone-50/80 dark:bg-stone-900/80 overflow-hidden shadow-2xs">
-              {/* 3-Tab Selector Buttons */}
-              <div className="grid grid-cols-3 border-b border-stone-200 dark:border-stone-800 bg-stone-100 dark:bg-stone-800/60 p-1 gap-1">
+              {/* 2-Tab Selector Buttons: Registration Required */}
+              <div className="grid grid-cols-2 border-b border-stone-200 dark:border-stone-800 bg-stone-100 dark:bg-stone-800/60 p-1 gap-1">
                 <button
                   type="button"
                   onClick={() => {
@@ -1038,19 +1059,6 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   <LogIn className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                   <span className="truncate">Log Masuk</span>
                 </button>
-
-                <button
-                  type="button"
-                  onClick={() => setAuthTab('guest')}
-                  className={`py-2 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer text-center ${
-                    authTab === 'guest'
-                      ? 'bg-white dark:bg-stone-900 text-stone-900 dark:text-white shadow-xs border border-stone-200 dark:border-stone-700'
-                      : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 hover:bg-stone-200/60 dark:hover:bg-stone-700/60'
-                  }`}
-                >
-                  <User className="w-3.5 h-3.5 text-stone-500 shrink-0" />
-                  <span className="truncate">Pesan Tetamu</span>
-                </button>
               </div>
 
               {/* Tab 1 Content: Register Form */}
@@ -1060,13 +1068,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     <div>
                       <h4 className="text-xs font-black text-stone-900 dark:text-white flex items-center gap-1.5">
                         <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                        <span>Daftar Akaun Ahli Khairul Fresh Food</span>
+                        <span>Pendaftaran Akaun Ahli Diperlukan</span>
                         <span className="px-1.5 py-0.5 text-[10px] bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 font-extrabold rounded-md">
                           Percuma 50 Mata
                         </span>
                       </h4>
                       <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5">
-                        Cipta username & kata laluan anda di bawah. Akaun akan didaftarkan & anda boleh log masuk ke Customer Portal serta-merta!
+                        Pembelian hanya dibuka untuk ahli berdaftar. Cipta username & kata laluan anda untuk pendaftaran automatik semasa membuat pesanan.
                       </p>
                     </div>
                   </div>
@@ -1091,7 +1099,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                         Username / ID Pengguna *
                       </label>
                       <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-xs font-bold">@</span>
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-xs font-bold pointer-events-none">@</span>
                         <input
                           type="text"
                           value={regUsername}
@@ -1100,7 +1108,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                             if (regError) setRegError('');
                           }}
                           placeholder="cth: amir88 atau siti_fresh"
-                          className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl pl-7 pr-3 py-2 text-xs text-stone-900 dark:text-white focus:bg-white focus:border-emerald-500 focus:outline-hidden"
+                          className="w-full bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl pl-7 pr-3 py-2 text-xs text-stone-900 dark:text-white placeholder:text-stone-400 dark:placeholder:text-stone-500 focus:border-emerald-500 focus:outline-hidden"
                         />
                       </div>
                       <span className="text-[10px] text-stone-400 mt-0.5 block">
@@ -1121,7 +1129,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                             if (regError) setRegError('');
                           }}
                           placeholder="Minima 6 aksara"
-                          className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl px-3 py-2 pr-9 text-xs text-stone-900 dark:text-white focus:bg-white focus:border-emerald-500 focus:outline-hidden"
+                          className="w-full bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl px-3 py-2 pr-9 text-xs text-stone-900 dark:text-white placeholder:text-stone-400 dark:placeholder:text-stone-500 focus:border-emerald-500 focus:outline-hidden"
                         />
                         <button
                           type="button"
@@ -1140,10 +1148,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   <div className="flex items-center justify-between pt-1 gap-2 flex-wrap">
                     <button
                       type="button"
-                      onClick={() => setAuthTab('guest')}
-                      className="text-[11px] text-stone-500 hover:text-stone-700 font-semibold cursor-pointer underline"
+                      onClick={() => setAuthTab('login')}
+                      className="text-[11px] text-emerald-600 dark:text-emerald-400 hover:underline font-bold cursor-pointer flex items-center gap-1"
                     >
-                      Tidak mahu kata laluan? Teruskan sebagai tetamu →
+                      <span>Sudah ada akaun? Log Masuk di sini →</span>
                     </button>
 
                     <button
@@ -1198,7 +1206,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                           if (loginError) setLoginError('');
                         }}
                         placeholder="cth: amir88 atau 011-11135503"
-                        className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl px-3 py-2 text-xs text-stone-900 dark:text-white focus:bg-white focus:border-emerald-500 focus:outline-hidden"
+                        className="w-full bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl px-3 py-2 text-xs text-stone-900 dark:text-white placeholder:text-stone-400 dark:placeholder:text-stone-500 focus:border-emerald-500 focus:outline-hidden"
                       />
                     </div>
 
@@ -1221,7 +1229,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                             }
                           }}
                           placeholder="Masukkan kata laluan"
-                          className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl px-3 py-2 pr-9 text-xs text-stone-900 dark:text-white focus:bg-white focus:border-emerald-500 focus:outline-hidden"
+                          className="w-full bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl px-3 py-2 pr-9 text-xs text-stone-900 dark:text-white placeholder:text-stone-400 dark:placeholder:text-stone-500 focus:border-emerald-500 focus:outline-hidden"
                         />
                         <button
                           type="button"
@@ -1257,30 +1265,6 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                           <span>Log Masuk & Auto-Isi</span>
                         </>
                       )}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Tab 3 Content: Guest note */}
-              {authTab === 'guest' && (
-                <div className="px-4 py-3 bg-stone-50 dark:bg-stone-900/40 flex flex-wrap items-center justify-between gap-2 text-xs text-stone-500 dark:text-stone-400">
-                  <span>📝 Anda sedang mengisi maklumat sebagai pelanggan terus / tetamu.</span>
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setAuthTab('register')}
-                      className="text-amber-600 dark:text-amber-400 font-bold hover:underline cursor-pointer flex items-center gap-1"
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      <span>Daftar Ahli (+50 Mata)</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setAuthTab('login')}
-                      className="text-emerald-600 dark:text-emerald-400 font-bold hover:underline cursor-pointer"
-                    >
-                      Log Masuk
                     </button>
                   </div>
                 </div>
@@ -1723,32 +1707,32 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               </span>
             </div>
 
-            {/* Payment Method Selector Tabs */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mb-4">
+            {/* Payment Method Selector Tabs: HitPay and DuitNow only */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
               {/* Option 1: HitPay Gateway (Default) */}
               <button
                 type="button"
                 onClick={() => setPaymentMethod('hitpay')}
-                className={`p-3 rounded-2xl border-2 text-left transition-all cursor-pointer flex flex-col justify-between ${
+                className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer flex flex-col justify-between ${
                   paymentMethod === 'hitpay'
                     ? 'border-emerald-600 bg-emerald-50/70 dark:bg-emerald-950/40 text-stone-900 dark:text-white shadow-sm ring-2 ring-emerald-500/30'
                     : 'border-stone-200 dark:border-stone-700 hover:border-stone-300 dark:hover:border-stone-600 bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-300'
                 }`}
               >
                 <div className="flex items-center justify-between gap-2 mb-1.5">
-                  <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-black text-xs">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-black text-xs">
                     HP
                   </div>
-                  <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full bg-emerald-600 text-white">
-                    Disyorkan
+                  <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-600 text-white">
+                    Disyorkan • Automatik
                   </span>
                 </div>
                 <div>
-                  <h5 className="font-extrabold text-xs text-stone-900 dark:text-white">
-                    HitPay Gateway
+                  <h5 className="font-extrabold text-sm text-stone-900 dark:text-white">
+                    HitPay Online Payment Gateway
                   </h5>
-                  <p className="text-[10px] text-stone-500 dark:text-stone-400 mt-0.5">
-                    FPX, DuitNow QR, TNG, Card
+                  <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5">
+                    FPX Online Banking, DuitNow QR, TNG E-Wallet, Kad Bank
                   </p>
                 </div>
               </button>
@@ -1757,54 +1741,26 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               <button
                 type="button"
                 onClick={() => setPaymentMethod('duitnow')}
-                className={`p-3 rounded-2xl border-2 text-left transition-all cursor-pointer flex flex-col justify-between ${
+                className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer flex flex-col justify-between ${
                   paymentMethod === 'duitnow'
                     ? 'border-pink-600 bg-pink-50/70 dark:bg-pink-950/40 text-stone-900 dark:text-white shadow-sm ring-2 ring-pink-500/30'
                     : 'border-stone-200 dark:border-stone-700 hover:border-stone-300 dark:hover:border-stone-600 bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-300'
                 }`}
               >
                 <div className="flex items-center justify-between gap-2 mb-1.5">
-                  <div className="w-7 h-7 rounded-lg bg-pink-600 text-white flex items-center justify-center font-black text-xs">
+                  <div className="w-8 h-8 rounded-lg bg-pink-600 text-white flex items-center justify-center font-black text-xs">
                     <QrCode className="w-4 h-4" />
                   </div>
-                  <span className="text-[9px] font-bold text-pink-600 dark:text-pink-400">
-                    Manual Bank
+                  <span className="text-[10px] font-bold text-pink-600 dark:text-pink-400">
+                    OCBC Bank
                   </span>
                 </div>
                 <div>
-                  <h5 className="font-extrabold text-xs text-stone-900 dark:text-white">
-                    DuitNow / Transfer
+                  <h5 className="font-extrabold text-sm text-stone-900 dark:text-white">
+                    DuitNow QR (OCBC Bank)
                   </h5>
-                  <p className="text-[10px] text-stone-500 dark:text-stone-400 mt-0.5">
-                    Maybank & Resit WhatsApp
-                  </p>
-                </div>
-              </button>
-
-              {/* Option 3: Tunai / COD */}
-              <button
-                type="button"
-                onClick={() => setPaymentMethod('cod')}
-                className={`p-3 rounded-2xl border-2 text-left transition-all cursor-pointer flex flex-col justify-between ${
-                  paymentMethod === 'cod'
-                    ? 'border-amber-600 bg-amber-50/70 dark:bg-amber-950/40 text-stone-900 dark:text-white shadow-sm ring-2 ring-amber-500/30'
-                    : 'border-stone-200 dark:border-stone-700 hover:border-stone-300 dark:hover:border-stone-600 bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-300'
-                }`}
-              >
-                <div className="flex items-center justify-between gap-2 mb-1.5">
-                  <div className="w-7 h-7 rounded-lg bg-amber-600 text-white flex items-center justify-center font-black text-xs">
-                    <Banknote className="w-4 h-4" />
-                  </div>
-                  <span className="text-[9px] font-bold text-amber-700 dark:text-amber-400">
-                    {fulfillmentType === 'pickup' ? 'Di Kaunter' : 'Semasa Terima'}
-                  </span>
-                </div>
-                <div>
-                  <h5 className="font-extrabold text-xs text-stone-900 dark:text-white">
-                    {fulfillmentType === 'pickup' ? 'Tunai Di Kaunter' : 'Tunai / COD'}
-                  </h5>
-                  <p className="text-[10px] text-stone-500 dark:text-stone-400 mt-0.5">
-                    Bayar Semasa Ambil/Terima
+                  <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5">
+                    Imbas DuitNow QR OCBC & Hantar Resit ke WhatsApp
                   </p>
                 </div>
               </button>
@@ -1890,63 +1846,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               </div>
             )}
 
-            {/* TAB CONTENT: DUITNOW MANUAL */}
+            {/* TAB CONTENT: DUITNOW MANUAL (OCBC BANK) */}
             {paymentMethod === 'duitnow' && (
-              <div className="p-4 rounded-2xl border-2 border-pink-500/80 bg-pink-50/40 dark:bg-pink-950/30 space-y-3">
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-pink-600 text-white flex items-center justify-center shrink-0 shadow-md">
-                    <QrCode className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h4 className="font-extrabold text-stone-900 dark:text-white text-xs sm:text-sm">
-                      DuitNow QR & Pindahan Bank Manual
-                    </h4>
-                    <p className="text-[11px] text-stone-600 dark:text-stone-300 mt-0.5">
-                      Sila pindahkan bayaran ke akaun rasmi kami dan hantarkan resit ke WhatsApp Khairul FRESH Food.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="p-3 rounded-xl bg-white dark:bg-stone-900 border border-pink-200 dark:border-pink-800 space-y-1.5 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-stone-500 font-semibold">Bank:</span>
-                    <span className="font-black text-stone-900 dark:text-white">Maybank Berhad</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-stone-500 font-semibold">Nama Akaun:</span>
-                    <span className="font-black text-stone-900 dark:text-white">KHAIRUL FRESH FOOD</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-stone-500 font-semibold">No. Akaun:</span>
-                    <span className="font-mono font-black text-emerald-700 dark:text-emerald-400 text-sm tracking-wide">5628 3461 9820</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-stone-500 font-semibold">Rujukan Pesanan:</span>
-                    <span className="font-bold text-stone-900 dark:text-white">No. Telefon Pelanggan</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* TAB CONTENT: COD / TUNAI */}
-            {paymentMethod === 'cod' && (
-              <div className="p-4 rounded-2xl border-2 border-amber-500/80 bg-amber-50/40 dark:bg-amber-950/30 space-y-2">
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-amber-600 text-white flex items-center justify-center shrink-0 shadow-md">
-                    <Banknote className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h4 className="font-extrabold text-stone-900 dark:text-white text-xs sm:text-sm">
-                      {fulfillmentType === 'pickup' ? 'Bayaran Tunai di Kaunter Pasar' : 'Bayaran Tunai Semasa Penghantaran (COD)'}
-                    </h4>
-                    <p className="text-[11px] text-stone-600 dark:text-stone-300 mt-0.5">
-                      {fulfillmentType === 'pickup'
-                        ? 'Sila sediakan wang tunai secukupnya semasa mengambil pesanan di Gerai Pasar Semenyih.'
-                        : 'Sila bayar tunai kepada penghantar (rider) kami apabila ayam segar dihantar ke alamat anda.'}
-                    </p>
-                  </div>
-                </div>
-              </div>
+              <DuitNowOCBCQR
+                orderTotal={total}
+                customerName={fullName}
+                customerPhone={phone}
+              />
             )}
           </div>
 
@@ -2090,11 +1996,34 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
           {/* Payment Error Alert if any */}
           {paymentError && (
-            <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border-2 border-rose-300 dark:border-rose-800 text-rose-800 dark:text-rose-200 flex items-start gap-3 animate-fade-in text-xs">
-              <AlertCircle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
-              <div>
-                <strong className="font-bold block">Ralat Pembayaran:</strong>
-                <p className="mt-0.5 leading-relaxed">{paymentError}</p>
+            <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/50 border-2 border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-200 space-y-3 animate-fade-in text-xs shadow-xs">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <strong className="font-bold text-sm block text-rose-950 dark:text-rose-100">
+                    Makluman Gerbang Bayaran HitPay:
+                  </strong>
+                  <p className="mt-1 leading-relaxed text-rose-800 dark:text-rose-200">
+                    {paymentError}
+                  </p>
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-rose-200 dark:border-rose-800/60 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+                <span className="text-[11px] text-rose-700 dark:text-rose-300 font-medium">
+                  💡 Cadangan: Anda boleh buat bayaran terus melalui DuitNow QR / Pindahan OCBC Bank.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPaymentMethod('duitnow');
+                    setPaymentError(null);
+                  }}
+                  className="px-3.5 py-2 rounded-xl bg-pink-600 hover:bg-pink-700 text-white font-black text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer shrink-0"
+                >
+                  <QrCode className="w-3.5 h-3.5" />
+                  <span>Tukar ke DuitNow QR (OCBC Bank)</span>
+                </button>
               </div>
             </div>
           )}

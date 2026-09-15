@@ -331,6 +331,15 @@ export interface ThermalReceiptSettings {
   showPrices?: boolean;
 }
 
+export interface DuitNowBankConfig {
+  bankName: string;
+  accountName: string;
+  accountNumber: string;
+  orderReferenceGuide?: string;
+  qrImageUrl?: string;
+  isActive: boolean;
+}
+
 export interface SiteSettings {
   announcementText: string;
   announcementCutoffTime: string;
@@ -341,6 +350,7 @@ export interface SiteSettings {
   isOrderingEnabled: boolean;
   guaranteeText: string;
   hitpayConfig?: HitPayConfig;
+  duitnowConfig?: DuitNowBankConfig;
   fonnteConfig?: {
     token: string;
     adminPhone: string;

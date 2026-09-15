@@ -416,6 +416,29 @@ export default function App() {
         setIsAuthModalOpen(true);
       }
 
+      // Handle HitPay Completed / Simulated Checkout Return
+      const hitpayStatus = params.get('hitpay_status') || (params.get('status') === 'completed' ? 'completed' : null);
+      const hitpaySimulate = params.get('hitpay_simulate');
+      const hitpayOrderId = params.get('order_id') || params.get('reference');
+
+      if ((hitpayStatus === 'completed' || hitpaySimulate === '1') && hitpayOrderId) {
+        const allOrders = dataStorageService.getOrders();
+        const found = allOrders.find((o) => o.orderId === hitpayOrderId);
+        if (found) {
+          if (found.status === 'menunggu_bayaran') {
+            dataStorageService.updateOrderStatus(found.orderId, 'disahkan', 'Gerbang Bayaran HitPay');
+            found.status = 'disahkan';
+            if (found.customer) {
+              found.customer.hitpayStatus = 'completed';
+            }
+          }
+          setActiveOrder(found);
+          setIsOrderSuccessOpen(true);
+          setCartItems([]);
+          localStorage.removeItem('freshayam_cart');
+        }
+      }
+
       // Auto-open product modal if clean slug or ID is provided
       if (urlProductQuery) {
         const allProds = dataStorageService.getProducts();

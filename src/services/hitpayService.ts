@@ -110,113 +110,80 @@ class HitPayService {
     config: HitPayConfig
   ): Promise<HitPayCreatePaymentResponse> {
     const isSandbox = !!config.isSandbox;
-    const apiKey = config.apiKey?.trim();
+    const apiKey = (config.apiKey || '').trim();
 
-    // 1. Try server-side proxy endpoint first (avoids CORS and handles production secrets)
+    if (!apiKey || apiKey.length < 5) {
+      throw new Error(
+        'Kunci API HitPay belum dikonfigurasi dalam sistem. Sila masukkan API Key di Portal Pentadbir > Tetapan Kedai, atau pilih kaedah bayaran "DuitNow QR (OCBC Bank)".'
+      );
+    }
+
     try {
+      const redirectUrl = config.redirectUrl || `${window.location.origin}/?hitpay_status=completed&order_id=${encodeURIComponent(order.orderId)}`;
+      const webhookUrl = config.webhookUrl || `${window.location.origin}/api/hitpay/webhook`;
+
+      // Clean lightweight order object to avoid oversized payloads
+      const sanitizedOrder = {
+        orderId: order.orderId,
+        total: order.total,
+        customer: {
+          fullName: order.customer?.fullName || '',
+          email: order.customer?.email || '',
+          phone: order.customer?.phone || '',
+        },
+      };
+
       const serverResponse = await fetch('/api/hitpay/create-payment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          order,
+          order: sanitizedOrder,
           config: {
-            ...config,
-            redirectUrl: config.redirectUrl || `${window.location.origin}/?hitpay_status=completed&order_id=${encodeURIComponent(order.orderId)}`,
+            apiKey,
+            isSandbox,
+            merchantName: config.merchantName || 'Khairul FRESH Food',
+            enabledMethods: config.enabledMethods,
+            redirectUrl,
+            webhookUrl,
           },
         }),
       });
 
-      if (serverResponse.ok) {
-        const data = await serverResponse.json();
-        if (data.url) {
-          return {
-            id: data.id || `hp_${Date.now()}`,
-            url: data.url,
-            status: data.status || 'pending',
-            reference_number: data.reference_number || order.orderId,
-            amount: data.amount || order.total.toFixed(2),
-            currency: data.currency || 'MYR',
-            created_at: data.created_at || new Date().toISOString(),
-            payment_methods: data.payment_methods,
-            isSimulated: data.isSimulated || false,
-            message: data.message,
-          };
-        }
-      } else {
-        const errJson = await serverResponse.json().catch(() => null);
-        if (errJson && errJson.message) {
-          console.warn('[HitPay Server Response Warning]', errJson.message);
-        }
-      }
-    } catch {
-      // Continue to direct fallback
-    }
-
-    // 2. Direct client-side API fallback if API key is populated
-    if (apiKey && apiKey.length > 8) {
-      const baseUrl = this.getBaseUrl(isSandbox);
-      const hitpayMethods = (config.enabledMethods || []).map((m) => {
-        if (m === 'duitnow') return 'duitnow_qr';
-        if (m === 'card') return 'card';
-        if (m === 'tng') return 'touchngo';
-        return m;
-      });
-
-      const payload = {
-        amount: order.total.toFixed(2),
-        currency: 'MYR',
-        email: order.customer.email || `${order.customer.phone.replace(/\D/g, '')}@freshayam.com.my`,
-        name: order.customer.fullName,
-        phone: order.customer.phone,
-        purpose: `Tempahan Ayam Segar Pasar Semenyih #${order.orderId}`,
-        reference_number: order.orderId,
-        redirect_url: `${window.location.origin}/?hitpay_status=completed&order_id=${encodeURIComponent(order.orderId)}`,
-        webhook: config.webhookUrl || `${window.location.origin}/api/hitpay/webhook`,
-        payment_methods: hitpayMethods.length > 0 ? hitpayMethods : ['fpx', 'duitnow_qr', 'touchngo', 'card', 'grabpay'],
-      };
-
+      const responseText = await serverResponse.text();
+      let data: any = null;
       try {
-        const response = await fetch(`${baseUrl}/payment-requests`, {
-          method: 'POST',
-          headers: {
-            'X-BUSINESS-API-KEY': apiKey,
-            'Content-Type': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest',
-          },
-          body: JSON.stringify(payload),
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          return {
-            id: data.id || `hp_${Date.now()}`,
-            url: data.url,
-            status: data.status || 'pending',
-            reference_number: data.reference_number || order.orderId,
-            amount: payload.amount,
-            currency: 'MYR',
-            created_at: new Date().toISOString(),
-            payment_methods: hitpayMethods,
-            isSimulated: false,
-          };
-        }
-      } catch (e) {
-        console.warn('HitPay API direct client fallback:', e);
+        data = JSON.parse(responseText);
+      } catch {
+        // non-JSON
       }
-    }
 
-    // 3. High-fidelity demo simulator fallback when API key is not yet set
-    return {
-      id: `hp_demo_${Date.now()}`,
-      url: `https://secure.hitpayapp.com/pay/${isSandbox ? 'test_' : ''}${order.orderId}`,
-      status: 'pending',
-      reference_number: order.orderId,
-      amount: order.total.toFixed(2),
-      currency: 'MYR',
-      created_at: new Date().toISOString(),
-      isSimulated: true,
-      message: 'Mod Demo: Kunci API HitPay belum diisi dalam Portal Pentadbir.',
-    };
+      if (serverResponse.ok && data?.url) {
+        return {
+          id: data.id || `hp_${Date.now()}`,
+          url: data.url,
+          status: data.status || 'pending',
+          reference_number: data.reference_number || order.orderId,
+          amount: data.amount || order.total.toFixed(2),
+          currency: data.currency || 'MYR',
+          created_at: data.created_at || new Date().toISOString(),
+          payment_methods: data.payment_methods,
+          isSimulated: !!data.isSimulated,
+          message: data.message,
+        };
+      }
+
+      const errorMsg = data?.message || data?.errorDetail?.message || (typeof data?.errorDetail === 'string' ? data.errorDetail : '') || responseText || `Ralat Pelayan HitPay (${serverResponse.status})`;
+      throw new Error(errorMsg);
+    } catch (err: any) {
+      console.error('[HitPay Service Request Error]', err);
+      // If it is already a descriptive error, rethrow it
+      if (err?.message && !err.message.includes('Failed to fetch') && !err.message.includes('fetch')) {
+        throw err;
+      }
+      throw new Error(
+        'Gerbang bayaran HitPay tidak dapat dihubungi atau kunci API tidak sah. Sila semak semula API Key anda di Portal Pentadbir > Tetapan, atau gunakan kaedah bayaran DuitNow QR (OCBC Bank).'
+      );
+    }
   }
 
   /**

@@ -206,8 +206,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [deliverySlot, setDeliverySlot] = useState<DeliverySlotId>('pagi');
   const [pickupTime, setPickupTime] = useState<string>('09:00 AM');
 
-  // Payment state & HitPay Gateway modal data
-  const [paymentMethod, setPaymentMethod] = useState<'hitpay' | 'duitnow'>('hitpay');
+  // Payment state: DuitNow QR (OCBC Bank) is the primary active payment method
+  const [paymentMethod, setPaymentMethod] = useState<'hitpay' | 'duitnow'>('duitnow');
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [hitpayScreenData, setHitpayScreenData] = useState<{
     isOpen: boolean;
@@ -611,75 +611,15 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       }
     }
 
-    // 1. HITPAY PAYMENT GATEWAY FLOW
-    if (paymentMethod === 'hitpay') {
-      setHitpayStatusText('Menghubungkan ke Gerbang Bayaran Rasmi HitPay...');
+    // DuitNow QR & Bank Transfer Direct Checkout Flow
+    newOrder.status = 'menunggu_bayaran';
+    newOrder.customer.hitpayStatus = 'pending';
+    if (activeItemCoupon?.code) dataStorageService.recordCouponUsage(activeItemCoupon.code);
+    if (activeDeliveryCoupon?.code) dataStorageService.recordCouponUsage(activeDeliveryCoupon.code);
 
-      try {
-        const hitpayRes = await hitpayService.createPaymentRequest(newOrder, hitpayConfig);
-
-        if (!hitpayRes || !hitpayRes.url) {
-          throw new Error(hitpayRes?.message || 'Gagal menjana pautan bayaran HitPay. Sila semak konfigurasi API.');
-        }
-
-        newOrder.customer.hitpayPaymentId = hitpayRes.id;
-        newOrder.customer.hitpayReference = hitpayRes.reference_number || randomId;
-
-        // Record coupon usage
-        if (activeItemCoupon?.code) {
-          dataStorageService.recordCouponUsage(activeItemCoupon.code);
-        }
-        if (activeDeliveryCoupon?.code) {
-          dataStorageService.recordCouponUsage(activeDeliveryCoupon.code);
-        }
-
-        // Save order with status 'menunggu_bayaran'
-        newOrder.status = 'menunggu_bayaran';
-        newOrder.customer.hitpayStatus = 'pending';
-        dataStorageService.saveOrder(newOrder);
-
-        // Open HitPay payment window
-        try {
-          window.open(hitpayRes.url, '_blank');
-        } catch {
-          // Browser popup blocker fallback
-        }
-
-        // Open the active HitPay Pending Gateway Screen
-        setHitpayScreenData({
-          isOpen: true,
-          paymentUrl: hitpayRes.url,
-          paymentId: hitpayRes.id,
-          order: newOrder,
-          isSimulated: false,
-          message: hitpayRes.message,
-        });
-
-        setIsSubmitting(false);
-        setHitpayStatusText('');
-      } catch (err: any) {
-        console.error('HitPay request error:', err);
-        setIsSubmitting(false);
-        setHitpayStatusText('');
-        setPaymentError(
-          err.message || 'Ralat sambungan ke gateway HitPay. Sila semak semula API Key dalam Tetapan Admin atau gunakan pilihan DuitNow / Transfer.'
-        );
-      }
-      return;
-    }
-
-    // 2. DUITNOW QR & BANK TRANSFER MANUAL FLOW
-    if (paymentMethod === 'duitnow') {
-      newOrder.status = 'menunggu_bayaran';
-      newOrder.customer.hitpayStatus = 'pending';
-      if (activeItemCoupon?.code) dataStorageService.recordCouponUsage(activeItemCoupon.code);
-      if (activeDeliveryCoupon?.code) dataStorageService.recordCouponUsage(activeDeliveryCoupon.code);
-
-      dataStorageService.saveOrder(newOrder);
-      setIsSubmitting(false);
-      onCompleteOrder(newOrder);
-      return;
-    }
+    dataStorageService.saveOrder(newOrder);
+    setIsSubmitting(false);
+    onCompleteOrder(newOrder);
   };
 
   if (!isOpen) return null;
@@ -1707,153 +1647,14 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               </span>
             </div>
 
-            {/* Payment Method Selector Tabs: HitPay and DuitNow only */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-              {/* Option 1: HitPay Gateway (Default) */}
-              <button
-                type="button"
-                onClick={() => setPaymentMethod('hitpay')}
-                className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer flex flex-col justify-between ${
-                  paymentMethod === 'hitpay'
-                    ? 'border-emerald-600 bg-emerald-50/70 dark:bg-emerald-950/40 text-stone-900 dark:text-white shadow-sm ring-2 ring-emerald-500/30'
-                    : 'border-stone-200 dark:border-stone-700 hover:border-stone-300 dark:hover:border-stone-600 bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-300'
-                }`}
-              >
-                <div className="flex items-center justify-between gap-2 mb-1.5">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-black text-xs">
-                    HP
-                  </div>
-                  <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-600 text-white">
-                    Disyorkan • Automatik
-                  </span>
-                </div>
-                <div>
-                  <h5 className="font-extrabold text-sm text-stone-900 dark:text-white">
-                    HitPay Online Payment Gateway
-                  </h5>
-                  <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5">
-                    FPX Online Banking, DuitNow QR, TNG E-Wallet, Kad Bank
-                  </p>
-                </div>
-              </button>
-
-              {/* Option 2: DuitNow Manual */}
-              <button
-                type="button"
-                onClick={() => setPaymentMethod('duitnow')}
-                className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer flex flex-col justify-between ${
-                  paymentMethod === 'duitnow'
-                    ? 'border-pink-600 bg-pink-50/70 dark:bg-pink-950/40 text-stone-900 dark:text-white shadow-sm ring-2 ring-pink-500/30'
-                    : 'border-stone-200 dark:border-stone-700 hover:border-stone-300 dark:hover:border-stone-600 bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-300'
-                }`}
-              >
-                <div className="flex items-center justify-between gap-2 mb-1.5">
-                  <div className="w-8 h-8 rounded-lg bg-pink-600 text-white flex items-center justify-center font-black text-xs">
-                    <QrCode className="w-4 h-4" />
-                  </div>
-                  <span className="text-[10px] font-bold text-pink-600 dark:text-pink-400">
-                    OCBC Bank
-                  </span>
-                </div>
-                <div>
-                  <h5 className="font-extrabold text-sm text-stone-900 dark:text-white">
-                    DuitNow QR (OCBC Bank)
-                  </h5>
-                  <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5">
-                    Imbas DuitNow QR OCBC & Hantar Resit ke WhatsApp
-                  </p>
-                </div>
-              </button>
-            </div>
-
-            {/* TAB CONTENT: HITPAY */}
-            {paymentMethod === 'hitpay' && (
-              <div className="p-4 rounded-2xl border-2 border-emerald-500/80 bg-linear-to-br from-emerald-50/50 via-white to-stone-50 dark:from-emerald-950/30 dark:via-stone-900 dark:to-stone-900 shadow-xs space-y-3.5">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black text-sm shadow-md">
-                      HP
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-extrabold text-stone-900 dark:text-white text-xs sm:text-sm">
-                          HitPay Malaysia Payment Gateway
-                        </h4>
-                        <span className="text-[10px] font-black px-1.5 py-0.5 rounded-sm bg-emerald-600 text-white">
-                          Automatik & Serta-Merta
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-stone-600 dark:text-stone-300 mt-0.5">
-                        Anda akan dibawa ke laman rasmi HitPay untuk melengkapkan pembayaran FPX Online Banking, DuitNow QR, atau Kad Bank.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Supported Channels Badges */}
-                <div className="pt-2 border-t border-stone-200/70 dark:border-stone-800">
-                  <span className="text-[10px] font-bold text-stone-500 dark:text-stone-400 uppercase tracking-wider block mb-2">
-                    Saluran Pembayaran Yang Diterima Di Bawah HitPay:
-                  </span>
-
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                    <div className="p-2 rounded-xl bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-lg bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 flex items-center justify-center shrink-0">
-                        <Banknote className="w-3.5 h-3.5" />
-                      </div>
-                      <div>
-                        <span className="font-bold text-[11px] text-stone-900 dark:text-white block">FPX Online</span>
-                        <span className="text-[9px] text-stone-500">18+ Bank Tempatan</span>
-                      </div>
-                    </div>
-
-                    <div className="p-2 rounded-xl bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-lg bg-pink-100 dark:bg-pink-950 text-pink-700 dark:text-pink-300 flex items-center justify-center shrink-0">
-                        <QrCode className="w-3.5 h-3.5" />
-                      </div>
-                      <div>
-                        <span className="font-bold text-[11px] text-stone-900 dark:text-white block">DuitNow QR</span>
-                        <span className="text-[9px] text-stone-500">Imbas Semua Aplikasi</span>
-                      </div>
-                    </div>
-
-                    <div className="p-2 rounded-xl bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-lg bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 flex items-center justify-center shrink-0">
-                        <Smartphone className="w-3.5 h-3.5" />
-                      </div>
-                      <div>
-                        <span className="font-bold text-[11px] text-stone-900 dark:text-white block">E-Wallet</span>
-                        <span className="text-[9px] text-stone-500">TNG, Grab, Shopee</span>
-                      </div>
-                    </div>
-
-                    <div className="p-2 rounded-xl bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-lg bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 flex items-center justify-center shrink-0">
-                        <CreditCard className="w-3.5 h-3.5" />
-                      </div>
-                      <div>
-                        <span className="font-bold text-[11px] text-stone-900 dark:text-white block">Kad Bank</span>
-                        <span className="text-[9px] text-stone-500">Visa / Mastercard</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 text-[10px] text-emerald-800 dark:text-emerald-300 bg-emerald-100/50 dark:bg-emerald-950/40 p-2 rounded-xl border border-emerald-200 dark:border-emerald-800/60">
-                  <Lock className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
-                  <span>Enkripsi SSL 256-Bit HitPay Payment Gateway • Diluluskan Bank Negara Malaysia & PayNet</span>
-                </div>
-              </div>
-            )}
-
-            {/* TAB CONTENT: DUITNOW MANUAL (OCBC BANK) */}
-            {paymentMethod === 'duitnow' && (
+            {/* Kaedah Bayaran: DuitNow QR (OCBC Bank) Sahaja */}
+            <div className="space-y-3">
               <DuitNowOCBCQR
                 orderTotal={total}
                 customerName={fullName}
                 customerPhone={phone}
               />
-            )}
+            </div>
           </div>
 
           {/* SECTION 4: RINGKASAN PESANAN & TOTAL */}
@@ -1996,34 +1797,17 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
           {/* Payment Error Alert if any */}
           {paymentError && (
-            <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/50 border-2 border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-200 space-y-3 animate-fade-in text-xs shadow-xs">
+            <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/50 border-2 border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-200 space-y-2 animate-fade-in text-xs shadow-xs">
               <div className="flex items-start gap-3">
                 <AlertCircle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
                 <div className="flex-1">
                   <strong className="font-bold text-sm block text-rose-950 dark:text-rose-100">
-                    Makluman Gerbang Bayaran HitPay:
+                    Makluman:
                   </strong>
-                  <p className="mt-1 leading-relaxed text-rose-800 dark:text-rose-200">
+                  <p className="mt-0.5 leading-relaxed text-rose-800 dark:text-rose-200">
                     {paymentError}
                   </p>
                 </div>
-              </div>
-
-              <div className="pt-2 border-t border-rose-200 dark:border-rose-800/60 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
-                <span className="text-[11px] text-rose-700 dark:text-rose-300 font-medium">
-                  💡 Cadangan: Anda boleh buat bayaran terus melalui DuitNow QR / Pindahan OCBC Bank.
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPaymentMethod('duitnow');
-                    setPaymentError(null);
-                  }}
-                  className="px-3.5 py-2 rounded-xl bg-pink-600 hover:bg-pink-700 text-white font-black text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer shrink-0"
-                >
-                  <QrCode className="w-3.5 h-3.5" />
-                  <span>Tukar ke DuitNow QR (OCBC Bank)</span>
-                </button>
               </div>
             </div>
           )}
@@ -2049,7 +1833,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               {isSubmitting ? (
                 <>
                   <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  <span>{hitpayStatusText || 'Mendaftarkan Pesanan HitPay...'}</span>
+                  <span>Memproses Pesanan...</span>
                 </>
               ) : isOverMaxLimit ? (
                 <>

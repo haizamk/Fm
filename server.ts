@@ -52,15 +52,10 @@ async function startServer() {
       
       const formBody = new URLSearchParams();
       if (!isTest) {
-        let cleanTarget = target.replace(/[^0-9]/g, '');
-        if (cleanTarget.startsWith('60')) {
-          cleanTarget = cleanTarget.slice(2);
-        } else if (cleanTarget.startsWith('0')) {
-          cleanTarget = cleanTarget.slice(1);
-        }
-        formBody.append('target', cleanTarget);
+        formBody.append('target', target);
         formBody.append('message', message);
-        formBody.append('countryCode', '60');
+        // Fonnte handles target numbers starting with 60 automatically.
+        // Omit countryCode to avoid '6060' parsing bugs.
       }
 
       const response = await fetch(fonnteUrl, {

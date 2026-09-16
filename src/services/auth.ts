@@ -300,29 +300,37 @@ export const authService = {
     // 3. Cloud Firestore Fallback Check
     if (!matchedEntry || matchedEntry.passwordHash !== password) {
       try {
-        const { collection, getDocs, query, where, or } = await import('firebase/firestore');
+        const { collection, getDocs, query, where } = await import('firebase/firestore');
         const usersCol = collection(db, 'users');
         
-        let q;
-        if (inputDigits.length >= 8) {
-          // If input might be a phone number
-          const possiblePhones = [inputDigits, `0${inputDigits}`, `60${inputDigits}`, inputDigits.startsWith('60') ? inputDigits.slice(2) : inputDigits, inputDigits.startsWith('0') ? `60${inputDigits.slice(1)}` : inputDigits];
-          q = query(usersCol, or(
-            where('email', '==', cleanId),
-            where('username', '==', cleanId),
-            where('phone', 'in', possiblePhones.slice(0, 10))
-          ));
-        } else {
-          // If just text
-          q = query(usersCol, or(
-            where('email', '==', cleanId),
-            where('username', '==', cleanId)
-          ));
+        let foundDoc = null;
+        
+        // Check by email
+        const qEmail = query(usersCol, where('email', '==', cleanId));
+        let snap = await getDocs(qEmail);
+        
+        if (snap.empty && inputDigits.length >= 8) {
+          // Check by phone permutations
+          const possiblePhones = Array.from(new Set([
+            cleanId, // Include the raw input in case they typed hyphens perfectly matching DB
+            inputDigits, 
+            `0${inputDigits}`, 
+            `60${inputDigits}`, 
+            inputDigits.startsWith('60') ? inputDigits.slice(2) : inputDigits, 
+            inputDigits.startsWith('0') ? `60${inputDigits.slice(1)}` : inputDigits
+          ])).slice(0, 10);
+          const qPhone = query(usersCol, where('phone', 'in', possiblePhones));
+          snap = await getDocs(qPhone);
+        }
+        
+        if (snap.empty) {
+          // Check by username
+          const qUser = query(usersCol, where('username', '==', cleanId));
+          snap = await getDocs(qUser);
         }
 
-        const snapshot = await getDocs(q);
-        if (!snapshot.empty) {
-          for (const docSnap of snapshot.docs) {
+        if (!snap.empty) {
+          for (const docSnap of snap.docs) {
             const cloudUser = docSnap.data() as UserAccount & { passwordHash?: string };
             if (cloudUser.passwordHash === password) {
               matchedEntry = {
@@ -332,15 +340,16 @@ export const authService = {
                 },
                 passwordHash: cloudUser.passwordHash
               };
-              // Update local registry
-              registry[cleanId] = matchedEntry;
+              // Update local registry (use normalized email as primary key to match registration behavior)
+              const primaryKey = cloudUser.email ? cloudUser.email.toLowerCase() : cleanId;
+              registry[primaryKey] = matchedEntry;
               saveUsersRegistry(registry);
               break;
             }
           }
         }
       } catch (err) {
-        console.info('[Auth] Cloud fallback failed', err);
+        console.error('[Auth] Cloud fallback failed:', err);
       }
     }
 
@@ -354,6 +363,10 @@ export const authService = {
 
     clearFailedAttempts(cleanId);
     const session = this.setSession(matchedEntry.user);
+    
+    // Ensure cloud is updated with the password hash (in case it wasn't synced previously due to missing rules)
+    syncUserToCloud(matchedEntry.user, password);
+    
     return { success: true, user: session.user };
   },
 
@@ -599,7 +612,23 @@ export const authService = {
               const cloudUser = docSnap.data() as UserAccount;
               if (cloudUser && cloudUser.id) {
                 const key = (cloudUser.email || cloudUser.username || cloudUser.id).toLowerCase();
-                if (!registry[key] || registry[key].user.totalSpent !== cloudUser.totalSpent || registry[key].user.loyaltyPoints !== cloudUser.loyaltyPoints) {
+                const existingUser = registry[key]?.user;
+                
+                let isDifferent = !existingUser;
+                if (existingUser) {
+                  // Check if any critical field changed
+                  if (
+                    existingUser.phone !== cloudUser.phone ||
+                    existingUser.name !== cloudUser.name ||
+                    existingUser.totalSpent !== cloudUser.totalSpent ||
+                    existingUser.loyaltyPoints !== cloudUser.loyaltyPoints ||
+                    JSON.stringify(existingUser.savedAddresses) !== JSON.stringify(cloudUser.savedAddresses)
+                  ) {
+                    isDifferent = true;
+                  }
+                }
+
+                if (isDifferent) {
                   registry[key] = {
                     user: cloudUser,
                     passwordHash: registry[key]?.passwordHash || 'Kff12345',
@@ -721,6 +750,45 @@ export const authService = {
   getAllUsers(): UserAccount[] {
     const registry = getUsersRegistry();
     return Object.values(registry).map((item) => item.user);
+  },
+
+  // Subscribe to real-time updates for a single user
+  subscribeCurrentUser(userId: string, callback: (user: UserAccount) => void): Unsubscribe {
+    try {
+      const { onSnapshot, doc } = require('firebase/firestore');
+      const userDocRef = doc(db, 'users', userId);
+      return onSnapshot(userDocRef, (docSnap: any) => {
+        if (docSnap.exists()) {
+          const cloudUser = docSnap.data() as UserAccount & { passwordHash?: string };
+          
+          const registry = getUsersRegistry();
+          const key = (cloudUser.email || cloudUser.username || cloudUser.id).toLowerCase();
+          
+          const existingHash = registry[key]?.passwordHash;
+          
+          const userObj = { ...cloudUser };
+          delete (userObj as any).passwordHash;
+
+          registry[key] = {
+            user: userObj,
+            passwordHash: existingHash || cloudUser.passwordHash || 'Kff12345',
+          };
+          saveUsersRegistry(registry);
+
+          const session = this.getCurrentSession();
+          if (session && session.user.id === userId) {
+            this.setSession(userObj);
+          }
+
+          callback(userObj);
+        }
+      }, (err: any) => {
+        console.warn('[Auth] Current User Snapshot error:', err);
+      });
+    } catch (e) {
+      console.warn('[Auth] Failed to subscribe to user:', e);
+      return () => {};
+    }
   },
 
   // Update user or admin by admin

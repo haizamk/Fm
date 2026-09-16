@@ -239,13 +239,21 @@ export default function App() {
     const unsubCoupons = dataStorageService.subscribeCoupons(() => {
       // coupons updated
     });
+    
+    let unsubUser = () => {};
+    if (currentUser && currentUser.id) {
+      unsubUser = authService.subscribeCurrentUser(currentUser.id, (updatedUser) => {
+        setCurrentUser(updatedUser);
+      });
+    }
 
     return () => {
       unsubProducts();
       unsubSettings();
       unsubCoupons();
+      unsubUser();
     };
-  }, []);
+  }, [currentUser?.id]);
 
   // Category switch handler with brief skeleton shimmer
   const handleSelectCategory = (catId: ProductCategory) => {

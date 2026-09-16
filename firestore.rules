@@ -26,6 +26,11 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // Users (Auth & Profile Data): allow read and write
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+
     // Audit logs & Stock alerts & banners
     match /audit_logs/{logId} {
       allow read, write: if true;

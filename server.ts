@@ -52,11 +52,15 @@ async function startServer() {
       
       const formBody = new URLSearchParams();
       if (!isTest) {
-        formBody.append('target', target);
+        let cleanTarget = target.replace(/[^0-9]/g, '');
+        if (cleanTarget.startsWith('60')) {
+          cleanTarget = cleanTarget.slice(2);
+        } else if (cleanTarget.startsWith('0')) {
+          cleanTarget = cleanTarget.slice(1);
+        }
+        formBody.append('target', cleanTarget);
         formBody.append('message', message);
-        // Fonnte recommends sending countryCode: '60' if the number doesn't have it,
-        // but we already format our numbers to start with 60. Sending it can cause '6060...' bugs.
-        // We omit countryCode here intentionally.
+        formBody.append('countryCode', '60');
       }
 
       const response = await fetch(fonnteUrl, {

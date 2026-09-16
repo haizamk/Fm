@@ -598,6 +598,35 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       }
     }
 
+    if (paymentMethod === 'hitpay') {
+      try {
+        const hitpayRes = await hitpayService.createPaymentRequest(newOrder, hitpayConfig);
+        
+        if (hitpayRes.success && hitpayRes.url) {
+          // Temporarily save order as pending
+          if (activeItemCoupon?.code) dataStorageService.recordCouponUsage(activeItemCoupon.code);
+          if (activeDeliveryCoupon?.code) dataStorageService.recordCouponUsage(activeDeliveryCoupon.code);
+          dataStorageService.saveOrder(newOrder);
+          
+          setHitpayScreenData({
+            isOpen: true,
+            paymentUrl: hitpayRes.url,
+            paymentId: hitpayRes.id,
+            order: newOrder,
+            isSimulated: hitpayRes.isSimulated,
+          });
+          setIsSubmitting(false);
+          return;
+        } else {
+          throw new Error(hitpayRes.message || 'Gagal mencipta pautan bayaran HitPay');
+        }
+      } catch (err: any) {
+        setPaymentError(err.message || 'Ralat sistem HitPay');
+        setIsSubmitting(false);
+        return;
+      }
+    }
+
     // DuitNow QR & Bank Transfer Direct Checkout Flow
     newOrder.status = 'menunggu_bayaran';
     newOrder.customer.hitpayStatus = 'pending';

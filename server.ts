@@ -36,6 +36,63 @@ async function startServer() {
     });
   });
 
+  // Fonnte WhatsApp Proxy Endpoint (Bypasses Client CORS & Ad-Blockers)
+  app.post('/api/fonnte/send', async (req, res) => {
+    try {
+      const { target, message, token, isTest } = req.body;
+
+      if (!token || !target || !message) {
+        return res.status(400).json({
+          success: false,
+          message: 'Parameter (token, target, message) tidak lengkap.',
+        });
+      }
+
+      const fonnteUrl = isTest ? 'https://api.fonnte.com/device' : 'https://api.fonnte.com/send';
+      
+      const formBody = new URLSearchParams();
+      if (!isTest) {
+        formBody.append('target', target);
+        formBody.append('message', message);
+        // Fonnte recommends sending countryCode: '60' if the number doesn't have it,
+        // but we already format our numbers to start with 60. Sending it can cause '6060...' bugs.
+        // We omit countryCode here intentionally.
+      }
+
+      const response = await fetch(fonnteUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': token.trim(),
+          ...(isTest ? {} : { 'Content-Type': 'application/x-www-form-urlencoded' })
+        },
+        body: isTest ? undefined : formBody.toString()
+      });
+
+      const data = await response.json();
+      
+      if (response.ok && (data.status === true || data.id || data.process === 'success' || data.device_status)) {
+        return res.json({
+          success: true,
+          message: data.message || 'Berjaya dihantar melalui server proxy.',
+          data
+        });
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: data.reason || data.message || 'Gagal menghantar melalui Fonnte Gateway.',
+          data
+        });
+      }
+
+    } catch (err: any) {
+      console.error('[Fonnte Server Proxy Error]', err);
+      return res.status(500).json({
+        success: false,
+        message: 'Ralat pelayan semasa berhubung dengan Fonnte: ' + (err.message || ''),
+      });
+    }
+  });
+
   // Test HitPay API Connection
   app.post('/api/hitpay/test-connection', async (req, res) => {
     try {

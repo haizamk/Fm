@@ -110,15 +110,23 @@ class FonnteService {
     }
 
     try {
-      const response = await fetch(this.validateDeviceUrl, {
+      const response = await fetch('/api/fonnte/send', {
         method: 'POST',
         headers: {
-          Authorization: token.trim(),
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          token: token.trim(),
+          target: '000', // dummy target required for validation proxy
+          message: 'test',
+          isTest: true
+        }),
       });
 
-      const data = await response.json();
-      if (response.ok && (data.status === true || data.device_status)) {
+      const proxyData = await response.json();
+      const data = proxyData.data || {};
+      
+      if (response.ok && proxyData.success) {
         return {
           success: true,
           message: `Sambungan Fonnte Berjaya! Peranti WhatsApp: ${data.name || data.device || 'Tersambung'} (${data.device_status || 'Aktif'})`,
@@ -127,7 +135,7 @@ class FonnteService {
       } else {
         return {
           success: false,
-          message: data.reason || data.message || 'Gagal menyambung ke Fonnte. Sila semak token anda.',
+          message: proxyData.message || data.reason || data.message || 'Gagal menyambung ke Fonnte. Sila semak token anda.',
           data,
         };
       }
@@ -135,7 +143,7 @@ class FonnteService {
       console.error('Fonnte test error:', err);
       return {
         success: false,
-        message: 'Ralat sambungan: ' + (err.message || 'Sila pastikan token sah dan internet stabil.'),
+        message: 'Ralat sambungan (Proxy): ' + (err.message || 'Sila pastikan token sah dan internet stabil.'),
       };
     }
   }
@@ -231,7 +239,7 @@ class FonnteService {
   /**
    * Send WhatsApp message via Fonnte
    */
-  async sendMessage(targetPhone: string, message: string, customToken?: string): Promise<{ success: boolean; message: string; data?: any }> {
+  async sendMessage(targetPhone: string, message: string, customToken?: string, isTest: boolean = false): Promise<{ success: boolean; message: string; data?: any }> {
     let token = customToken;
     if (!token || token.trim() === '') {
       const currentConfig = this.getConfig();
@@ -254,38 +262,38 @@ class FonnteService {
     }
 
     try {
-      const formData = new FormData();
-      formData.append('target', formattedTarget);
-      formData.append('message', message);
-      formData.append('countryCode', '60');
-
-      const response = await fetch(this.apiUrl, {
+      const response = await fetch('/api/fonnte/send', {
         method: 'POST',
         headers: {
-          Authorization: token.trim(),
+          'Content-Type': 'application/json',
         },
-        body: formData,
+        body: JSON.stringify({
+          target: formattedTarget,
+          message: message,
+          token: token.trim(),
+          isTest: isTest
+        }),
       });
 
       const data = await response.json();
-      if (response.ok && (data.status === true || data.id || data.process === 'success' || data.process === 'pending')) {
+      if (response.ok && data.success) {
         return {
           success: true,
-          message: `Mesej WhatsApp berjaya dihantar ke ${formattedTarget}!`,
-          data,
+          message: data.message || `Mesej WhatsApp berjaya dihantar ke ${formattedTarget}!`,
+          data: data.data,
         };
       } else {
         return {
           success: false,
-          message: data.reason || data.message || 'Gagal menghantar mesej WhatsApp melalui Fonnte.',
-          data,
+          message: data.message || 'Gagal menghantar mesej WhatsApp melalui Fonnte.',
+          data: data.data,
         };
       }
     } catch (err: any) {
-      console.error('Error sending WhatsApp via Fonnte:', err);
+      console.error('Error sending WhatsApp via proxy:', err);
       return {
         success: false,
-        message: 'Ralat penghantaran: ' + (err.message || 'Masalah rangkaian'),
+        message: 'Ralat penghantaran (Proxy): ' + (err.message || 'Masalah rangkaian pelayan'),
       };
     }
   }

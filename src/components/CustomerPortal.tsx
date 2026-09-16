@@ -47,13 +47,13 @@ import { useLanguage } from '../context/LanguageContext';
 export type OrderCategory = 'all' | 'menunggu' | 'proses' | 'selesai';
 
 export function getOrderCategory(status: OrderRecord['status']): 'menunggu' | 'proses' | 'selesai' {
-  if (status === 'disahkan') {
+  if (status === 'disahkan' || status === 'menunggu_bayaran') {
     return 'menunggu';
   }
   if (status === 'selesai') {
     return 'selesai';
   }
-  return 'proses'; // 'sembelih-potong' | 'pembungkusan-sejuk' | 'dalam-penghantaran'
+  return 'proses'; // 'sembelih-potong' | 'pembungkusan-sejuk' | 'dalam-penghantaran' | 'dibatalkan'
 }
 
 interface CustomerPortalProps {
@@ -333,6 +333,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({
           icon: '⚙️'
         };
       case 'selesai':
+      default:
         return {
           id: 'selesai',
           label: isEn ? 'Completed' : 'Selesai',
@@ -345,6 +346,12 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({
 
   const getStatusBadge = (status: OrderRecord['status']) => {
     switch (status) {
+      case 'menunggu_bayaran':
+        return {
+          label: isEn ? 'Awaiting Payment' : 'Menunggu Bayaran',
+          bg: 'bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border-stone-300 dark:border-stone-700',
+          step: 0,
+        };
       case 'disahkan':
         return {
           label: isEn ? 'Order Confirmed' : 'Pesanan Disahkan',
@@ -374,6 +381,18 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({
           label: isEn ? 'Delivered & Completed' : 'Pesanan Selesai Dihantar',
           bg: 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800',
           step: 5,
+        };
+      case 'dibatalkan':
+        return {
+          label: isEn ? 'Order Cancelled' : 'Pesanan Dibatalkan',
+          bg: 'bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300 border-rose-200 dark:border-rose-800',
+          step: 0,
+        };
+      default:
+        return {
+          label: isEn ? 'Processing' : 'Sedang Diproses',
+          bg: 'bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border-stone-300 dark:border-stone-700',
+          step: 1,
         };
     }
   };
@@ -669,9 +688,9 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({
 
                           {/* Workflow Step Badge */}
                           <div className="mt-2">
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border inline-flex items-center gap-1 ${badge.bg}`}>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border inline-flex items-center gap-1 ${badge?.bg || 'bg-stone-100 text-stone-700'}`}>
                               <Truck className="w-3 h-3" />
-                              {badge.label}
+                              {badge?.label || 'Sedang Diproses'}
                             </span>
                           </div>
 
@@ -788,7 +807,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({
                           <div className="flex items-center justify-between gap-2 flex-wrap">
                             <span className="text-xs font-black text-stone-800 dark:text-stone-200 flex items-center gap-1.5">
                               <Truck className="w-4 h-4 text-emerald-600" />
-                              <span>Status: <strong>{getCategoryDetails(selectedOrder.status).label}</strong> — {getStatusBadge(selectedOrder.status).label}</span>
+                              <span>Status: <strong>{getCategoryDetails(selectedOrder.status)?.label || 'Dalam Proses'}</strong> — {getStatusBadge(selectedOrder.status)?.label || 'Sedang Diproses'}</span>
                             </span>
                             <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
                               {selectedOrder.estimatedDeliveryText}
@@ -804,7 +823,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({
                               { label: isEn ? 'Out for Delivery' : 'Hantar', step: 4 },
                               { label: isEn ? 'Completed' : 'Selesai', step: 5 },
                             ].map((s) => {
-                              const currentStep = getStatusBadge(selectedOrder.status).step;
+                              const currentStep = getStatusBadge(selectedOrder.status)?.step ?? 0;
                               const isCompleted = currentStep >= s.step;
                               const isCurrent = currentStep === s.step;
                               return (

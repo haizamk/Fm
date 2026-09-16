@@ -347,7 +347,49 @@ async function deleteDocFromFirestore(collectionName: string, docId: string) {
   }
 }
 
+
+/**
+ * Safely saves data to localStorage, truncating arrays if QuotaExceededError occurs
+ */
+function safeSetStorage(key: string, data: any) {
+  try {
+    localStorage.setItem(key, JSON.stringify(data));
+  } catch (e: any) {
+    if (e.name === 'QuotaExceededError' || e?.message?.includes('quota') || e?.message?.includes('exceeded')) {
+      console.warn(`[Storage Quota Exceeded] for ${key}. Attempting to free space...`);
+      
+      try {
+        // Clear potentially large non-critical caches
+        localStorage.removeItem('khairul_fresh_media_library_v5');
+        localStorage.removeItem('khairul_fresh_audit_logs_v5');
+        localStorage.removeItem('khairul_fresh_logistics_runs_v5');
+      } catch (err) {}
+
+      if (Array.isArray(data)) {
+        try {
+          localStorage.setItem(key, JSON.stringify(data.slice(0, 40)));
+        } catch (innerError) {
+          try {
+             localStorage.setItem(key, JSON.stringify(data.slice(0, 5)));
+          } catch(e3) {
+             console.error("Giving up on saving local cache for", key);
+          }
+        }
+      } else {
+         try {
+           localStorage.setItem(key, JSON.stringify(data));
+         } catch(e4) {
+           console.error("Giving up on saving local cache for", key);
+         }
+      }
+    } else {
+      console.error(`[Storage] Failed to save ${key}`, e);
+    }
+  }
+}
+
 export const dataStorageService = {
+
   // Real-time Firestore Subscriptions
   subscribeOrders(callback: (orders: OrderRecord[]) => void): Unsubscribe {
     let isSubscribed = true;
@@ -379,7 +421,7 @@ export const dataStorageService = {
           });
           // Sort newest first
           cloudOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-          localStorage.setItem(ORDERS_KEY, JSON.stringify(cloudOrders));
+          safeSetStorage(ORDERS_KEY, cloudOrders);
           callback(cloudOrders);
         } else {
           // If Firestore is empty, push local orders to Firestore so they are recorded in cloud
@@ -415,7 +457,7 @@ export const dataStorageService = {
             cloudProds.push(docSnap.data() as Product);
           });
           if (cloudProds.length > 0) {
-            localStorage.setItem(PRODUCTS_KEY, JSON.stringify(cloudProds));
+            safeSetStorage(PRODUCTS_KEY, cloudProds);
             callback(cloudProds);
           }
         }
@@ -434,7 +476,7 @@ export const dataStorageService = {
       return onSnapshot(settingsDoc, (snapshot) => {
         if (snapshot.exists()) {
           const cloudSettings = snapshot.data() as SiteSettings;
-          localStorage.setItem(SETTINGS_KEY, JSON.stringify(cloudSettings));
+          safeSetStorage(SETTINGS_KEY, cloudSettings);
           if (cloudSettings.fonnteConfig && cloudSettings.fonnteConfig.token) {
             fonnteService.saveConfig(cloudSettings.fonnteConfig);
           }
@@ -458,7 +500,7 @@ export const dataStorageService = {
           snapshot.forEach((docSnap) => {
             cloudCoupons.push(docSnap.data() as CouponCode);
           });
-          localStorage.setItem(COUPONS_KEY, JSON.stringify(cloudCoupons));
+          safeSetStorage(COUPONS_KEY, cloudCoupons);
           callback(cloudCoupons);
         }
       }, (err) => {
@@ -515,7 +557,7 @@ export const dataStorageService = {
       // ignore
     }
     try {
-      localStorage.setItem(ORDERS_KEY, JSON.stringify(INITIAL_ORDERS));
+      safeSetStorage(ORDERS_KEY, INITIAL_ORDERS);
     } catch {
       // ignore
     }
@@ -526,7 +568,7 @@ export const dataStorageService = {
     const orders = this.getOrders();
     const updated = [newOrder, ...orders.filter(o => o.orderId !== newOrder.orderId)];
     try {
-      localStorage.setItem(ORDERS_KEY, JSON.stringify(updated));
+      safeSetStorage(ORDERS_KEY, updated);
     } catch {
       // ignore
     }
@@ -589,7 +631,7 @@ export const dataStorageService = {
     });
 
     try {
-      localStorage.setItem(ORDERS_KEY, JSON.stringify(updated));
+      safeSetStorage(ORDERS_KEY, updated);
     } catch {
       // ignore
     }
@@ -636,7 +678,7 @@ export const dataStorageService = {
     });
 
     try {
-      localStorage.setItem(ORDERS_KEY, JSON.stringify(updated));
+      safeSetStorage(ORDERS_KEY, updated);
     } catch {
       // ignore
     }
@@ -671,7 +713,7 @@ export const dataStorageService = {
       // ignore
     }
     try {
-      localStorage.setItem(PRODUCTS_KEY, JSON.stringify(PRODUCTS));
+      safeSetStorage(PRODUCTS_KEY, PRODUCTS);
     } catch {
       // ignore
     }
@@ -689,7 +731,7 @@ export const dataStorageService = {
 
   saveProducts(products: Product[], adminName: string, actionNote: string): Product[] {
     try {
-      localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products));
+      safeSetStorage(PRODUCTS_KEY, products);
     } catch (e) {
       console.warn('Local storage products save warning:', e);
     }
@@ -755,7 +797,7 @@ export const dataStorageService = {
 
   saveMediaLibrary(items: MediaItem[]): void {
     try {
-      localStorage.setItem(MEDIA_LIBRARY_KEY, JSON.stringify(items));
+      safeSetStorage(MEDIA_LIBRARY_KEY, items);
     } catch (e) {
       console.warn('Local storage media library error:', e);
     }
@@ -888,7 +930,7 @@ export const dataStorageService = {
       // ignore
     }
     try {
-      localStorage.setItem(SETTINGS_KEY, JSON.stringify(DEFAULT_SITE_SETTINGS));
+      safeSetStorage(SETTINGS_KEY, DEFAULT_SITE_SETTINGS);
     } catch {
       // ignore
     }
@@ -897,7 +939,7 @@ export const dataStorageService = {
 
   saveSiteSettings(settings: SiteSettings, adminName: string): SiteSettings {
     try {
-      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+      safeSetStorage(SETTINGS_KEY, settings);
     } catch {
       // ignore
     }
@@ -942,7 +984,7 @@ export const dataStorageService = {
       // ignore
     }
     try {
-      localStorage.setItem(AUDIT_LOGS_KEY, JSON.stringify(INITIAL_AUDIT_LOGS));
+      safeSetStorage(AUDIT_LOGS_KEY, INITIAL_AUDIT_LOGS);
     } catch {
       // ignore
     }
@@ -958,7 +1000,7 @@ export const dataStorageService = {
     };
     const updated = [newLog, ...current.slice(0, 49)]; // keep latest 50
     try {
-      localStorage.setItem(AUDIT_LOGS_KEY, JSON.stringify(updated));
+      safeSetStorage(AUDIT_LOGS_KEY, updated);
     } catch {
       // ignore
     }
@@ -986,7 +1028,7 @@ export const dataStorageService = {
     };
     const updated = [newAlert, ...alerts];
     try {
-      localStorage.setItem(STOCK_ALERTS_KEY, JSON.stringify(updated));
+      safeSetStorage(STOCK_ALERTS_KEY, updated);
     } catch {
       // ignore
     }
@@ -1015,7 +1057,7 @@ export const dataStorageService = {
       return a;
     });
     try {
-      localStorage.setItem(STOCK_ALERTS_KEY, JSON.stringify(updated));
+      safeSetStorage(STOCK_ALERTS_KEY, updated);
     } catch {
       // ignore
     }
@@ -1045,7 +1087,7 @@ export const dataStorageService = {
       return a;
     });
     try {
-      localStorage.setItem(STOCK_ALERTS_KEY, JSON.stringify(updated));
+      safeSetStorage(STOCK_ALERTS_KEY, updated);
     } catch {
       // ignore
     }
@@ -1159,7 +1201,7 @@ export const dataStorageService = {
 
   saveCoupons(coupons: CouponCode[]): void {
     try {
-      localStorage.setItem(COUPONS_KEY, JSON.stringify(coupons));
+      safeSetStorage(COUPONS_KEY, coupons);
     } catch (e) {
       console.error('Failed to save coupons to storage:', e);
     }
@@ -1329,7 +1371,7 @@ export const dataStorageService = {
 
   saveRotationBanners(banners: RotationBannerItem[]): void {
     try {
-      localStorage.setItem(BANNERS_KEY, JSON.stringify(banners));
+      safeSetStorage(BANNERS_KEY, banners);
     } catch (e) {
       console.error('Failed to save rotation banners', e);
     }

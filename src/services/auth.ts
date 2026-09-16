@@ -297,6 +297,53 @@ export const authService = {
       }
     }
 
+    // 3. Cloud Firestore Fallback Check
+    if (!matchedEntry || matchedEntry.passwordHash !== password) {
+      try {
+        const { collection, getDocs, query, where, or } = await import('firebase/firestore');
+        const usersCol = collection(db, 'users');
+        
+        let q;
+        if (inputDigits.length >= 8) {
+          // If input might be a phone number
+          const possiblePhones = [inputDigits, `0${inputDigits}`, `60${inputDigits}`, inputDigits.startsWith('60') ? inputDigits.slice(2) : inputDigits, inputDigits.startsWith('0') ? `60${inputDigits.slice(1)}` : inputDigits];
+          q = query(usersCol, or(
+            where('email', '==', cleanId),
+            where('username', '==', cleanId),
+            where('phone', 'in', possiblePhones.slice(0, 10))
+          ));
+        } else {
+          // If just text
+          q = query(usersCol, or(
+            where('email', '==', cleanId),
+            where('username', '==', cleanId)
+          ));
+        }
+
+        const snapshot = await getDocs(q);
+        if (!snapshot.empty) {
+          for (const docSnap of snapshot.docs) {
+            const cloudUser = docSnap.data() as UserAccount & { passwordHash?: string };
+            if (cloudUser.passwordHash === password) {
+              matchedEntry = {
+                user: {
+                  ...cloudUser,
+                  passwordHash: undefined // remove hash from user object
+                },
+                passwordHash: cloudUser.passwordHash
+              };
+              // Update local registry
+              registry[cleanId] = matchedEntry;
+              saveUsersRegistry(registry);
+              break;
+            }
+          }
+        }
+      } catch (err) {
+        console.info('[Auth] Cloud fallback failed', err);
+      }
+    }
+
     if (!matchedEntry || matchedEntry.passwordHash !== password) {
       recordFailedAttempt(cleanId);
       return {

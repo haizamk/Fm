@@ -16,6 +16,7 @@ import {
 } from './types';
 import { COVERAGE_AREAS } from './data/coverage';
 import { getLoyaltyStatus } from './utils/loyalty';
+import { getDailySpecial } from './utils/dailySpecial';
 import { getProductImageUrl } from './utils/productImage';
 import { getOfficialWhatsAppLink, getWhatsAppOrderLink } from './utils/whatsappHelper';
 import { authService } from './services/auth';
@@ -38,6 +39,7 @@ import { CoverageChecker } from './components/CoverageChecker';
 import { RecipeModal } from './components/RecipeModal';
 import { OrderTrackingModal } from './components/OrderTrackingModal';
 import { LoyaltyModal } from './components/LoyaltyModal';
+import { DailySpecial } from './components/DailySpecial';
 import { QualityGuarantee } from './components/QualityGuarantee';
 import { CustomerReviews } from './components/CustomerReviews';
 import { FAQAccordion } from './components/FAQAccordion';
@@ -806,13 +808,14 @@ export default function App() {
     dataStorageService.addOrder(order, currentUser?.name || order.customer.fullName);
 
     // Auto-dispatch WhatsApp notification to Admin & Customer via Fonnte Gateway
-    const fonnteConfigToUse = siteSettings.fonnteConfig?.token 
-      ? siteSettings.fonnteConfig 
-      : fonnteService.getConfig();
+    const currentLocalConfig = fonnteService.getConfig();
+    const fonnteConfigToUse = (siteSettings.fonnteConfig && siteSettings.fonnteConfig.token)
+      ? { ...currentLocalConfig, ...siteSettings.fonnteConfig }
+      : currentLocalConfig;
 
     fonnteService.triggerNewOrderNotification(order, fonnteConfigToUse).then((res) => {
       if (res.adminSent) {
-        console.log(`[Fonnte WhatsApp] Pesanan #${order.orderId} berjaya dihantar ke WhatsApp Admin (${fonnteConfigToUse.adminPhone || '011-11135503'})!`);
+        console.log(`[Fonnte WhatsApp] Pesanan #${order.orderId} berjaya dihantar terus ke WhatsApp Admin (${fonnteConfigToUse.adminPhone || '011-11135503'})!`);
       } else {
         console.warn(`[Fonnte WhatsApp] Notifikasi pesanan tidak dihantar:`, res.error || 'Semak token dan sambungan');
       }
@@ -1011,6 +1014,17 @@ export default function App() {
           {/* Frontpage Main 6 Featured Products Section (2x3 Grid) */}
           <main id="catalog-section" className="max-w-7xl mx-auto px-4 sm:px-6 py-10 sm:py-14 flex-1 w-full">
             
+            {/* Featured Daily Special Banner / Component */}
+            <DailySpecial
+              products={productsList}
+              onSelectProduct={handleOpenCutModal}
+              onQuickAdd={handleQuickAdd}
+              isFavorite={favorites.includes(
+                getDailySpecial(productsList)?.product?.id || ''
+              )}
+              onToggleFavorite={toggleFavorite}
+            />
+
             {/* Daily Stock Limit Urgency Notification Banner */}
             {lowStockCount > 0 && (
               <div className="mb-6 p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-amber-500/15 via-rose-500/15 to-amber-500/10 dark:from-amber-950/50 dark:via-rose-950/50 dark:to-amber-950/40 border border-amber-300 dark:border-amber-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">

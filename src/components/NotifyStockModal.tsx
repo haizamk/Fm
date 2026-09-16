@@ -14,6 +14,7 @@ import {
 import { Product, StockAlertSubscription } from '../types';
 import { dataStorageService } from '../services/dataStorage';
 import { getProductImageUrl } from '../utils/imageCompressor';
+import { getProductImageAltText } from '../utils/productImage';
 
 interface NotifyStockModalProps {
   isOpen: boolean;
@@ -110,7 +111,8 @@ export const NotifyStockModal: React.FC<NotifyStockModalProps> = ({
         <div className="p-4 sm:p-5 border-b border-stone-100 dark:border-stone-800 bg-stone-50 dark:bg-stone-800/50 flex items-center gap-3.5">
           <img
             src={getProductImageUrl(product) || product.image}
-            alt={product.name}
+            alt={getProductImageAltText(product)}
+            title={getProductImageAltText(product)}
             className="w-16 h-16 rounded-xl object-cover border border-stone-200 dark:border-stone-700 shrink-0"
             referrerPolicy="no-referrer"
           />

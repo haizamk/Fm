@@ -41,6 +41,7 @@ import { getLoyaltyStatus } from '../utils/loyalty';
 import { lookupByPostcode, lookupByCity } from '../utils/postcodeHelper';
 import { downloadReceiptPDF, sendReceiptPDFToWhatsApp } from '../utils/pdfReceipt';
 import { getProductImageUrl } from '../utils/imageCompressor';
+import { getProductImageAltText } from '../utils/productImage';
 import { useLanguage } from '../context/LanguageContext';
 
 export type OrderCategory = 'all' | 'menunggu' | 'proses' | 'selesai';
@@ -840,7 +841,8 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({
                                 <div className="flex items-center gap-2.5 min-w-0">
                                   <img
                                     src={getProductImageUrl(item.product) || item.product.image}
-                                    alt={item.product.name}
+                                    alt={getProductImageAltText(item.product)}
+                                    title={getProductImageAltText(item.product)}
                                     className="w-11 h-11 rounded-xl object-cover border border-stone-200 dark:border-stone-700 shrink-0"
                                     referrerPolicy="no-referrer"
                                   />

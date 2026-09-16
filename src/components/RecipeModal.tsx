@@ -118,8 +118,10 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                 <div className="relative h-48 sm:h-64 overflow-hidden bg-stone-100">
                   <img
                     src={selectedRecipe.image}
-                    alt={selectedRecipe.title}
+                    alt={`${selectedRecipe.title} - Resipi Masakan Ayam Segar Halal Pasar Semenyih | Khairul FRESH Food`}
+                    title={`${selectedRecipe.title} - Resipi Masakan Ayam Segar Halal Pasar Semenyih | Khairul FRESH Food`}
                     className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-stone-950 via-stone-950/30 to-transparent" />
                   

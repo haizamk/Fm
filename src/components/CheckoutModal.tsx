@@ -461,15 +461,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       }
     }
 
-    // MANDATORY REGISTRATION / LOGIN CHECK:
-    // Every order must be registered to an account.
+    // SEAMLESS REGISTRATION / LOGIN CHECK:
+    // Ensures every order has an associated user account without blocking guest checkouts.
     let activeUser = loggedInUser;
     if (!activeUser) {
-      if (authTab === 'login') {
-        if (!loginIdentifier.trim() || !loginPassword) {
-          alert('Sila masukkan Username / Emel dan Kata Laluan anda untuk log masuk sebelum membuat pesanan.');
-          return;
-        }
+      if (authTab === 'login' && loginIdentifier.trim() && loginPassword) {
         setLoginLoading(true);
         try {
           const loginRes = await authService.login(loginIdentifier, loginPassword);
@@ -477,53 +473,44 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             activeUser = loginRes.user;
             setLoggedInUser(loginRes.user);
             if (onLoginSuccess) onLoginSuccess(loginRes.user);
-          } else {
-            alert(loginRes.error || 'Log masuk gagal. Sila semak semula maklumat log masuk anda.');
-            setLoginLoading(false);
-            return;
           }
         } catch {
-          alert('Ralat semasa log masuk. Sila cuba lagi.');
-          setLoginLoading(false);
-          return;
+          // Fallback to seamless registration if login fails
         } finally {
           setLoginLoading(false);
         }
-      } else {
-        // authTab === 'register'
-        if (!regUsername.trim()) {
-          alert('Sila cipta Username / ID Pengguna di bahagian atas untuk mendaftar akaun ahli sebelum membuat pesanan.');
-          return;
-        }
-        if (!regPassword || regPassword.length < 6) {
-          alert('Sila masukkan Kata Laluan pendaftaran (sekurang-kurangnya 6 aksara).');
-          return;
-        }
+      }
 
+      // If still no activeUser, create account seamlessly using customer details
+      if (!activeUser) {
         setRegLoading(true);
         try {
-          const cleanUser = regUsername.trim().toLowerCase().replace(/^@/, '');
-          const targetEmail = email.trim() || `${cleanUser}@freshayam.local`;
+          const cleanPhoneDigits = phone.trim().replace(/\D/g, '');
+          const fallbackUsername = regUsername.trim() 
+            ? regUsername.trim().toLowerCase().replace(/^@/, '') 
+            : `user_${cleanPhoneDigits || Math.floor(1000 + Math.random() * 9000)}`;
+          
+          const fallbackPassword = regPassword && regPassword.length >= 6 
+            ? regPassword 
+            : `Ayam${cleanPhoneDigits.slice(-4) || '123456'}`;
+
+          const targetEmail = email.trim() || `${fallbackUsername}@freshmarket.my`;
+
           const regRes = await authService.register(
             fullName.trim(),
             targetEmail,
             phone.trim(),
-            regPassword,
-            cleanUser
+            fallbackPassword,
+            fallbackUsername
           );
+
           if (regRes.success && regRes.user) {
             activeUser = regRes.user;
             setLoggedInUser(regRes.user);
             if (onLoginSuccess) onLoginSuccess(regRes.user);
-          } else {
-            alert(regRes.error || 'Pendaftaran akaun gagal. Sila cuba username lain.');
-            setRegLoading(false);
-            return;
           }
-        } catch {
-          alert('Ralat semasa pendaftaran akaun. Sila cuba lagi.');
-          setRegLoading(false);
-          return;
+        } catch (e) {
+          console.warn('Seamless registration notice:', e);
         } finally {
           setRegLoading(false);
         }

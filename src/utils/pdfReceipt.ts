@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf';
 import { OrderRecord } from '../types';
 import { getCutLabel } from '../data/products';
+import { openWhatsAppSafe, getOfficialWhatsAppLink } from './whatsappHelper';
 
 /**
  * Generates a clean, professional PDF receipt document for an order.
@@ -392,7 +393,7 @@ export async function sendReceiptPDFToWhatsApp(
 
   // 2. Open WhatsApp with pre-filled message
   const cleanPhone = whatsappPhone.replace(/[^0-9]/g, '');
-  window.open(`https://wa.me/${cleanPhone}?text=${messageText}`, '_blank');
+  openWhatsAppSafe(`https://api.whatsapp.com/send?phone=${cleanPhone}&text=${messageText}`);
 
   return { success: true, mode: 'downloaded_and_opened' };
 }

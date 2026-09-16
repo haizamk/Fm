@@ -25,7 +25,12 @@ class FonnteService {
 
   getConfig(): FonnteConfig {
     if (this.inMemoryConfig && this.inMemoryConfig.token && this.inMemoryConfig.token.trim() !== '') {
-      return this.inMemoryConfig;
+      return {
+        ...DEFAULT_FONNTE_CONFIG,
+        ...this.inMemoryConfig,
+        autoNotifyAdmin: this.inMemoryConfig.autoNotifyAdmin !== false,
+        adminPhone: this.inMemoryConfig.adminPhone || '011-11135503',
+      };
     }
 
     try {
@@ -33,7 +38,12 @@ class FonnteService {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed && parsed.token && parsed.token.trim() !== '') {
-          this.inMemoryConfig = { ...DEFAULT_FONNTE_CONFIG, ...parsed };
+          this.inMemoryConfig = {
+            ...DEFAULT_FONNTE_CONFIG,
+            ...parsed,
+            autoNotifyAdmin: parsed.autoNotifyAdmin !== false,
+            adminPhone: parsed.adminPhone || '011-11135503',
+          };
           return this.inMemoryConfig;
         }
       }
@@ -45,6 +55,8 @@ class FonnteService {
           this.inMemoryConfig = {
             ...DEFAULT_FONNTE_CONFIG,
             ...parsedSettings.fonnteConfig,
+            autoNotifyAdmin: parsedSettings.fonnteConfig.autoNotifyAdmin !== false,
+            adminPhone: parsedSettings.fonnteConfig.adminPhone || '011-11135503',
           };
           return this.inMemoryConfig;
         }
@@ -56,9 +68,15 @@ class FonnteService {
   }
 
   saveConfig(config: FonnteConfig): void {
-    this.inMemoryConfig = config;
+    const sanitized: FonnteConfig = {
+      ...DEFAULT_FONNTE_CONFIG,
+      ...config,
+      autoNotifyAdmin: config.autoNotifyAdmin !== false,
+      adminPhone: config.adminPhone || '011-11135503',
+    };
+    this.inMemoryConfig = sanitized;
     try {
-      localStorage.setItem(FONNTE_STORAGE_KEY, JSON.stringify(config));
+      localStorage.setItem(FONNTE_STORAGE_KEY, JSON.stringify(sanitized));
     } catch (e) {
       console.error('Error saving Fonnte config:', e);
     }
@@ -69,6 +87,7 @@ class FonnteService {
    * 011-11135503 -> 601111135503
    */
   formatPhoneNumber(phone: string): string {
+    if (!phone) return '601111135503';
     let clean = phone.replace(/[^0-9]/g, '');
     if (clean.startsWith('60')) {
       return clean;
@@ -126,56 +145,71 @@ class FonnteService {
    */
   buildAdminOrderNotificationMessage(order: OrderRecord): string {
     const isPickup = order.fulfillmentType === 'pickup';
-    const itemsList = order.items
+    const itemsList = (order.items || [])
       .map((it, idx) => {
-        let cutDesc = it.selectedCut;
-        let cleaningDesc = it.selectedCleaning && it.selectedCleaning.length > 0
+        const prodName = it.product?.name || (it as any).name || 'Ayam Segar';
+        const qty = it.quantity || 1;
+        const totalPrice = typeof it.itemTotalPrice === 'number'
+          ? it.itemTotalPrice
+          : (it.product?.price || (it as any).price || 0) * qty;
+
+        let cutDesc = it.selectedCut || 'standard';
+        let cleaningDesc = Array.isArray(it.selectedCleaning) && it.selectedCleaning.length > 0
           ? ` (Bersih: ${it.selectedCleaning.join(', ')})`
           : '';
         let bakarDesc = it.bakarOption === 'bakar' ? ' 🔥 Bakar' : '';
         let organDesc = it.organVariationLabel ? ` [${it.organVariationLabel}]` : '';
         let noteDesc = it.specialNotes ? ` 📝 "${it.specialNotes}"` : '';
         
-        return `${idx + 1}. *${it.product.name}* (x${it.quantity})\n   - Potongan: ${cutDesc}${bakarDesc}${organDesc}${cleaningDesc}${noteDesc}\n   - Subtotal: RM ${it.itemTotalPrice.toFixed(2)}`;
+        return `${idx + 1}. *${prodName}* (x${qty})\n   - Potongan: ${cutDesc}${bakarDesc}${organDesc}${cleaningDesc}${noteDesc}\n   - Subtotal: RM ${totalPrice.toFixed(2)}`;
       })
       .join('\n\n');
 
-    const paymentStatus = order.customer.hitpayStatus === 'completed' 
+    const paymentMethod = order.customer?.paymentMethod || 'duitnow';
+    const hitpayStatus = order.customer?.hitpayStatus;
+    const paymentStatus = hitpayStatus === 'completed' 
       ? '✅ DIBAYAR (HitPay FPX/DuitNow)' 
-      : `💳 ${order.customer.paymentMethod.toUpperCase()}`;
+      : `💳 ${paymentMethod.toUpperCase()}`;
 
-    const deliveryNote = order.customer.deliveryInstructions 
+    const deliveryNote = order.customer?.deliveryInstructions 
       ? `\n📌 *Arahan Penghantaran:* ${order.customer.deliveryInstructions}` 
       : '';
 
-    const orderNote = order.customer.orderNotes 
+    const orderNote = order.customer?.orderNotes 
       ? `\n📝 *Nota Pesanan:* ${order.customer.orderNotes}` 
       : '';
 
+    const customerName = order.customer?.fullName || 'Pelanggan';
+    const customerPhone = order.customer?.phone || '-';
+    const customerAddress = order.customer?.address || '';
+    const customerPostcode = order.customer?.postcode || '';
+    const customerCity = order.customer?.city || '';
+    const customerState = order.customer?.state || 'Selangor';
+
     return `🐔 *PESANAN BAHARU MASUK - KHAIRUL FRESH FOOD* 🐔\n` +
-      `━━━━━━━━━━━━━━━━━━━━\n` +
+      `----------------------------------------\n` +
       `📦 *No. Pesanan:* #${order.orderId}\n` +
-      `📅 *Tarikh/Slot:* ${order.estimatedDeliveryText}\n` +
+      `📅 *Tarikh/Slot:* ${order.estimatedDeliveryText || 'Pagi'}\n` +
       `🚚 *Jenis:* ${isPickup ? '🏪 SELF-PICKUP DI PASAR SEMENYIH (GA 59)' : '🛵 PENGHANTARAN TERUS KE RUMAH'}\n` +
-      `━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `----------------------------------------\n\n` +
       `👤 *MAKLUMAT PELANGGAN:*\n` +
-      `• *Nama:* ${order.customer.fullName}\n` +
-      `• *Telefon:* ${order.customer.phone}\n` +
-      (isPickup ? `• *Masa Ambil:* Sebelum 12:00 Tengah Hari\n` : `• *Alamat:* ${order.customer.address}, ${order.customer.postcode} ${order.customer.city}, ${order.customer.state}\n`) +
+      `• *Nama:* ${customerName}\n` +
+      `• *Telefon:* ${customerPhone}\n` +
+      (isPickup ? `• *Masa Ambil:* Sebelum 12:00 Tengah Hari\n` : `• *Alamat:* ${customerAddress}, ${customerPostcode} ${customerCity}, ${customerState}\n`) +
       deliveryNote +
       orderNote +
       `\n\n` +
       `🥩 *SENARAI AYAM & PESANAN:*\n` +
-      `${itemsList}\n\n` +
-      `━━━━━━━━━━━━━━━━━━━━\n` +
+      `${itemsList || '- Tiada item -'}\n\n` +
+      `----------------------------------------\n` +
       `💵 *RINGKASAN BAYARAN:*\n` +
-      `• Subtotal Item: RM ${order.subtotal.toFixed(2)}\n` +
-      `• Caj Penghantaran: RM ${order.deliveryFee.toFixed(2)}\n` +
-      (order.discount > 0 ? `• Diskaun (Kupon): -RM ${order.discount.toFixed(2)}\n` : '') +
-      `• *JUMLAH KESELURUHAN: RM ${order.total.toFixed(2)}*\n` +
+      `• Subtotal Item: RM ${(order.subtotal || 0).toFixed(2)}\n` +
+      `• Caj Penghantaran: RM ${(order.deliveryFee || 0).toFixed(2)}\n` +
+      ((order.discount || 0) > 0 ? `• Diskaun (Kupon): -RM ${(order.discount || 0).toFixed(2)}\n` : '') +
+      `• *JUMLAH KESELURUHAN: RM ${(order.total || 0).toFixed(2)}*\n` +
       `• *Status Bayaran:* ${paymentStatus}\n` +
-      `━━━━━━━━━━━━━━━━━━━━\n` +
-      `⏱️ *Masa Masuk:* ${new Date(order.createdAt).toLocaleString('ms-MY')}\n\n` +
+      `----------------------------------------\n` +
+      `⏱️ *Masa Masuk:* ${new Date(order.createdAt || Date.now()).toLocaleString('ms-MY')}\n\n` +
       `_Sistem Automatik Khairul Fresh Food_`;
   }
 
@@ -184,10 +218,11 @@ class FonnteService {
    */
   buildCustomerOrderNotificationMessage(order: OrderRecord): string {
     const isPickup = order.fulfillmentType === 'pickup';
-    return `Salam *${order.customer.fullName}*, terima kasih atas pesanan anda di *Khairul Fresh Food*! 🐔✨\n\n` +
+    const customerName = order.customer?.fullName || 'Pelanggan';
+    return `Salam *${customerName}*, terima kasih atas pesanan anda di *Khairul Fresh Food*! 🐔✨\n\n` +
       `Pesanan anda *#${order.orderId}* telah berjaya didaftarkan.\n\n` +
-      `📅 *Slot:* ${order.estimatedDeliveryText}\n` +
-      `💵 *Jumlah Bayaran:* RM ${order.total.toFixed(2)}\n` +
+      `📅 *Slot:* ${order.estimatedDeliveryText || 'Pagi'}\n` +
+      `💵 *Jumlah Bayaran:* RM ${(order.total || 0).toFixed(2)}\n` +
       `📍 *Kaedah:* ${isPickup ? 'Self-Pickup di Gerai GA 59, Pasar Semenyih' : 'Penghantaran Segar ke Alamat Anda'}\n\n` +
       `Ayam segar anda akan diproses awal pagi dan dibungkus rapi. Anda boleh semak status pesanan bila-bila masa di laman web kami.\n\n` +
       `Sebarang pertanyaan boleh hubungi kami di 011-11135503.`;
@@ -197,8 +232,11 @@ class FonnteService {
    * Send WhatsApp message via Fonnte
    */
   async sendMessage(targetPhone: string, message: string, customToken?: string): Promise<{ success: boolean; message: string; data?: any }> {
-    const config = this.getConfig();
-    const token = customToken || config.token;
+    let token = customToken;
+    if (!token || token.trim() === '') {
+      const currentConfig = this.getConfig();
+      token = currentConfig.token;
+    }
 
     if (!token || token.trim() === '') {
       return {
@@ -230,7 +268,7 @@ class FonnteService {
       });
 
       const data = await response.json();
-      if (response.ok && (data.status === true || data.id || data.process === 'success')) {
+      if (response.ok && (data.status === true || data.id || data.process === 'success' || data.process === 'pending')) {
         return {
           success: true,
           message: `Mesej WhatsApp berjaya dihantar ke ${formattedTarget}!`,
@@ -266,6 +304,7 @@ class FonnteService {
         ...config,
         ...customConfig,
         token: customConfig.token.trim(),
+        autoNotifyAdmin: customConfig.autoNotifyAdmin !== false,
       };
       this.saveConfig(config);
     }
@@ -282,6 +321,7 @@ class FonnteService {
             config = {
               ...DEFAULT_FONNTE_CONFIG,
               ...cloudData.fonnteConfig,
+              autoNotifyAdmin: cloudData.fonnteConfig.autoNotifyAdmin !== false,
             };
             this.saveConfig(config);
           }
@@ -305,8 +345,9 @@ class FonnteService {
       return { adminSent: false, customerSent: false, error: 'Token belum diisi' };
     }
 
-    // 1. Send to Admin (011-11135503 or configured admin number)
-    if (config.autoNotifyAdmin) {
+    // 1. Send to Admin (011-11135503 or configured admin number) - DEFAULT TRUE
+    const shouldNotifyAdmin = config.autoNotifyAdmin !== false;
+    if (shouldNotifyAdmin) {
       const adminTarget = config.adminPhone || '011-11135503';
       const adminMsg = this.buildAdminOrderNotificationMessage(order);
       const res = await this.sendMessage(adminTarget, adminMsg, config.token);

@@ -209,7 +209,8 @@ export const RotationBanner: React.FC<RotationBannerProps> = ({
             <div className="hidden md:flex relative shrink-0 w-44 lg:w-56 h-36 lg:h-40 rounded-2xl overflow-hidden border-2 border-white/10 shadow-lg group">
               <img
                 src={currentBanner.imageUrl}
-                alt={currentBanner.title}
+                alt={`${currentBanner.title} - Tawaran Ayam Segar Pasar Semenyih Gerai GA 59 | Khairul FRESH Food`}
+                title={`${currentBanner.title} - Tawaran Ayam Segar Pasar Semenyih Gerai GA 59 | Khairul FRESH Food`}
                 referrerPolicy="no-referrer"
                 className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
               />

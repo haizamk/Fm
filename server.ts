@@ -1,6 +1,7 @@
 import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
+import { generateSitemapXml } from './src/utils/sitemapGenerator';
 
 async function startServer() {
   const app = express();
@@ -9,6 +10,22 @@ async function startServer() {
   // Body parser middleware with generous limit for images and attachments
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+  // Dynamic Google XML Sitemap with Product and Image SEO tags
+  app.get('/sitemap.xml', (req, res) => {
+    try {
+      const host = req.get('host') || 'ais-pre-ibciauzkghto525j7ma3h5-707200717362.asia-east1.run.app';
+      const protocol = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
+      const baseUrl = `${protocol}://${host}`;
+      const xml = generateSitemapXml({ baseUrl });
+      res.header('Content-Type', 'application/xml');
+      res.header('Cache-Control', 'public, max-age=3600, s-maxage=86400');
+      res.send(xml);
+    } catch (err) {
+      console.error('Error generating dynamic sitemap:', err);
+      res.status(500).send('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>');
+    }
+  });
 
   // Health check
   app.get('/api/health', (req, res) => {

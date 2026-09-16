@@ -28,6 +28,7 @@ import {
 import { LoyaltyStatus } from '../utils/loyalty';
 import { CartItem, UserAccount } from '../types';
 import { getProductImageUrl } from '../utils/imageCompressor';
+import { getProductImageAltText } from '../utils/productImage';
 import { useLanguage } from '../context/LanguageContext';
 
 interface HeaderProps {
@@ -419,7 +420,8 @@ export const Header: React.FC<HeaderProps> = ({
                             <div className="flex items-center gap-2 min-w-0">
                               <img
                                 src={getProductImageUrl(item.product) || item.product.image}
-                                alt={item.product.name}
+                                alt={getProductImageAltText(item.product)}
+                                title={getProductImageAltText(item.product)}
                                 className="w-8 h-8 rounded-lg object-cover border border-stone-200 dark:border-stone-700 shrink-0"
                                 referrerPolicy="no-referrer"
                               />

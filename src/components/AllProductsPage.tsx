@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Product, ProductCategory } from '../types';
 import { PRODUCT_CATEGORIES } from '../data/products';
 import { ProductCard } from './ProductCard';
+import { DailySpecial } from './DailySpecial';
 import { getShareableUrl, copyShareableLink } from '../utils/seoHelper';
 import { 
   ArrowLeft, 
@@ -191,6 +192,17 @@ export const AllProductsPage: React.FC<AllProductsPageProps> = ({
             {t('allProductsSubtitle')}
           </p>
         </div>
+
+        {/* Highlighted Daily Special Component */}
+        {selectedCategory === 'semua' && !searchQuery.trim() && !showOnlyFavorites && !showOnlyPromo && !showOnlyLowStock && (
+          <DailySpecial
+            products={products}
+            onSelectProduct={onSelectProduct}
+            onQuickAdd={onQuickAdd}
+            isFavorite={favorites.includes(products[0]?.id || '')}
+            onToggleFavorite={onToggleFavorite}
+          />
+        )}
 
         {/* Filter Controls & Search Strip */}
         <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-800 p-4 sm:p-5 shadow-xs mb-8 transition-colors space-y-4">

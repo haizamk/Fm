@@ -1,25 +1,66 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"
         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9
-        http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd">
+        http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd
+        http://www.google.com/schemas/sitemap-image/1.1
+        http://www.google.com/schemas/sitemap-image/1.1/sitemap-image.xsd">
+  <!-- 1. Halaman Utama & Seksyen Navigasi Laman -->
   <url>
     <loc>https://ais-pre-ibciauzkghto525j7ma3h5-707200717362.asia-east1.run.app/</loc>
     <lastmod>2026-09-16</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1587593810167-a84920ea0781?auto=format&amp;fit=crop&amp;q=80&amp;w=1200</image:loc>
+      <image:title>Khairul FRESH Food - Pembekal Ayam Segar Halal Pasar Semenyih &amp; Delivery</image:title>
+      <image:geo_location>Semenyih, Selangor, Malaysia</image:geo_location>
+    </image:image>
   </url>
   <url>
     <loc>https://ais-pre-ibciauzkghto525j7ma3h5-707200717362.asia-east1.run.app/#katalog</loc>
     <lastmod>2026-09-16</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1604503468506-a8da13d82791?auto=format&amp;fit=crop&amp;q=80&amp;w=1200</image:loc>
+      <image:title>Katalog Ayam Segar, Daging &amp; Makanan Segar Pasar Semenyih</image:title>
+      <image:geo_location>Semenyih, Selangor, Malaysia</image:geo_location>
+    </image:image>
   </url>
   <url>
-    <loc>https://ais-pre-ibciauzkghto525j7ma3h5-707200717362.asia-east1.run.app/#potongan-ayam</loc>
+    <loc>https://ais-pre-ibciauzkghto525j7ma3h5-707200717362.asia-east1.run.app/#kategori-ayam-seekor</loc>
     <lastmod>2026-09-16</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <changefreq>daily</changefreq>
+    <priority>0.85</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1587593810167-a84920ea0781?auto=format&amp;fit=crop&amp;q=80&amp;w=1200</image:loc>
+      <image:title>Ayam Segar Standard &amp; Ayam Kampung Seekor Pasar Semenyih</image:title>
+      <image:geo_location>Semenyih, Selangor, Malaysia</image:geo_location>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://ais-pre-ibciauzkghto525j7ma3h5-707200717362.asia-east1.run.app/#kategori-bahagian-ayam</loc>
+    <lastmod>2026-09-16</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.85</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1588168333986-5078d3ae3976?auto=format&amp;fit=crop&amp;q=80&amp;w=1200</image:loc>
+      <image:title>Potongan Bahagian Ayam Segar (Whole Leg, Kepak, Dada, Kaki &amp; Rangka)</image:title>
+      <image:geo_location>Semenyih, Selangor, Malaysia</image:geo_location>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://ais-pre-ibciauzkghto525j7ma3h5-707200717362.asia-east1.run.app/#kategori-daging-segar</loc>
+    <lastmod>2026-09-16</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.85</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&amp;fit=crop&amp;q=80&amp;w=1200</image:loc>
+      <image:title>Daging Lembu Segar Tempatan &amp; Tulang Lembu Pasar Semenyih</image:title>
+      <image:geo_location>Semenyih, Selangor, Malaysia</image:geo_location>
+    </image:image>
   </url>
   <url>
     <loc>https://ais-pre-ibciauzkghto525j7ma3h5-707200717362.asia-east1.run.app/#kawasan-penghantaran</loc>
@@ -28,9 +69,187 @@
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://ais-pre-ibciauzkghto525j7ma3h5-707200717362.asia-east1.run.app/#hubungi-kami</loc>
+    <loc>https://ais-pre-ibciauzkghto525j7ma3h5-707200717362.asia-east1.run.app/#panduan-potongan</loc>
+    <lastmod>2026-09-16</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://ais-pre-ibciauzkghto525j7ma3h5-707200717362.asia-east1.run.app/#lokasi-gerai-ga59</loc>
     <lastmod>2026-09-16</lastmod>
     <changefreq>monthly</changefreq>
+    <priority>0.85</priority>
+  </url>
+  <url>
+    <loc>https://ais-pre-ibciauzkghto525j7ma3h5-707200717362.asia-east1.run.app/#jaminan-kualiti</loc>
+    <lastmod>2026-09-16</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.75</priority>
+  </url>
+  <url>
+    <loc>https://ais-pre-ibciauzkghto525j7ma3h5-707200717362.asia-east1.run.app/#soalan-lazim</loc>
+    <lastmod>2026-09-16</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.75</priority>
+  </url>
+  <url>
+    <loc>https://ais-pre-ibciauzkghto525j7ma3h5-707200717362.asia-east1.run.app/#tracking</loc>
+    <lastmod>2026-09-16</lastmod>
+    <changefreq>daily</changefreq>
     <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://ais-pre-ibciauzkghto525j7ma3h5-707200717362.asia-east1.run.app/#resipi</loc>
+    <lastmod>2026-09-16</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <!-- 2. Katalog Produk Utama Segar Halal (Dengan Image SEO Tags) -->
+  <url>
+    <loc>https://ais-pre-ibciauzkghto525j7ma3h5-707200717362.asia-east1.run.app/p/ayam-segar-standard</loc>
+    <lastmod>2026-09-16</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.95</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1604503468506-a8da13d82791?auto=format&amp;fit=crop&amp;q=80&amp;w=900</image:loc>
+      <image:title>Ayam Segar Standard (Ayam Seekor) - Ayam Segar Halal Pasar Semenyih Gerai GA 59 | Potong &amp; Cuci Percuma | Khairul FRESH Food</image:title>
+      <image:caption>Ayam pedaging segar gred A harian di Pasar Semenyih dengan jaminan Halal Diiktiraf. Isi pejal, manis semulajadi, dicuci bersih dan dipotong percuma mengikut pilihan anda.</image:caption>
+      <image:geo_location>Semenyih, Selangor, Malaysia</image:geo_location>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://ais-pre-ibciauzkghto525j7ma3h5-707200717362.asia-east1.run.app/p/ayam-kampung-organik</loc>
+    <lastmod>2026-09-16</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.95</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1587593810167-a84920ea0781?auto=format&amp;fit=crop&amp;q=80&amp;w=900</image:loc>
+      <image:title>Ayam Kampung Organik (Ayam Seekor) - Ayam Segar Halal Pasar Semenyih Gerai GA 59 | Potong &amp; Cuci Percuma | Khairul FRESH Food</image:title>
+      <image:caption>Ayam kampung organik segar tempatan diternak secara sihat, bebas suntikan hormon dan antibiotik. Tekstur daging pejal beraroma semulajadi.</image:caption>
+      <image:geo_location>Semenyih, Selangor, Malaysia</image:geo_location>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://ais-pre-ibciauzkghto525j7ma3h5-707200717362.asia-east1.run.app/p/ayam-tua-pencen-segar</loc>
+    <lastmod>2026-09-16</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.95</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1548567117-0429762db801?auto=format&amp;fit=crop&amp;q=80&amp;w=900</image:loc>
+      <image:title>Ayam Tua Pencen Segar (Ayam Seekor) - Ayam Segar Halal Pasar Semenyih Gerai GA 59 | Potong &amp; Cuci Percuma | Khairul FRESH Food</image:title>
+      <image:caption>Ayam tua segar pilihan terbaik untuk masakan tradisi Melayu seperti Rendang, Gulai Kawah, Soto dan Sup Herba.</image:caption>
+      <image:geo_location>Semenyih, Selangor, Malaysia</image:geo_location>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://ais-pre-ibciauzkghto525j7ma3h5-707200717362.asia-east1.run.app/p/whole-leg-segar</loc>
+    <lastmod>2026-09-16</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.95</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1588168333986-5078d3ae3976?auto=format&amp;fit=crop&amp;q=80&amp;w=900</image:loc>
+      <image:title>Whole Leg Segar (Bahagian Ayam) - Ayam Segar Halal Pasar Semenyih Gerai GA 59 | Potong &amp; Cuci Percuma | Khairul FRESH Food</image:title>
+      <image:caption>Gabungan bahagian peha dan drumstick ayam segar tanpa tulang belakang yang berjus dan lembut. Sangat popular untuk hidangan Chicken Chop, Nasi Ayam, dan Panggang.</image:caption>
+      <image:geo_location>Semenyih, Selangor, Malaysia</image:geo_location>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://ais-pre-ibciauzkghto525j7ma3h5-707200717362.asia-east1.run.app/p/kepak-ayam-segar</loc>
+    <lastmod>2026-09-16</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.95</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1567620832903-9fc6debc209f?auto=format&amp;fit=crop&amp;q=80&amp;w=900</image:loc>
+      <image:title>Kepak Ayam Segar (Bahagian Ayam) - Ayam Segar Halal Pasar Semenyih Gerai GA 59 | Potong &amp; Cuci Percuma | Khairul FRESH Food</image:title>
+      <image:caption>Kepak ayam segar penuh (drumette + wingette + tip). Kulit tegang berkilat, isi manis bersari. Pilihan nombor 1 untuk BBQ, Ayam Goreng Madu &amp; Kepak Bakar Berempah.</image:caption>
+      <image:geo_location>Semenyih, Selangor, Malaysia</image:geo_location>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://ais-pre-ibciauzkghto525j7ma3h5-707200717362.asia-east1.run.app/p/dada-ayam-segar</loc>
+    <lastmod>2026-09-16</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.95</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1604503468506-a8da13d82791?auto=format&amp;fit=crop&amp;q=80&amp;w=900</image:loc>
+      <image:title>Dada Ayam Segar (Bahagian Ayam) - Ayam Segar Halal Pasar Semenyih Gerai GA 59 | Potong &amp; Cuci Percuma | Khairul FRESH Food</image:title>
+      <image:caption>Dada ayam segar tanpa tulang tinggi protein dan rendah lemak. Sangat sesuai untuk pengamal diet sihat, menu gym, sate, atau sup herba.</image:caption>
+      <image:geo_location>Semenyih, Selangor, Malaysia</image:geo_location>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://ais-pre-ibciauzkghto525j7ma3h5-707200717362.asia-east1.run.app/p/hati-pedal-ayam</loc>
+    <lastmod>2026-09-16</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.95</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&amp;fit=crop&amp;q=80&amp;w=900</image:loc>
+      <image:title>Hati &amp; Pedal Ayam Segar (Bahagian Ayam) - Ayam Segar Halal Pasar Semenyih Gerai GA 59 | Potong &amp; Cuci Percuma | Khairul FRESH Food</image:title>
+      <image:caption>Campuran organ dalaman segar (hati dan pedal ayam) yang telah dibersihkan rapi. Sangat sedap digoreng kunyit bersama kacang panjang atau dimasak sambal pengantin.</image:caption>
+      <image:geo_location>Semenyih, Selangor, Malaysia</image:geo_location>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://ais-pre-ibciauzkghto525j7ma3h5-707200717362.asia-east1.run.app/p/kaki-ayam</loc>
+    <lastmod>2026-09-16</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.95</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1587593810167-a84920ea0781?auto=format&amp;fit=crop&amp;q=80&amp;w=900</image:loc>
+      <image:title>Kaki Ayam Segar (Bahagian Ayam) - Ayam Segar Halal Pasar Semenyih Gerai GA 59 | Potong &amp; Cuci Percuma | Khairul FRESH Food</image:title>
+      <image:caption>Kaki ayam segar kaya dengan kolagen semulajadi. Kuku dibuang dan dibersihkan rapi, sedia untuk dimasak sup, kerabu, soto atau tom yam pekat.</image:caption>
+      <image:geo_location>Semenyih, Selangor, Malaysia</image:geo_location>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://ais-pre-ibciauzkghto525j7ma3h5-707200717362.asia-east1.run.app/p/rangka-ayam</loc>
+    <lastmod>2026-09-16</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.95</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1548567117-0429762db801?auto=format&amp;fit=crop&amp;q=80&amp;w=900</image:loc>
+      <image:title>Rangka Ayam Segar (Bahagian Ayam) - Ayam Segar Halal Pasar Semenyih Gerai GA 59 | Potong &amp; Cuci Percuma | Khairul FRESH Food</image:title>
+      <image:caption>Rangka ayam segar berkualiti tinggi, asas terbaik untuk penyediaan pati stok sup, kuah mi kari, bihun sup dan pelbagai hidangan berkuah aroma tinggi.</image:caption>
+      <image:geo_location>Semenyih, Selangor, Malaysia</image:geo_location>
+    </image:image>
+  </url>
+
+  <!-- 3. Kawasan Liputan Penghantaran Tempatan (Local SEO) -->
+  <url>
+    <loc>https://ais-pre-ibciauzkghto525j7ma3h5-707200717362.asia-east1.run.app/#kawasan-semenyih</loc>
+    <lastmod>2026-09-16</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.80</priority>
+  </url>
+  <url>
+    <loc>https://ais-pre-ibciauzkghto525j7ma3h5-707200717362.asia-east1.run.app/#kawasan-eco-majestic</loc>
+    <lastmod>2026-09-16</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.80</priority>
+  </url>
+  <url>
+    <loc>https://ais-pre-ibciauzkghto525j7ma3h5-707200717362.asia-east1.run.app/#kawasan-setia-ecohill</loc>
+    <lastmod>2026-09-16</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.80</priority>
+  </url>
+  <url>
+    <loc>https://ais-pre-ibciauzkghto525j7ma3h5-707200717362.asia-east1.run.app/#kawasan-bandar-rinching</loc>
+    <lastmod>2026-09-16</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.80</priority>
+  </url>
+  <url>
+    <loc>https://ais-pre-ibciauzkghto525j7ma3h5-707200717362.asia-east1.run.app/#kawasan-beranang</loc>
+    <lastmod>2026-09-16</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.80</priority>
+  </url>
+  <url>
+    <loc>https://ais-pre-ibciauzkghto525j7ma3h5-707200717362.asia-east1.run.app/#kawasan-kajang</loc>
+    <lastmod>2026-09-16</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.80</priority>
   </url>
 </urlset>

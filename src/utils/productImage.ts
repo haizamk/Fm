@@ -41,3 +41,26 @@ export function getProductImageUrl(product?: Partial<Product> | null): string {
   return '';
 }
 
+/**
+ * Generates descriptive, keyword-rich Image SEO alt text based on product name, category, and location keywords.
+ * Formula: [Product Name] [Category] - Ayam Segar Halal Pasar Semenyih Gerai GA 59 | Khairul FRESH Food
+ */
+export function getProductImageAltText(product?: Partial<Product> | null, fallbackAlt?: string): string {
+  if (!product) {
+    return fallbackAlt || 'Ayam Segar Halal Pasar Awam Semenyih Gerai GA 59 - Khairul FRESH Food';
+  }
+
+  const name = (product.name || fallbackAlt || '').trim();
+  const category = (product.category || '').trim();
+  
+  if (!name) {
+    return 'Ayam Segar Halal Pasar Awam Semenyih Gerai GA 59 - Khairul FRESH Food';
+  }
+
+  const categoryLabel = category && !name.toLowerCase().includes(category.toLowerCase())
+    ? ` (${category})`
+    : '';
+
+  return `${name}${categoryLabel} - Ayam Segar Halal Pasar Semenyih Gerai GA 59 | Potong & Cuci Percuma | Khairul FRESH Food`;
+}
+

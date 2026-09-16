@@ -58,7 +58,8 @@ export const FloatingProductOverlay: React.FC<FloatingProductOverlayProps> = ({
             <div className="relative w-14 h-14 sm:w-16 sm:h-16 rounded-full ring-3 ring-emerald-500 bg-white dark:bg-stone-900 shadow-2xl shadow-emerald-950/50 p-1 flex items-center justify-center overflow-hidden">
               <img
                 src={item.imageUrl}
-                alt={item.name}
+                alt={`${item.name} - Ayam Segar Halal Pasar Semenyih | Khairul FRESH Food`}
+                title={`${item.name} - Ayam Segar Halal Pasar Semenyih | Khairul FRESH Food`}
                 className="w-full h-full object-cover rounded-full"
                 referrerPolicy="no-referrer"
               />

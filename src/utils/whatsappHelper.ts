@@ -25,6 +25,30 @@ export function normalizeWhatsAppPhone(phone: string = OFFICIAL_WHATSAPP_DISPLAY
 }
 
 /**
+ * Robust helper to safely open WhatsApp web/app even inside sandboxes or iframes
+ */
+export function openWhatsAppSafe(url: string): void {
+  if (typeof window === 'undefined') return;
+
+  try {
+    const newWin = window.open(url, '_blank', 'noopener,noreferrer');
+    if (!newWin || newWin.closed || typeof newWin.closed === 'undefined') {
+      // Pop-up blocker or iframe restriction: fallback to direct location or invisible anchor
+      const a = document.createElement('a');
+      a.href = url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+  } catch {
+    // Ultimate fallback: open in top/self window
+    window.location.href = url;
+  }
+}
+
+/**
  * Generates an official WhatsApp chat link with optional pre-filled message
  */
 export function getOfficialWhatsAppLink(
@@ -32,7 +56,7 @@ export function getOfficialWhatsAppLink(
   targetPhone: string = OFFICIAL_WHATSAPP_DIGITS
 ): string {
   const cleanNumber = normalizeWhatsAppPhone(targetPhone);
-  return `https://wa.me/${cleanNumber}?text=${encodeURIComponent(message)}`;
+  return `https://api.whatsapp.com/send?phone=${cleanNumber}&text=${encodeURIComponent(message)}`;
 }
 
 /**

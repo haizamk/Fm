@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Product } from '../types';
-import { getProductImageUrl } from '../utils/productImage';
+import { getProductImageUrl, getProductImageAltText } from '../utils/productImage';
 import { Package, ShieldCheck } from 'lucide-react';
 
 interface ProductImageProps {
@@ -33,6 +33,7 @@ export const ProductImage: React.FC<ProductImageProps> = ({
     }
   }, [imageUrl, product?.image, product?.id, product?.name]);
 
+  const descriptiveAlt = getProductImageAltText(product, alt);
   const displayName = product?.name || alt || 'Produk Ayam Segar';
   const hasValidImage = Boolean(imageUrl && imageUrl.trim().length > 5 && !hasError);
 
@@ -48,7 +49,8 @@ export const ProductImage: React.FC<ProductImageProps> = ({
           <img
             ref={imgRef}
             src={imageUrl}
-            alt={displayName}
+            alt={descriptiveAlt}
+            title={descriptiveAlt}
             loading="eager"
             referrerPolicy="no-referrer"
             onError={() => {

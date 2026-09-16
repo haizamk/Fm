@@ -281,7 +281,8 @@ export const AdminMediaTab: React.FC<AdminMediaTabProps> = ({
                 <div className="aspect-square relative overflow-hidden bg-stone-100 dark:bg-stone-800">
                   <img
                     src={item.url}
-                    alt={item.name}
+                    alt={`${item.name} - Galeri Media Khairul FRESH Food Pasar Semenyih`}
+                    title={`${item.name} - Galeri Media Khairul FRESH Food Pasar Semenyih`}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     referrerPolicy="no-referrer"
                   />
@@ -454,7 +455,7 @@ export const AdminMediaTab: React.FC<AdminMediaTabProps> = ({
 
             {/* Thumbnail Preview */}
             <div className="w-24 h-24 mx-auto rounded-2xl overflow-hidden border border-stone-200 dark:border-stone-700 bg-stone-100 shadow-xs">
-              <img src={deletingItem.url} alt={deletingItem.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              <img src={deletingItem.url} alt={`${deletingItem.name} - Khairul FRESH Food Pasar Semenyih`} title={deletingItem.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
             </div>
 
             <div className="flex items-center gap-2 pt-2">

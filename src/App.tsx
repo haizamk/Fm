@@ -62,9 +62,8 @@ import {
   getProductSlug
 } from './utils/seoHelper';
 
-// Lazy-loaded portal components to reduce main bundle size
-const CustomerPortal = React.lazy(() => import('./components/CustomerPortal'));
-const AdminPortal = React.lazy(() => import('./components/AdminPortal'));
+import { CustomerPortal } from './components/CustomerPortal';
+import { AdminPortal } from './components/AdminPortal';
 
 import { 
   Search, 
@@ -807,7 +806,17 @@ export default function App() {
     dataStorageService.addOrder(order, currentUser?.name || order.customer.fullName);
 
     // Auto-dispatch WhatsApp notification to Admin & Customer via Fonnte Gateway
-    fonnteService.triggerNewOrderNotification(order).catch((err) => {
+    const fonnteConfigToUse = siteSettings.fonnteConfig?.token 
+      ? siteSettings.fonnteConfig 
+      : fonnteService.getConfig();
+
+    fonnteService.triggerNewOrderNotification(order, fonnteConfigToUse).then((res) => {
+      if (res.adminSent) {
+        console.log(`[Fonnte WhatsApp] Pesanan #${order.orderId} berjaya dihantar ke WhatsApp Admin (${fonnteConfigToUse.adminPhone || '011-11135503'})!`);
+      } else {
+        console.warn(`[Fonnte WhatsApp] Notifikasi pesanan tidak dihantar:`, res.error || 'Semak token dan sambungan');
+      }
+    }).catch((err) => {
       console.warn('Fonnte auto-dispatch background error:', err);
     });
 
@@ -1211,38 +1220,34 @@ export default function App() {
         }}
       />
 
-      {/* 0.1 Customer Management Portal (Lazy Loaded) */}
+      {/* 0.1 Customer Management Portal */}
       {currentUser && isCustomerPortalOpen && (
-        <React.Suspense fallback={<PortalLoadingFallback title="Memuatkan Portal Pelanggan..." type="customer" />}>
-          <CustomerPortal
-            isOpen={isCustomerPortalOpen}
-            onClose={() => setIsCustomerPortalOpen(false)}
-            user={currentUser}
-            onLogout={handleLogout}
-            onUpdateUser={(updated) => setCurrentUser(updated)}
-            onReorder={handleReorderFromPortal}
-            onOpenCoverage={() => {
-              setIsCustomerPortalOpen(false);
-              setIsCoverageOpen(true);
-            }}
-          />
-        </React.Suspense>
+        <CustomerPortal
+          isOpen={isCustomerPortalOpen}
+          onClose={() => setIsCustomerPortalOpen(false)}
+          user={currentUser}
+          onLogout={handleLogout}
+          onUpdateUser={(updated) => setCurrentUser(updated)}
+          onReorder={handleReorderFromPortal}
+          onOpenCoverage={() => {
+            setIsCustomerPortalOpen(false);
+            setIsCoverageOpen(true);
+          }}
+        />
       )}
 
-      {/* 0.2 Admin Management Portal (Lazy Loaded) */}
+      {/* 0.2 Admin Management Portal */}
       {currentUser && currentUser.role === 'admin' && isAdminPortalOpen && (
-        <React.Suspense fallback={<PortalLoadingFallback title="Memuatkan Portal Pentadbir..." type="admin" />}>
-          <AdminPortal
-            isOpen={isAdminPortalOpen}
-            onClose={() => setIsAdminPortalOpen(false)}
-            adminUser={currentUser}
-            onLogout={handleLogout}
-            onProductsUpdated={(prods) => setProductsList(prods)}
-            onSettingsUpdated={(settings) => setSiteSettings(settings)}
-            banners={banners}
-            onBannersUpdated={(updated) => setBanners(updated)}
-          />
-        </React.Suspense>
+        <AdminPortal
+          isOpen={isAdminPortalOpen}
+          onClose={() => setIsAdminPortalOpen(false)}
+          adminUser={currentUser}
+          onLogout={handleLogout}
+          onProductsUpdated={(prods) => setProductsList(prods)}
+          onSettingsUpdated={(settings) => setSiteSettings(settings)}
+          banners={banners}
+          onBannersUpdated={(updated) => setBanners(updated)}
+        />
       )}
       
       {/* 1. Custom Chicken Cut & Cleaning Modal */}

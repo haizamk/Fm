@@ -21,12 +21,33 @@ export const FONNTE_STORAGE_KEY = 'khairul_fresh_fonnte_config_v1';
 class FonnteService {
   private apiUrl = 'https://api.fonnte.com/send';
   private validateDeviceUrl = 'https://api.fonnte.com/device';
+  private inMemoryConfig: FonnteConfig | null = null;
 
   getConfig(): FonnteConfig {
+    if (this.inMemoryConfig && this.inMemoryConfig.token && this.inMemoryConfig.token.trim() !== '') {
+      return this.inMemoryConfig;
+    }
+
     try {
       const saved = localStorage.getItem(FONNTE_STORAGE_KEY);
       if (saved) {
-        return { ...DEFAULT_FONNTE_CONFIG, ...JSON.parse(saved) };
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.token && parsed.token.trim() !== '') {
+          this.inMemoryConfig = { ...DEFAULT_FONNTE_CONFIG, ...parsed };
+          return this.inMemoryConfig;
+        }
+      }
+      // Fallback: check shared cloud/local site settings
+      const settingsSaved = localStorage.getItem('khairul_fresh_site_settings_v5');
+      if (settingsSaved) {
+        const parsedSettings = JSON.parse(settingsSaved);
+        if (parsedSettings && parsedSettings.fonnteConfig && parsedSettings.fonnteConfig.token) {
+          this.inMemoryConfig = {
+            ...DEFAULT_FONNTE_CONFIG,
+            ...parsedSettings.fonnteConfig,
+          };
+          return this.inMemoryConfig;
+        }
       }
     } catch (e) {
       console.warn('Error reading Fonnte config:', e);
@@ -35,6 +56,7 @@ class FonnteService {
   }
 
   saveConfig(config: FonnteConfig): void {
+    this.inMemoryConfig = config;
     try {
       localStorage.setItem(FONNTE_STORAGE_KEY, JSON.stringify(config));
     } catch (e) {
@@ -233,14 +255,53 @@ class FonnteService {
   /**
    * Main trigger called when order is successfully placed
    */
-  async triggerNewOrderNotification(order: OrderRecord): Promise<{ adminSent: boolean; customerSent: boolean; error?: string }> {
-    const config = this.getConfig();
+  async triggerNewOrderNotification(
+    order: OrderRecord, 
+    customConfig?: Partial<FonnteConfig>
+  ): Promise<{ adminSent: boolean; customerSent: boolean; error?: string }> {
+    let config = this.getConfig();
+
+    if (customConfig && customConfig.token && customConfig.token.trim() !== '') {
+      config = {
+        ...config,
+        ...customConfig,
+        token: customConfig.token.trim(),
+      };
+      this.saveConfig(config);
+    }
+
+    // Cloud fallback if token is still missing
+    if (!config.token || config.token.trim() === '') {
+      try {
+        const { getDoc, doc } = await import('firebase/firestore');
+        const { db } = await import('./firebase');
+        const settingsSnap = await getDoc(doc(db, 'site_settings', 'main'));
+        if (settingsSnap.exists()) {
+          const cloudData = settingsSnap.data() as any;
+          if (cloudData && cloudData.fonnteConfig && cloudData.fonnteConfig.token) {
+            config = {
+              ...DEFAULT_FONNTE_CONFIG,
+              ...cloudData.fonnteConfig,
+            };
+            this.saveConfig(config);
+          }
+        }
+      } catch (e) {
+        console.warn('Could not read cloud settings for Fonnte fallback:', e);
+      }
+    }
+
     let adminSent = false;
     let customerSent = false;
     let lastError: string | undefined;
 
     if (!config.token || config.token.trim() === '') {
-      console.log('Fonnte token not configured. Skipping background WhatsApp notification.');
+      console.warn('[Fonnte] Token not configured in settings. Skipping automatic WhatsApp notification.');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('khairul_fresh_fonnte_dispatched', {
+          detail: { orderId: order.orderId, adminSent: false, customerSent: false, error: 'Token belum diisi' }
+        }));
+      }
       return { adminSent: false, customerSent: false, error: 'Token belum diisi' };
     }
 
@@ -248,7 +309,7 @@ class FonnteService {
     if (config.autoNotifyAdmin) {
       const adminTarget = config.adminPhone || '011-11135503';
       const adminMsg = this.buildAdminOrderNotificationMessage(order);
-      const res = await this.sendMessage(adminTarget, adminMsg);
+      const res = await this.sendMessage(adminTarget, adminMsg, config.token);
       if (res.success) {
         adminSent = true;
         console.log(`[Fonnte] Auto-dispatched order #${order.orderId} to admin (${adminTarget})`);
@@ -261,11 +322,17 @@ class FonnteService {
     // 2. Optionally send to Customer
     if (config.autoNotifyCustomer && order.customer?.phone) {
       const customerMsg = this.buildCustomerOrderNotificationMessage(order);
-      const resCustomer = await this.sendMessage(order.customer.phone, customerMsg);
+      const resCustomer = await this.sendMessage(order.customer.phone, customerMsg, config.token);
       if (resCustomer.success) {
         customerSent = true;
         console.log(`[Fonnte] Auto-dispatched order #${order.orderId} to customer (${order.customer.phone})`);
       }
+    }
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('khairul_fresh_fonnte_dispatched', {
+        detail: { orderId: order.orderId, adminSent, customerSent, error: lastError }
+      }));
     }
 
     return { adminSent, customerSent, error: lastError };

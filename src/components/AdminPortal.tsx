@@ -254,6 +254,12 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     });
     const unsubSettings = dataStorageService.subscribeSiteSettings((liveSettings) => {
       setSiteSettings(liveSettings);
+      if (liveSettings.fonnteConfig?.token) {
+        setFonnteToken((prev) => prev || liveSettings.fonnteConfig?.token || '');
+        if (liveSettings.fonnteConfig.adminPhone) {
+          setFonnteAdminPhone((prev) => prev || liveSettings.fonnteConfig?.adminPhone || '011-11135503');
+        }
+      }
     });
     const unsubCoupons = dataStorageService.subscribeCoupons((liveCoupons) => {
       setCoupons(liveCoupons);
@@ -755,7 +761,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     setFonnteTestResult(result);
 
     if (result.success) {
-      showNotification('success', result.message);
+      showNotification('success', `${result.message} — Tetapan telah disimpan secara automatik!`);
+      handleSaveFonnteConfig();
     } else {
       showNotification('error', result.message);
     }
@@ -776,7 +783,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     setFonnteSendingTestMsg(false);
 
     if (res.success) {
-      showNotification('success', res.message);
+      showNotification('success', `${res.message} — Tetapan telah disimpan secara automatik!`);
+      handleSaveFonnteConfig();
     } else {
       showNotification('error', res.message);
     }

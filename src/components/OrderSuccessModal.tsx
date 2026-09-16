@@ -41,6 +41,27 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [isSharingPdf, setIsSharingPdf] = useState(false);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
+  const [fonnteDispatchStatus, setFonnteDispatchStatus] = useState<{ adminSent: boolean; error?: string } | null>(null);
+
+  useEffect(() => {
+    const handleFonnteEvent = (e: any) => {
+      if (e.detail && order && e.detail.orderId === order.orderId) {
+        setFonnteDispatchStatus({
+          adminSent: e.detail.adminSent,
+          error: e.detail.error,
+        });
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('khairul_fresh_fonnte_dispatched', handleFonnteEvent);
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('khairul_fresh_fonnte_dispatched', handleFonnteEvent);
+      }
+    };
+  }, [order]);
 
   useEffect(() => {
     if (isOpen) {
@@ -250,6 +271,50 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
               <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
               <span>Status: Disahkan & Menunggu Persediaan Pagi</span>
             </div>
+          </div>
+
+          {/* WhatsApp Auto-Notification & Quick Contact Banner */}
+          <div className="p-3.5 sm:p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs mt-0.5">
+                <MessageCircle className="w-4 h-4" />
+              </div>
+              <div className="text-xs space-y-0.5">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="font-bold text-stone-900 dark:text-white">
+                    WhatsApp Gateway Automatik
+                  </span>
+                  {fonnteDispatchStatus ? (
+                    fonnteDispatchStatus.adminSent ? (
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/80 dark:text-emerald-200 text-[10px] font-extrabold flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                        Tersambung & Dihantar ke Admin
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/80 dark:text-amber-200 text-[10px] font-bold">
+                        WhatsApp Sent (Fallback)
+                      </span>
+                    )
+                  ) : (
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/80 dark:text-emerald-200 text-[10px] font-bold">
+                      Admin: 011-11135503
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-stone-600 dark:text-stone-300">
+                  Pesanan anda telah direkod dan dihantar terus ke talian WhatsApp pengurusan Khairul Fresh.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={generateWhatsAppMessage}
+              className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
+            >
+              <MessageCircle className="w-3.5 h-3.5" />
+              <span>Buka WhatsApp Admin</span>
+            </button>
           </div>
 
           {/* DEDICATED PREFERRED DELIVERY SLOT CARD */}

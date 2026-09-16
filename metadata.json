@@ -1,6 +1,6 @@
 {
   "name": "Khairul FRESH Food",
-  "description": "Platform Pesanan & Penghantaran Ayam Segar Halal Pasar Semenyih. Pilihan penghantaran & self-pickup percuma di Pasar Semenyih.",
+  "description": "Platform Pesanan & Penghantaran Ayam Segar Halal Pasar Semenyih (Gerai GA 59). Khidmat potong & cuci percuma, pek sejuk dingin, serta penghantaran terus ke rumah.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

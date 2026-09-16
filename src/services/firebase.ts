@@ -28,6 +28,7 @@ const dbId = firebaseConfigData.firestoreDatabaseId || '(default)';
 
 try {
   dbInstance = initializeFirestore(app, {
+    ignoreUndefinedProperties: true,
     experimentalAutoDetectLongPolling: true,
     localCache: persistentLocalCache({
       tabManager: persistentMultipleTabManager(),

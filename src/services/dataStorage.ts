@@ -13,6 +13,7 @@ import {
 import { PRODUCTS } from '../data/products';
 import { db } from './firebase';
 import { authService } from './auth';
+import { fonnteService } from './fonnteService';
 import { 
   collection, 
   doc, 
@@ -304,14 +305,33 @@ const INITIAL_AUDIT_LOGS: AdminAuditLog[] = [
   }
 ];
 
+// Helper to clean undefined fields for Firestore compatibility
+function removeUndefinedFields(obj: any): any {
+  if (obj === null || typeof obj !== 'object') {
+    return obj;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(removeUndefinedFields);
+  }
+  const result: Record<string, any> = {};
+  for (const key of Object.keys(obj)) {
+    const val = obj[key];
+    if (val !== undefined) {
+      result[key] = removeUndefinedFields(val);
+    }
+  }
+  return result;
+}
+
 // Helper to push to Firestore in background safely
 async function syncDocToFirestore(collectionName: string, docId: string, data: any, merge: boolean = false) {
   try {
+    const cleaned = removeUndefinedFields(data);
     const docRef = doc(db, collectionName, docId);
     if (merge) {
-      await setDoc(docRef, data, { merge: true });
+      await setDoc(docRef, cleaned, { merge: true });
     } else {
-      await setDoc(docRef, data);
+      await setDoc(docRef, cleaned);
     }
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, `${collectionName}/${docId}`);
@@ -330,9 +350,28 @@ async function deleteDocFromFirestore(collectionName: string, docId: string) {
 export const dataStorageService = {
   // Real-time Firestore Subscriptions
   subscribeOrders(callback: (orders: OrderRecord[]) => void): Unsubscribe {
+    let isSubscribed = true;
+
+    // Handle local window event for instant responsive UI updates
+    const handleLocalUpdate = (e: Event) => {
+      if (!isSubscribed) return;
+      const customEvent = e as CustomEvent<OrderRecord[]>;
+      if (customEvent.detail) {
+        callback(customEvent.detail);
+      } else {
+        callback(this.getOrders());
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('khairul_fresh_orders_updated', handleLocalUpdate);
+    }
+
+    let unsubFirestore: Unsubscribe = () => {};
     try {
       const ordersCol = collection(db, 'orders');
-      return onSnapshot(ordersCol, (snapshot) => {
+      unsubFirestore = onSnapshot(ordersCol, (snapshot) => {
+        if (!isSubscribed) return;
         if (!snapshot.empty) {
           const cloudOrders: OrderRecord[] = [];
           snapshot.forEach((docSnap) => {
@@ -342,14 +381,28 @@ export const dataStorageService = {
           cloudOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
           localStorage.setItem(ORDERS_KEY, JSON.stringify(cloudOrders));
           callback(cloudOrders);
+        } else {
+          // If Firestore is empty, push local orders to Firestore so they are recorded in cloud
+          const local = this.getOrders();
+          if (local.length > 0) {
+            local.forEach((o) => syncDocToFirestore('orders', o.orderId, o));
+            callback(local);
+          }
         }
       }, (err) => {
         handleFirestoreError(err, OperationType.LIST, 'orders');
       });
     } catch (e) {
       handleFirestoreError(e, OperationType.LIST, 'orders');
-      return () => {};
     }
+
+    return () => {
+      isSubscribed = false;
+      unsubFirestore();
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('khairul_fresh_orders_updated', handleLocalUpdate);
+      }
+    };
   },
 
   subscribeProducts(callback: (products: Product[]) => void): Unsubscribe {
@@ -382,6 +435,9 @@ export const dataStorageService = {
         if (snapshot.exists()) {
           const cloudSettings = snapshot.data() as SiteSettings;
           localStorage.setItem(SETTINGS_KEY, JSON.stringify(cloudSettings));
+          if (cloudSettings.fonnteConfig && cloudSettings.fonnteConfig.token) {
+            fonnteService.saveConfig(cloudSettings.fonnteConfig);
+          }
           callback(cloudSettings);
         }
       }, (err) => {
@@ -498,6 +554,10 @@ export const dataStorageService = {
       console.info('Auto customer record note:', err);
     }
 
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('khairul_fresh_orders_updated', { detail: updated }));
+    }
+
     this.addAuditLog({
       action: 'Pesanan Baru Masuk',
       performedBy: newOrder.customer.fullName,
@@ -537,6 +597,10 @@ export const dataStorageService = {
     // Push to Firebase Firestore
     if (updatedOrderObj) {
       syncDocToFirestore('orders', orderId, updatedOrderObj);
+    }
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('khairul_fresh_orders_updated', { detail: updated }));
     }
 
     this.addAuditLog({
@@ -808,6 +872,9 @@ export const dataStorageService = {
         if (!parsed.hitpayConfig) {
           parsed.hitpayConfig = DEFAULT_SITE_SETTINGS.hitpayConfig;
         }
+        if (!parsed.fonnteConfig) {
+          parsed.fonnteConfig = DEFAULT_SITE_SETTINGS.fonnteConfig;
+        }
         if (!parsed.thermalReceiptSettings) {
           parsed.thermalReceiptSettings = DEFAULT_SITE_SETTINGS.thermalReceiptSettings;
         }
@@ -833,6 +900,10 @@ export const dataStorageService = {
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
     } catch {
       // ignore
+    }
+
+    if (settings.fonnteConfig && settings.fonnteConfig.token) {
+      fonnteService.saveConfig(settings.fonnteConfig);
     }
 
     // Push to Firestore

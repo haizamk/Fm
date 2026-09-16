@@ -92,6 +92,22 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({
     );
   });
 
+  // Real-time listener for orders when Customer Portal is open
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const unsub = dataStorageService.subscribeOrders((allOrders) => {
+      setOrders(
+        allOrders.filter(
+          (o) => 
+            o.customer.email.toLowerCase() === (user?.email || '').toLowerCase() ||
+            (user?.phone && o.customer.phone.includes(user.phone.replace(/\D/g, ''))) ||
+            o.customer.fullName.toLowerCase().includes((user?.name || '').toLowerCase())
+        )
+      );
+    });
+    return () => unsub();
+  }, [isOpen, user]);
+
   // Action status message
   const [feedbackMessage, setFeedbackMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 

@@ -602,7 +602,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       try {
         const hitpayRes = await hitpayService.createPaymentRequest(newOrder, hitpayConfig);
         
-        if (hitpayRes.success && hitpayRes.url) {
+        if (hitpayRes.url) {
           // Temporarily save order as pending
           if (activeItemCoupon?.code) dataStorageService.recordCouponUsage(activeItemCoupon.code);
           if (activeDeliveryCoupon?.code) dataStorageService.recordCouponUsage(activeDeliveryCoupon.code);
@@ -613,7 +613,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             paymentUrl: hitpayRes.url,
             paymentId: hitpayRes.id,
             order: newOrder,
-            isSimulated: hitpayRes.isSimulated,
+            isSimulated: hitpayRes.isSimulated || false,
           });
           setIsSubmitting(false);
           return;
@@ -1663,13 +1663,67 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               </span>
             </div>
 
-            {/* Kaedah Bayaran: DuitNow QR (OCBC Bank) Sahaja */}
+            {/* Pilihan Kaedah Bayaran */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('hitpay')}
+                className={`flex items-start gap-3 p-3 rounded-xl border-2 text-left transition-all duration-200 ${
+                  paymentMethod === 'hitpay'
+                    ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-900/30'
+                    : 'border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800/50 hover:border-emerald-300 dark:hover:border-emerald-700'
+                }`}
+              >
+                <div className={`mt-0.5 p-1 rounded-full ${paymentMethod === 'hitpay' ? 'bg-emerald-600 text-white' : 'bg-stone-200 dark:bg-stone-700 text-stone-500'}`}>
+                  <CreditCard className="w-3.5 h-3.5" />
+                </div>
+                <div>
+                  <h4 className={`text-xs font-bold ${paymentMethod === 'hitpay' ? 'text-emerald-900 dark:text-emerald-300' : 'text-stone-700 dark:text-stone-300'}`}>
+                    HitPay Gateway
+                  </h4>
+                  <p className="text-[10px] text-stone-500 dark:text-stone-400 leading-snug mt-0.5">
+                    FPX, Kad Kredit/Debit, E-Wallet
+                  </p>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('duitnow')}
+                className={`flex items-start gap-3 p-3 rounded-xl border-2 text-left transition-all duration-200 ${
+                  paymentMethod === 'duitnow'
+                    ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-900/30'
+                    : 'border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800/50 hover:border-emerald-300 dark:hover:border-emerald-700'
+                }`}
+              >
+                <div className={`mt-0.5 p-1 rounded-full ${paymentMethod === 'duitnow' ? 'bg-emerald-600 text-white' : 'bg-stone-200 dark:bg-stone-700 text-stone-500'}`}>
+                  <CreditCard className="w-3.5 h-3.5" />
+                </div>
+                <div>
+                  <h4 className={`text-xs font-bold ${paymentMethod === 'duitnow' ? 'text-emerald-900 dark:text-emerald-300' : 'text-stone-700 dark:text-stone-300'}`}>
+                    DuitNow QR
+                  </h4>
+                  <p className="text-[10px] text-stone-500 dark:text-stone-400 leading-snug mt-0.5">
+                    Imbas & Bayar Terus (OCBC)
+                  </p>
+                </div>
+              </button>
+            </div>
+
             <div className="space-y-3">
-              <DuitNowOCBCQR
-                orderTotal={total}
-                customerName={fullName}
-                customerPhone={phone}
-              />
+              {paymentMethod === 'duitnow' ? (
+                <DuitNowOCBCQR
+                  orderTotal={total}
+                  customerName={fullName}
+                  customerPhone={phone}
+                />
+              ) : (
+                <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/50 text-center space-y-2">
+                  <p className="text-xs text-emerald-800 dark:text-emerald-300 font-medium">
+                    Anda akan dibawa ke halaman pembayaran selamat HitPay selepas klik "Sahkan Tempahan".
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 

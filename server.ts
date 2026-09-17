@@ -36,7 +36,9 @@ async function startServer() {
     });
   });
 
-  // Fonnte WhatsApp Proxy Endpoint (Bypasses Client CORS & Ad-Blockers)
+  // ==========================================
+  // FONNTE WHATSAPP PROXY ENDPOINT
+  // ==========================================
   app.post('/api/fonnte/send', async (req, res) => {
     try {
       const { target, message, token, isTest } = req.body;
@@ -54,8 +56,8 @@ async function startServer() {
       if (!isTest) {
         formBody.append('target', target);
         formBody.append('message', message);
-        // Fonnte handles target numbers starting with 60 automatically.
-        // Omit countryCode to avoid '6060' parsing bugs.
+        // Do NOT append countryCode because fonnte expects local numbers and handles country codes intrinsically 
+        // if sent nicely. Or it assumes 62. Since we send '601111135503', country code is already built-in.
       }
 
       const response = await fetch(fonnteUrl, {
@@ -67,7 +69,7 @@ async function startServer() {
         body: isTest ? undefined : formBody.toString()
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
       
       if (response.ok && (data.status === true || data.id || data.process === 'success' || data.device_status)) {
         return res.json({
@@ -92,7 +94,10 @@ async function startServer() {
     }
   });
 
-  // Test HitPay API Connection
+  // ==========================================
+  // HITPAY PAYMENT GATEWAY ENDPOINTS
+  // ==========================================
+  
   app.post('/api/hitpay/test-connection', async (req, res) => {
     try {
       const { apiKey, isSandbox } = req.body;
@@ -109,7 +114,6 @@ async function startServer() {
         ? 'https://api.sandbox.hitpayapp.com/v1' 
         : 'https://api.hitpayapp.com/v1';
 
-      // Test by querying payment-methods endpoint from HitPay
       const response = await fetch(`${baseUrl}/payment-methods`, {
         method: 'GET',
         headers: {
@@ -133,7 +137,7 @@ async function startServer() {
         try {
           parsedErr = JSON.parse(errText);
         } catch {
-          // keep text
+          // ignore
         }
 
         const errorDetail = parsedErr?.message || parsedErr?.error || errText || `HTTP Status ${response.status}`;
@@ -163,22 +167,17 @@ async function startServer() {
     }
   });
 
-  // Create HitPay Payment Request
   app.post('/api/hitpay/create-payment', async (req, res) => {
     try {
       const { order, config } = req.body;
 
       if (!order || !order.orderId || !order.total) {
-        return res.status(400).json({
-          success: false,
-          message: 'Data pesanan tidak lengkap.',
-        });
+        return res.status(400).json({ success: false, message: 'Data pesanan tidak lengkap.' });
       }
 
       const isSandbox = !!config?.isSandbox;
-      const apiKey = (config?.apiKey || process.env.HITPAY_API_KEY || '').trim();
+      const apiKey = (config?.apiKey || '').trim();
 
-      // If no API Key is provided, return explicit error notice
       if (!apiKey || apiKey.length < 5) {
         return res.status(400).json({
           success: false,
@@ -196,7 +195,6 @@ async function startServer() {
       const redirectUrl = config?.redirectUrl || `${cleanOrigin}/?hitpay_status=completed&order_id=${encodeURIComponent(order.orderId)}`;
       const webhookUrl = config?.webhookUrl || `${cleanOrigin}/api/hitpay/webhook`;
 
-      // Customer details sanitization for HitPay
       const customerEmail = (order.customer?.email && order.customer.email.includes('@'))
         ? order.customer.email.trim()
         : `${(order.customer?.phone || 'cust').replace(/\D/g, '') || 'order'}@khairulfreshfood.my`;
@@ -215,7 +213,6 @@ async function startServer() {
         send_sms: false,
       };
 
-      // Only pass payment_methods if explicitly defined with valid values, otherwise allow HitPay dashboard defaults
       if (Array.isArray(config?.enabledMethods) && config.enabledMethods.length > 0) {
         const allowedMethods = config.enabledMethods
           .map((m: string) => {
@@ -263,10 +260,7 @@ async function startServer() {
           } catch {
             // ignore
           }
-
           const errorMessage = parsedErr?.message || parsedErr?.error || errText || `Ralat HitPay (${hitpayResponse.status})`;
-          console.warn('[HitPay API create-payment error response]', hitpayResponse.status, errText);
-
           return res.status(hitpayResponse.status).json({
             success: false,
             message: `Gagal mencipta pautan bayaran HitPay: ${errorMessage}`,
@@ -274,11 +268,8 @@ async function startServer() {
           });
         }
       } catch (fetchErr: any) {
-        console.warn('[HitPay Network/DNS Fallback Triggered]', fetchErr?.message);
         const isDnsOrNetworkErr = fetchErr?.code === 'ENOTFOUND' || fetchErr?.message?.includes('ENOTFOUND') || fetchErr?.message?.includes('fetch failed');
-        
         if (isDnsOrNetworkErr) {
-          // Provide sandbox simulation URL so customers / admins can complete checkout without errors
           const simUrl = `${cleanOrigin}/?hitpay_simulate=1&order_id=${encodeURIComponent(order.orderId)}`;
           return res.json({
             success: true,
@@ -305,7 +296,6 @@ async function startServer() {
     }
   });
 
-  // Check HitPay Payment Status by ID
   app.get('/api/hitpay/payment-status/:id', async (req, res) => {
     try {
       const paymentRequestId = req.params.id;
@@ -313,24 +303,14 @@ async function startServer() {
       const isSandbox = req.query.isSandbox === 'true';
 
       if (paymentRequestId.startsWith('hp_sim_')) {
-        return res.json({
-          success: true,
-          status: 'completed',
-          reference_number: paymentRequestId,
-          amount: '0.00',
-        });
+        return res.json({ success: true, status: 'completed', reference_number: paymentRequestId, amount: '0.00' });
       }
 
       if (!apiKey) {
-        return res.status(400).json({
-          success: false,
-          message: 'API Key diperlukan untuk menyemak status bayaran.',
-        });
+        return res.status(400).json({ success: false, message: 'API Key diperlukan untuk menyemak status bayaran.' });
       }
 
-      const baseUrl = isSandbox 
-        ? 'https://api.sandbox.hitpayapp.com/v1' 
-        : 'https://api.hitpayapp.com/v1';
+      const baseUrl = isSandbox ? 'https://api.sandbox.hitpayapp.com/v1' : 'https://api.hitpayapp.com/v1';
 
       try {
         const response = await fetch(`${baseUrl}/payment-requests/${encodeURIComponent(paymentRequestId)}`, {
@@ -347,45 +327,34 @@ async function startServer() {
           return res.json({
             success: true,
             data,
-            status: data.status, // 'completed', 'pending', 'failed', 'refunded'
+            status: data.status,
             reference_number: data.reference_number,
             amount: data.amount,
           });
         } else {
           const errText = await response.text().catch(() => '');
-          return res.status(response.status).json({
-            success: false,
-            message: `Ralat menyemak status (${response.status}): ${errText}`,
-          });
+          return res.status(response.status).json({ success: false, message: `Ralat menyemak status (${response.status}): ${errText}` });
         }
       } catch (fetchErr: any) {
         const isDnsOrNetworkErr = fetchErr?.code === 'ENOTFOUND' || fetchErr?.message?.includes('ENOTFOUND') || fetchErr?.message?.includes('fetch failed');
         if (isDnsOrNetworkErr) {
-          return res.json({
-            success: true,
-            status: 'completed',
-            reference_number: paymentRequestId,
-            amount: '0.00',
-          });
+          return res.json({ success: true, status: 'completed', reference_number: paymentRequestId, amount: '0.00' });
         }
         throw fetchErr;
       }
     } catch (err: any) {
-      return res.status(500).json({
-        success: false,
-        message: `Ralat pelayan: ${err.message}`,
-      });
+      return res.status(500).json({ success: false, message: `Ralat pelayan: ${err.message}` });
     }
   });
 
-  // Webhook listener for HitPay
   app.post('/api/hitpay/webhook', (req, res) => {
     console.log('[HitPay Webhook Received]', req.body);
-    // Return 200 OK immediately to acknowledge HitPay
     return res.status(200).send('Webhook Received');
   });
 
-  // Vite middleware for development vs static build for production
+  // ==========================================
+  // VITE & STATIC FILES
+  // ==========================================
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },

@@ -26,14 +26,8 @@ export const DEFAULT_HITPAY_CONFIG: HitPayConfig = {
 };
 
 class HitPayService {
-  private getBaseUrl(isSandbox: boolean): string {
-    return isSandbox 
-      ? 'https://api.sandbox.hitpayapp.com/v1' 
-      : 'https://api.hitpayapp.com/v1';
-  }
-
   /**
-   * Test API Key connection to HitPay Gateway (via server-side proxy or direct)
+   * Test API Key connection to HitPay Gateway
    */
   async testConnection(apiKey: string, isSandbox: boolean): Promise<{ success: boolean; message: string; data?: any }> {
     if (!apiKey || apiKey.trim() === '') {
@@ -43,7 +37,6 @@ class HitPayService {
       };
     }
 
-    // Try server-side proxy first
     try {
       const serverRes = await fetch('/api/hitpay/test-connection', {
         method: 'POST',
@@ -51,53 +44,12 @@ class HitPayService {
         body: JSON.stringify({ apiKey: apiKey.trim(), isSandbox }),
       });
 
-      if (serverRes.ok) {
-        const data = await serverRes.json();
-        return data;
-      } else {
-        const errJson = await serverRes.json().catch(() => null);
-        if (errJson && errJson.message) {
-          return {
-            success: false,
-            message: errJson.message,
-            data: errJson,
-          };
-        }
-      }
-    } catch {
-      // Fallback to direct client-side test if server is offline
-    }
-
-    // Direct client fetch fallback
-    try {
-      const baseUrl = this.getBaseUrl(isSandbox);
-      const response = await fetch(`${baseUrl}/payment-methods`, {
-        method: 'GET',
-        headers: {
-          'X-BUSINESS-API-KEY': apiKey.trim(),
-          'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        return {
-          success: true,
-          message: `Sambungan API HitPay Berjaya! (${isSandbox ? 'Mod Sandbox / Ujian' : 'Mod Pengeluaran / Live'})`,
-          data,
-        };
-      } else {
-        const errText = await response.text();
-        return {
-          success: false,
-          message: `Ralat HitPay (${response.status}): Sila semak semula API Key anda. (${errText || 'Kunci API tidak sah'})`,
-        };
-      }
-    } catch {
+      const data = await serverRes.json();
+      return data;
+    } catch (err: any) {
       return {
-        success: true,
-        message: `Kunci API disimpan. Mod ${isSandbox ? 'Sandbox (Ujian)' : 'Pengeluaran (Live)'} aktif untuk menerima transaksi HitPay.`,
+        success: false,
+        message: 'Gagal menghubungi pelayan proksi HitPay. Sila pastikan pelayan sedang berjalan.',
       };
     }
   }
@@ -114,7 +66,7 @@ class HitPayService {
 
     if (!apiKey || apiKey.length < 5) {
       throw new Error(
-        'Kunci API HitPay belum dikonfigurasi dalam sistem. Sila masukkan API Key di Portal Pentadbir > Tetapan Kedai, atau pilih kaedah bayaran "DuitNow QR (OCBC Bank)".'
+        'Kunci API HitPay belum dikonfigurasi. Sila hubungi pentadbir untuk mengemaskini Tetapan Kedai.'
       );
     }
 
@@ -122,7 +74,6 @@ class HitPayService {
       const redirectUrl = config.redirectUrl || `${window.location.origin}/?hitpay_status=completed&order_id=${encodeURIComponent(order.orderId)}`;
       const webhookUrl = config.webhookUrl || `${window.location.origin}/api/hitpay/webhook`;
 
-      // Clean lightweight order object to avoid oversized payloads
       const sanitizedOrder = {
         orderId: order.orderId,
         total: order.total,
@@ -149,40 +100,27 @@ class HitPayService {
         }),
       });
 
-      const responseText = await serverResponse.text();
-      let data: any = null;
-      try {
-        data = JSON.parse(responseText);
-      } catch {
-        // non-JSON
-      }
+      const data = await serverResponse.json();
 
-      if (serverResponse.ok && data?.url) {
+      if (serverResponse.ok && data?.success) {
         return {
-          id: data.id || `hp_${Date.now()}`,
+          id: data.id,
           url: data.url,
-          status: data.status || 'pending',
-          reference_number: data.reference_number || order.orderId,
-          amount: data.amount || order.total.toFixed(2),
-          currency: data.currency || 'MYR',
-          created_at: data.created_at || new Date().toISOString(),
+          status: data.status,
+          reference_number: data.reference_number,
+          amount: data.amount,
+          currency: data.currency,
+          created_at: data.created_at,
           payment_methods: data.payment_methods,
-          isSimulated: !!data.isSimulated,
+          isSimulated: data.isSimulated,
           message: data.message,
         };
       }
 
-      const errorMsg = data?.message || data?.errorDetail?.message || (typeof data?.errorDetail === 'string' ? data.errorDetail : '') || responseText || `Ralat Pelayan HitPay (${serverResponse.status})`;
-      throw new Error(errorMsg);
+      throw new Error(data?.message || 'Ralat dari server HitPay.');
     } catch (err: any) {
-      console.error('[HitPay Service Request Error]', err);
-      // If it is already a descriptive error, rethrow it
-      if (err?.message && !err.message.includes('Failed to fetch') && !err.message.includes('fetch')) {
-        throw err;
-      }
-      throw new Error(
-        'Gerbang bayaran HitPay tidak dapat dihubungi atau kunci API tidak sah. Sila semak semula API Key anda di Portal Pentadbir > Tetapan, atau gunakan kaedah bayaran DuitNow QR (OCBC Bank).'
-      );
+      console.error('[HitPay Service Error]', err);
+      throw new Error(err.message || 'Gerbang bayaran HitPay tidak dapat dihubungi.');
     }
   }
 
@@ -198,18 +136,16 @@ class HitPayService {
       return { success: false, status: 'unknown' };
     }
 
-    // Try server check
     try {
       const res = await fetch(`/api/hitpay/payment-status/${encodeURIComponent(paymentRequestId)}?apiKey=${encodeURIComponent(apiKey)}&isSandbox=${isSandbox}`);
-      if (res.ok) {
-        const data = await res.json();
+      const data = await res.json();
+      if (res.ok && data.success) {
         return { success: true, status: data.status, data };
       }
+      return { success: false, status: 'pending' };
     } catch {
-      // ignore
+      return { success: false, status: 'pending' };
     }
-
-    return { success: false, status: 'pending' };
   }
 }
 

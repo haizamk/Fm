@@ -44,8 +44,16 @@ class HitPayService {
         body: JSON.stringify({ apiKey: apiKey.trim(), isSandbox }),
       });
 
-      const data = await serverRes.json();
-      return data;
+      const text = await serverRes.text();
+      try {
+        const data = JSON.parse(text);
+        return data;
+      } catch {
+        return {
+          success: false,
+          message: 'Ralat: API Gateway HitPay memulangkan teks tidak sah (Bukan format JSON).',
+        };
+      }
     } catch (err: any) {
       return {
         success: false,
@@ -100,7 +108,13 @@ class HitPayService {
         }),
       });
 
-      const data = await serverResponse.json();
+      let data: any;
+      try {
+        const text = await serverResponse.text();
+        data = JSON.parse(text);
+      } catch (parseError) {
+        throw new Error('Ralat pelayan: Gagal memproses pautan bayaran. Sila pastikan sistem backend/Node.js berfungsi sepenuhnya.');
+      }
 
       if (serverResponse.ok && data?.success) {
         return {
@@ -138,7 +152,13 @@ class HitPayService {
 
     try {
       const res = await fetch(`/api/hitpay/payment-status/${encodeURIComponent(paymentRequestId)}?apiKey=${encodeURIComponent(apiKey)}&isSandbox=${isSandbox}`);
-      const data = await res.json();
+      const text = await res.text();
+      let data: any;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        return { success: false, status: 'pending' };
+      }
       if (res.ok && data.success) {
         return { success: true, status: data.status, data };
       }

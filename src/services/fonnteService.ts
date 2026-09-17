@@ -61,7 +61,15 @@ class FonnteService {
           isTest: true
         }),
       });
-      const data = await response.json();
+      
+      let data: any;
+      try {
+        const text = await response.text();
+        data = JSON.parse(text);
+      } catch {
+        return { success: false, message: 'Ralat: Proksi pelayan gagal memulangkan format JSON.' };
+      }
+      
       if (response.ok && data.success) {
         return { success: true, message: 'Sambungan ke Fonnte berjaya! (Mod Ujian Peranti)', data };
       }
@@ -120,7 +128,14 @@ class FonnteService {
         }),
       });
 
-      const data = await response.json();
+      let data: any;
+      try {
+        const text = await response.text();
+        data = JSON.parse(text);
+      } catch {
+        return { success: false, message: 'Ralat: Proksi pelayan gagal memulangkan format JSON.' };
+      }
+
       if (response.ok && data.success) {
         return { success: true, message: 'Berjaya dihantar', data };
       }

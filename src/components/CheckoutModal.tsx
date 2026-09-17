@@ -208,6 +208,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
   // Payment state: DuitNow QR (OCBC Bank) is the primary active payment method
   const [paymentMethod, setPaymentMethod] = useState<'hitpay' | 'duitnow'>('duitnow');
+  const [isPaymentOptionsOpen, setIsPaymentOptionsOpen] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [hitpayScreenData, setHitpayScreenData] = useState<{
     isOpen: boolean;
@@ -1663,52 +1664,84 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               </span>
             </div>
 
-            {/* Pilihan Kaedah Bayaran */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-              <button
-                type="button"
-                onClick={() => setPaymentMethod('hitpay')}
-                className={`flex items-start gap-3 p-3 rounded-xl border-2 text-left transition-all duration-200 ${
-                  paymentMethod === 'hitpay'
-                    ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-900/30'
-                    : 'border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800/50 hover:border-emerald-300 dark:hover:border-emerald-700'
-                }`}
-              >
-                <div className={`mt-0.5 p-1 rounded-full ${paymentMethod === 'hitpay' ? 'bg-emerald-600 text-white' : 'bg-stone-200 dark:bg-stone-700 text-stone-500'}`}>
-                  <CreditCard className="w-3.5 h-3.5" />
+            {/* Selected Method Display & Toggle Button */}
+            <button
+              type="button"
+              onClick={() => setIsPaymentOptionsOpen(!isPaymentOptionsOpen)}
+              className="w-full flex items-center justify-between p-3.5 mb-4 rounded-xl border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 hover:bg-stone-100 dark:hover:bg-stone-700/80 transition-colors"
+            >
+              <div className="flex items-center gap-3 text-left">
+                <div className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 flex items-center justify-center">
+                  <CreditCard className="w-4 h-4" />
                 </div>
                 <div>
-                  <h4 className={`text-xs font-bold ${paymentMethod === 'hitpay' ? 'text-emerald-900 dark:text-emerald-300' : 'text-stone-700 dark:text-stone-300'}`}>
-                    HitPay Gateway
-                  </h4>
-                  <p className="text-[10px] text-stone-500 dark:text-stone-400 leading-snug mt-0.5">
-                    FPX, Kad Kredit/Debit, E-Wallet
-                  </p>
+                  <div className="text-[10px] font-bold text-stone-500 uppercase tracking-wide mb-0.5">Kaedah Dipilih</div>
+                  <div className="text-sm font-bold text-stone-900 dark:text-white">
+                    {paymentMethod === 'hitpay' ? 'HitPay Gateway (FPX/Kad)' : 'DuitNow QR (Imbas & Bayar)'}
+                  </div>
                 </div>
-              </button>
+              </div>
+              <div className="text-stone-400">
+                <svg className={`w-5 h-5 transition-transform ${isPaymentOptionsOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            </button>
 
-              <button
-                type="button"
-                onClick={() => setPaymentMethod('duitnow')}
-                className={`flex items-start gap-3 p-3 rounded-xl border-2 text-left transition-all duration-200 ${
-                  paymentMethod === 'duitnow'
-                    ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-900/30'
-                    : 'border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800/50 hover:border-emerald-300 dark:hover:border-emerald-700'
-                }`}
-              >
-                <div className={`mt-0.5 p-1 rounded-full ${paymentMethod === 'duitnow' ? 'bg-emerald-600 text-white' : 'bg-stone-200 dark:bg-stone-700 text-stone-500'}`}>
-                  <CreditCard className="w-3.5 h-3.5" />
-                </div>
-                <div>
-                  <h4 className={`text-xs font-bold ${paymentMethod === 'duitnow' ? 'text-emerald-900 dark:text-emerald-300' : 'text-stone-700 dark:text-stone-300'}`}>
-                    DuitNow QR
-                  </h4>
-                  <p className="text-[10px] text-stone-500 dark:text-stone-400 leading-snug mt-0.5">
-                    Imbas & Bayar Terus (OCBC)
-                  </p>
-                </div>
-              </button>
-            </div>
+            {/* Expandable Options */}
+            {isPaymentOptionsOpen && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 animate-fade-in">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPaymentMethod('hitpay');
+                    setIsPaymentOptionsOpen(false);
+                  }}
+                  className={`flex items-start gap-3 p-3 rounded-xl border-2 text-left transition-all duration-200 ${
+                    paymentMethod === 'hitpay'
+                      ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-900/30'
+                      : 'border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800/50 hover:border-emerald-300 dark:hover:border-emerald-700'
+                  }`}
+                >
+                  <div className={`mt-0.5 p-1 rounded-full ${paymentMethod === 'hitpay' ? 'bg-emerald-600 text-white' : 'bg-stone-200 dark:bg-stone-700 text-stone-500'}`}>
+                    <CreditCard className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <h4 className={`text-xs font-bold ${paymentMethod === 'hitpay' ? 'text-emerald-900 dark:text-emerald-300' : 'text-stone-700 dark:text-stone-300'}`}>
+                      HitPay Gateway
+                    </h4>
+                    <p className="text-[10px] text-stone-500 dark:text-stone-400 leading-snug mt-0.5">
+                      FPX, Kad Kredit/Debit, E-Wallet
+                    </p>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPaymentMethod('duitnow');
+                    setIsPaymentOptionsOpen(false);
+                  }}
+                  className={`flex items-start gap-3 p-3 rounded-xl border-2 text-left transition-all duration-200 ${
+                    paymentMethod === 'duitnow'
+                      ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-900/30'
+                      : 'border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800/50 hover:border-emerald-300 dark:hover:border-emerald-700'
+                  }`}
+                >
+                  <div className={`mt-0.5 p-1 rounded-full ${paymentMethod === 'duitnow' ? 'bg-emerald-600 text-white' : 'bg-stone-200 dark:bg-stone-700 text-stone-500'}`}>
+                    <CreditCard className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <h4 className={`text-xs font-bold ${paymentMethod === 'duitnow' ? 'text-emerald-900 dark:text-emerald-300' : 'text-stone-700 dark:text-stone-300'}`}>
+                      DuitNow QR
+                    </h4>
+                    <p className="text-[10px] text-stone-500 dark:text-stone-400 leading-snug mt-0.5">
+                      Imbas & Bayar Terus (OCBC)
+                    </p>
+                  </div>
+                </button>
+              </div>
+            )}
 
             <div className="space-y-3">
               {paymentMethod === 'duitnow' ? (

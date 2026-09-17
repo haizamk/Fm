@@ -655,6 +655,39 @@ export const dataStorageService = {
     return updated;
   },
 
+  deleteOrder(orderId: string, adminName: string): OrderRecord[] {
+    const orders = this.getOrders();
+    const updated = orders.filter(o => o.orderId !== orderId);
+    
+    try {
+      safeSetStorage(ORDERS_KEY, updated);
+    } catch {
+      // ignore
+    }
+
+    // Remove from Firebase Firestore
+    if (typeof window !== 'undefined') {
+      import('firebase/firestore').then(({ deleteDoc, doc }) => {
+        import('./firebase').then(({ db }) => {
+          deleteDoc(doc(db, 'orders', orderId)).catch(() => {});
+        });
+      }).catch(() => {});
+    }
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('khairul_fresh_orders_updated', { detail: updated }));
+    }
+
+    this.addAuditLog({
+      action: 'Padam Pesanan',
+      performedBy: adminName,
+      details: `Pesanan #${orderId} telah dipadam dari pangkalan data.`,
+      type: 'order',
+    });
+
+    return updated;
+  },
+
   cancelOrder(orderId: string, userOrAdmin: string): { success: boolean; message: string; orders: OrderRecord[] } {
     const orders = this.getOrders();
     const target = orders.find((o) => o.orderId === orderId);

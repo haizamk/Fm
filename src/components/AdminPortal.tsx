@@ -1630,6 +1630,19 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                       >
                         Cetak Slip Penuh
                       </button>
+                      <button
+                        onClick={() => {
+                          if (window.confirm('Adakah anda pasti mahu memadam pesanan ini sepenuhnya? Tindakan ini tidak boleh diubah.')) {
+                            const updated = dataStorageService.deleteOrder(selectedOrderForDetail.orderId, adminName);
+                            setOrders(updated);
+                            setSelectedOrderForDetail(null);
+                          }
+                        }}
+                        className="px-3 py-1.5 bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400 border border-red-200 dark:border-red-800/50 text-xs font-bold rounded-xl cursor-pointer hover:bg-red-100 dark:hover:bg-red-900/50 flex items-center gap-1.5"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Padam
+                      </button>
                     </div>
                   </div>
                 </div>

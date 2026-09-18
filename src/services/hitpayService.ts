@@ -39,22 +39,30 @@ class HitPayService {
 
     const cleanKey = apiKey.trim();
 
-    try {
-      const serverRes = await fetch('/api/hitpay/test-connection', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ apiKey: cleanKey, isSandbox }),
-      });
+    const testEndpoints = [
+      '/api/hitpay.php?action=test-connection',
+      '/hitpay.php?action=test-connection',
+      '/api/hitpay/test-connection',
+    ];
 
-      const text = await serverRes.text();
+    for (const ep of testEndpoints) {
       try {
-        const data = JSON.parse(text);
-        if (data && typeof data === 'object') return data;
+        const serverRes = await fetch(ep, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ apiKey: cleanKey, isSandbox }),
+        });
+
+        const text = await serverRes.text();
+        try {
+          const data = JSON.parse(text);
+          if (data && typeof data === 'object' && data.success) return data;
+        } catch {
+          // Fallback to next endpoint
+        }
       } catch {
-        // Fallback to direct client-side test if backend route was not proxied
+        // Backend unreachable on this endpoint
       }
-    } catch {
-      // Backend unreachable, proceed with direct test
     }
 
     // Direct Client-Side HitPay API Check
@@ -106,58 +114,69 @@ class HitPayService {
     const redirectUrl = config.redirectUrl || `${window.location.origin}/?hitpay_status=completed&order_id=${encodeURIComponent(order.orderId)}`;
     const webhookUrl = config.webhookUrl || `${window.location.origin}/api/hitpay/webhook`;
 
-    // 1. First Attempt: Proxy Route via Server
-    try {
-      const sanitizedOrder = {
-        orderId: order.orderId,
-        total: order.total,
-        customer: {
-          fullName: order.customer?.fullName || '',
-          email: order.customer?.email || '',
-          phone: order.customer?.phone || '',
-        },
-      };
+    // 1. Try PHP Backend Proxy First (Fast, Native HestiaCP / Apache / Nginx PHP support)
+    const phpEndpoints = [
+      '/api/hitpay.php?action=create-payment',
+      '/hitpay.php?action=create-payment',
+      '/api/hitpay/create-payment',
+    ];
 
-      const serverResponse = await fetch('/api/hitpay/create-payment', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          order: sanitizedOrder,
-          config: {
-            apiKey,
-            isSandbox,
-            merchantName: config.merchantName || 'Khairul FRESH Food',
-            enabledMethods: config.enabledMethods,
-            redirectUrl,
-            webhookUrl,
-          },
-        }),
-      });
+    const sanitizedOrder = {
+      orderId: order.orderId,
+      total: order.total,
+      customer: {
+        fullName: order.customer?.fullName || '',
+        email: order.customer?.email || '',
+        phone: order.customer?.phone || '',
+      },
+    };
 
-      const text = await serverResponse.text();
-      let data: any = null;
+    const requestPayload = JSON.stringify({
+      order: sanitizedOrder,
+      config: {
+        apiKey,
+        isSandbox,
+        merchantName: config.merchantName || 'Khairul FRESH Food',
+        enabledMethods: config.enabledMethods,
+        redirectUrl,
+        webhookUrl,
+      },
+    });
+
+    for (const endpoint of phpEndpoints) {
       try {
-        data = JSON.parse(text);
-      } catch {
-        // Non-JSON response (e.g. 404 HTML page from Nginx reverse proxy issue)
-      }
+        const serverResponse = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: requestPayload,
+        });
 
-      if (serverResponse.ok && data?.success) {
-        return {
-          id: data.id,
-          url: data.url,
-          status: data.status,
-          reference_number: data.reference_number,
-          amount: data.amount,
-          currency: data.currency,
-          created_at: data.created_at,
-          payment_methods: data.payment_methods,
-          isSimulated: data.isSimulated,
-          message: data.message,
-        };
+        const text = await serverResponse.text();
+        let data: any = null;
+        try {
+          data = JSON.parse(text);
+        } catch {
+          // Non-JSON response, try next endpoint
+          continue;
+        }
+
+        if (serverResponse.ok && (data?.success || data?.url)) {
+          return {
+            id: data.id || `hp_${Date.now()}`,
+            url: data.url,
+            status: data.status || 'pending',
+            reference_number: data.reference_number || String(order.orderId),
+            amount: data.amount || String(order.total),
+            currency: data.currency || 'MYR',
+            created_at: data.created_at || new Date().toISOString(),
+            payment_methods: data.payment_methods,
+            isSimulated: data.isSimulated || false,
+            message: data.message,
+          };
+        }
+      } catch (err) {
+        console.warn(`[HitPay Endpoint Call ${endpoint} Notice]`, err);
       }
-    } catch (err) {
-      console.warn('[HitPay Server Proxy Call Warning]', err);
     }
 
     // 2. Second Attempt: Direct Client-Side HitPay API Call
@@ -253,22 +272,30 @@ class HitPayService {
       return { success: false, status: 'unknown' };
     }
 
-    try {
-      const res = await fetch(`/api/hitpay/payment-status/${encodeURIComponent(paymentRequestId)}?apiKey=${encodeURIComponent(apiKey)}&isSandbox=${isSandbox}`);
-      const text = await res.text();
-      let data: any;
+    const statusEndpoints = [
+      `/api/hitpay.php?action=payment-status&id=${encodeURIComponent(paymentRequestId)}&apiKey=${encodeURIComponent(apiKey)}&isSandbox=${isSandbox}`,
+      `/hitpay.php?action=payment-status&id=${encodeURIComponent(paymentRequestId)}&apiKey=${encodeURIComponent(apiKey)}&isSandbox=${isSandbox}`,
+      `/api/hitpay/payment-status/${encodeURIComponent(paymentRequestId)}?apiKey=${encodeURIComponent(apiKey)}&isSandbox=${isSandbox}`,
+    ];
+
+    for (const ep of statusEndpoints) {
       try {
-        data = JSON.parse(text);
+        const res = await fetch(ep);
+        const text = await res.text();
+        let data: any;
+        try {
+          data = JSON.parse(text);
+        } catch {
+          continue;
+        }
+        if (res.ok && data.success) {
+          return { success: true, status: data.status, data };
+        }
       } catch {
-        return { success: false, status: 'pending' };
+        // Try next endpoint
       }
-      if (res.ok && data.success) {
-        return { success: true, status: data.status, data };
-      }
-      return { success: false, status: 'pending' };
-    } catch {
-      return { success: false, status: 'pending' };
     }
+    return { success: false, status: 'pending' };
   }
 }
 

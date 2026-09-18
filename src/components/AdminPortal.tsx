@@ -1633,7 +1633,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                       <button
                         onClick={() => {
                           if (window.confirm('Adakah anda pasti mahu memadam pesanan ini sepenuhnya? Tindakan ini tidak boleh diubah.')) {
-                            const updated = dataStorageService.deleteOrder(selectedOrderForDetail.orderId, adminName);
+                            const updated = dataStorageService.deleteOrder(selectedOrderForDetail.orderId, adminUser?.name || 'Admin');
                             setOrders(updated);
                             setSelectedOrderForDetail(null);
                           }

@@ -361,6 +361,29 @@ async function startServer() {
     return res.status(200).send('Webhook Received');
   });
 
+  // PHP Backend Route Emulation for Dev & Preview Environments
+  app.all(['/api/hitpay.php', '/hitpay.php'], async (req, res, next) => {
+    const action = req.query.action || req.body?.action;
+    if (action === 'test-connection') {
+      req.url = '/api/hitpay/test-connection';
+      return (app as any)._router.handle(req, res, next);
+    }
+    if (action === 'create-payment') {
+      req.url = '/api/hitpay/create-payment';
+      return (app as any)._router.handle(req, res, next);
+    }
+    if (action === 'payment-status') {
+      const id = req.query.id || req.body?.id;
+      req.url = `/api/hitpay/payment-status/${id}`;
+      return (app as any)._router.handle(req, res, next);
+    }
+    if (action === 'webhook') {
+      req.url = '/api/hitpay/webhook';
+      return (app as any)._router.handle(req, res, next);
+    }
+    return res.json({ status: 'ok', service: 'Khairul FRESH Food PHP Proxy', php_version: '8.x' });
+  });
+
   // ==========================================
   // VITE & STATIC FILES
   // ==========================================

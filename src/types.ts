@@ -255,6 +255,7 @@ export interface UserAccount {
   loyaltyPoints?: number;
   totalSpent?: number;
   savedAddresses?: SavedAddress[];
+  passwordHash?: string;
   // Security & Verification fields
   twoFactorEnabled?: boolean;
   securityPin?: string;
@@ -300,6 +301,14 @@ export interface AuthSession {
   user: UserAccount;
   token: string;
   expiresAt: number;
+}
+
+export interface FonnteConfig {
+  token: string;
+  adminPhone: string;
+  autoNotifyAdmin: boolean;
+  autoNotifyCustomer: boolean;
+  deliveryPersonPhone?: string;
 }
 
 export interface HitPayConfig {

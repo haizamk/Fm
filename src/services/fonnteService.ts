@@ -1,5 +1,7 @@
 import { FonnteConfig, OrderRecord } from '../types';
 
+export type { FonnteConfig };
+
 export const DEFAULT_FONNTE_CONFIG: FonnteConfig = {
   token: '',
   adminPhone: '01111135503',
@@ -50,33 +52,41 @@ class FonnteService {
       return { success: false, message: 'Sila masukkan Fonnte API Token terlebih dahulu.' };
     }
 
-    try {
-      const response = await fetch('/api/fonnte/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          target: '601111135503',
-          message: 'Ujian Sambungan Fonnte Gateway dari Khairul FRESH Food',
-          token: token.trim(),
-          isTest: true
-        }),
-      });
-      
-      let data: any;
+    const fonnteEndpoints = [
+      '/api/hitpay.php?action=fonnte-send',
+      '/hitpay.php?action=fonnte-send',
+      '/api/fonnte/send'
+    ];
+
+    for (const ep of fonnteEndpoints) {
       try {
-        const text = await response.text();
-        data = JSON.parse(text);
+        const response = await fetch(ep, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            target: '601111135503',
+            message: 'Ujian Sambungan Fonnte Gateway dari Khairul FRESH Food',
+            token: token.trim(),
+            isTest: true
+          }),
+        });
+        
+        let data: any;
+        try {
+          const text = await response.text();
+          data = JSON.parse(text);
+        } catch {
+          continue;
+        }
+        
+        if (response.ok && data.success) {
+          return { success: true, message: 'Sambungan ke Fonnte berjaya! (Mod Ujian Peranti)', data };
+        }
       } catch {
-        return { success: false, message: 'Ralat: Proksi pelayan gagal memulangkan format JSON.' };
+        // Try next endpoint
       }
-      
-      if (response.ok && data.success) {
-        return { success: true, message: 'Sambungan ke Fonnte berjaya! (Mod Ujian Peranti)', data };
-      }
-      return { success: false, message: data.message || 'Gagal mengesahkan token Fonnte.' };
-    } catch (err: any) {
-      return { success: false, message: 'Ralat pelayan: ' + (err.message || 'Gagal menghubungi proksi Fonnte') };
     }
+    return { success: false, message: 'Gagal menghubungi proksi Fonnte.' };
   }
 
   buildAdminOrderNotificationMessage(order: OrderRecord): string {
@@ -85,9 +95,9 @@ class FonnteService {
       `Pelanggan: ${order.customer.fullName}\n` +
       `No. Telefon: ${order.customer.phone}\n\n` +
       `*Item Tempahan:*\n` +
-      order.items.map(item => `- ${item.quantity}x ${item.name} (RM ${(item.price * item.quantity).toFixed(2)})`).join('\n') +
+      order.items.map(item => `- ${item.quantity}x ${item.product.name} (RM ${(item.itemTotalPrice).toFixed(2)})`).join('\n') +
       `\n\nJumlah Keseluruhan: *RM ${order.total.toFixed(2)}*\n` +
-      `Status Bayaran: ${order.paymentMethod}\n\n` +
+      `Status Bayaran: ${order.customer?.paymentMethod || 'Online'}\n\n` +
       `Sila semak Portal Pentadbir untuk butiran lanjut.`;
   }
 
@@ -116,33 +126,42 @@ class FonnteService {
       return { success: false, message: `Nombor telefon tidak sah: ${targetPhone}` };
     }
 
-    try {
-      const response = await fetch('/api/fonnte/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          target: formattedTarget,
-          message: message,
-          token: token.trim(),
-          isTest: isTest
-        }),
-      });
+    const fonnteEndpoints = [
+      '/api/hitpay.php?action=fonnte-send',
+      '/hitpay.php?action=fonnte-send',
+      '/api/fonnte/send'
+    ];
 
-      let data: any;
+    for (const ep of fonnteEndpoints) {
       try {
-        const text = await response.text();
-        data = JSON.parse(text);
-      } catch {
-        return { success: false, message: 'Ralat: Proksi pelayan gagal memulangkan format JSON.' };
-      }
+        const response = await fetch(ep, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            target: formattedTarget,
+            message: message,
+            token: token.trim(),
+            isTest: isTest
+          }),
+        });
 
-      if (response.ok && data.success) {
-        return { success: true, message: 'Berjaya dihantar', data };
+        let data: any;
+        try {
+          const text = await response.text();
+          data = JSON.parse(text);
+        } catch {
+          continue;
+        }
+
+        if (response.ok && data.success) {
+          return { success: true, message: 'Berjaya dihantar', data };
+        }
+      } catch {
+        // Try next endpoint
       }
-      return { success: false, message: data.message || 'Gagal menghantar' };
-    } catch (err: any) {
-      return { success: false, message: 'Ralat menghantar WhatsApp: ' + (err.message || '') };
     }
+
+    return { success: false, message: 'Gagal menghantar melalui gateway WhatsApp.' };
   }
 
   async triggerNewOrderNotification(

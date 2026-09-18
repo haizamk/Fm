@@ -1,7 +1,16 @@
+import 'dotenv/config';
 import express from 'express';
 import path from 'path';
-import { createServer as createViteServer } from 'vite';
+import fs from 'fs';
 import { generateSitemapXml } from './src/utils/sitemapGenerator';
+
+process.on('uncaughtException', (err) => {
+  console.error('[Uncaught Exception]', err);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[Unhandled Rejection]', reason);
+});
 
 async function startServer() {
   const app = express();
@@ -28,7 +37,7 @@ async function startServer() {
   });
 
   // Health check
-  app.get('/api/health', (req, res) => {
+  app.get(['/api/health', '/health'], (req, res) => {
     res.json({ 
       status: 'ok', 
       service: 'Khairul FRESH Food API',
@@ -39,7 +48,7 @@ async function startServer() {
   // ==========================================
   // FONNTE WHATSAPP PROXY ENDPOINT
   // ==========================================
-  app.post('/api/fonnte/send', async (req, res) => {
+  app.post(['/api/fonnte/send', '/fonnte/send'], async (req, res) => {
     try {
       const { target, message, token, isTest } = req.body;
 
@@ -98,7 +107,7 @@ async function startServer() {
   // HITPAY PAYMENT GATEWAY ENDPOINTS
   // ==========================================
   
-  app.post('/api/hitpay/test-connection', async (req, res) => {
+  app.post(['/api/hitpay/test-connection', '/hitpay/test-connection'], async (req, res) => {
     try {
       const { apiKey, isSandbox } = req.body;
 
@@ -167,7 +176,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/hitpay/create-payment', async (req, res) => {
+  app.post(['/api/hitpay/create-payment', '/hitpay/create-payment'], async (req, res) => {
     try {
       const { order, config } = req.body;
 
@@ -296,7 +305,7 @@ async function startServer() {
     }
   });
 
-  app.get('/api/hitpay/payment-status/:id', async (req, res) => {
+  app.get(['/api/hitpay/payment-status/:id', '/hitpay/payment-status/:id'], async (req, res) => {
     try {
       const paymentRequestId = req.params.id;
       const apiKey = (req.query.apiKey as string || process.env.HITPAY_API_KEY || '').trim();
@@ -347,7 +356,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/hitpay/webhook', (req, res) => {
+  app.post(['/api/hitpay/webhook', '/hitpay/webhook'], (req, res) => {
     console.log('[HitPay Webhook Received]', req.body);
     return res.status(200).send('Webhook Received');
   });
@@ -355,18 +364,30 @@ async function startServer() {
   // ==========================================
   // VITE & STATIC FILES
   // ==========================================
-  if (process.env.NODE_ENV !== 'production') {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), 'dist');
+  const distPath = path.join(process.cwd(), 'dist');
+  const hasDist = fs.existsSync(path.join(distPath, 'index.html'));
+  const isDev = process.env.NODE_ENV === 'development';
+
+  if (!isDev && hasDist) {
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+      res.sendFile(path.join(distPath, 'index.html'), (err) => {
+        if (err && !res.headersSent) {
+          res.status(404).send('Page Not Found');
+        }
+      });
     });
+  } else {
+    try {
+      const { createServer: createViteServer } = await import('vite');
+      const vite = await createViteServer({
+        server: { middlewareMode: true, hmr: false },
+        appType: 'spa',
+      });
+      app.use(vite.middlewares);
+    } catch (viteErr) {
+      console.error('[Vite Server Setup Error]', viteErr);
+    }
   }
 
   app.listen(PORT, '0.0.0.0', () => {

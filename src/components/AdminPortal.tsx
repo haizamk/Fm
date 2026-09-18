@@ -3662,6 +3662,18 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     </h4>
                   </div>
 
+                  {/* Smart Guidance Notice */}
+                  <div className="p-3 rounded-xl bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/60 text-[11px] text-blue-900 dark:text-blue-300 space-y-1">
+                    <div className="font-bold flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                      <span>Sistem Auto-Pengesanan Kaedah HitPay Pintar:</span>
+                    </div>
+                    <p className="leading-relaxed">
+                      Laman bayaran HitPay akan memaparkan semua kaedah yang sedia aktif di akaun HitPay anda (seperti <strong>Kad Debit/Kredit</strong> & <strong>FPX Online Banking</strong>).
+                      Bagi <strong>DuitNow QR</strong>, pastikan ia telah diaktifkan di papan pemuka HitPay (<em>HitPay Dashboard &gt; Payment Gateway &gt; Payment Methods</em>). Jika DuitNow QR masih dalam proses semakan oleh HitPay, sistem secara pintar akan tetap membuka gerbang bayaran dengan kaedah aktif lain supaya pelanggan anda tidak tersekat.
+                    </p>
+                  </div>
+
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs">
                     
                     {/* FPX */}

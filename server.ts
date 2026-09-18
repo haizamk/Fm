@@ -222,12 +222,14 @@ async function startServer() {
         send_sms: false,
       };
 
-      if (Array.isArray(config?.enabledMethods) && config.enabledMethods.length > 0) {
+      if (Array.isArray(config?.enabledMethods) && config.enabledMethods.length > 0 && config.enabledMethods.length < 6) {
         const allowedMethods = config.enabledMethods
           .map((m: string) => {
-            if (m === 'duitnow') return 'duitnow_qr';
-            if (m === 'tng') return 'touchngo';
+            if (m === 'duitnow') return 'duitnow';
+            if (m === 'tng') return 'touch_n_go';
             if (m === 'fpx' || m === 'card') return m;
+            if (m === 'grabpay') return 'grabpay_direct';
+            if (m === 'shopeepay') return 'shopee_pay';
             return null;
           })
           .filter(Boolean);
@@ -237,7 +239,7 @@ async function startServer() {
       }
 
       try {
-        const hitpayResponse = await fetch(`${baseUrl}/payment-requests`, {
+        let hitpayResponse = await fetch(`${baseUrl}/payment-requests`, {
           method: 'POST',
           headers: {
             'X-BUSINESS-API-KEY': apiKey,
@@ -246,6 +248,23 @@ async function startServer() {
           },
           body: JSON.stringify(payload),
         });
+
+        // Auto-retry without payment_methods filter if HitPay rejected unavailable method (e.g. DuitNow QR pending approval)
+        if (!hitpayResponse.ok && payload.payment_methods) {
+          const checkText = await hitpayResponse.clone().text().catch(() => '');
+          if (checkText.toLowerCase().includes('unavailable for your account') || checkText.toLowerCase().includes('payment method') || hitpayResponse.status === 422) {
+            delete payload.payment_methods;
+            hitpayResponse = await fetch(`${baseUrl}/payment-requests`, {
+              method: 'POST',
+              headers: {
+                'X-BUSINESS-API-KEY': apiKey,
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+              },
+              body: JSON.stringify(payload),
+            });
+          }
+        }
 
         if (hitpayResponse.ok) {
           const data = await hitpayResponse.json();

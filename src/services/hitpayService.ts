@@ -236,12 +236,14 @@ class HitPayService {
           send_sms: false,
         };
 
-        if (Array.isArray(config.enabledMethods) && config.enabledMethods.length > 0) {
+        if (Array.isArray(config.enabledMethods) && config.enabledMethods.length > 0 && config.enabledMethods.length < 6) {
           const allowedMethods = config.enabledMethods
             .map((m: string) => {
-              if (m === 'duitnow') return 'duitnow_qr';
-              if (m === 'tng') return 'touchngo';
-              if (m === 'fpx' || m === 'card' || m === 'grabpay' || m === 'shopeepay') return m;
+              if (m === 'duitnow') return 'duitnow';
+              if (m === 'tng') return 'touch_n_go';
+              if (m === 'fpx' || m === 'card') return m;
+              if (m === 'grabpay') return 'grabpay_direct';
+              if (m === 'shopeepay') return 'shopee_pay';
               return null;
             })
             .filter(Boolean);
@@ -250,7 +252,7 @@ class HitPayService {
           }
         }
 
-        const directRes = await fetch(`${baseUrl}/payment-requests`, {
+        let directRes = await fetch(`${baseUrl}/payment-requests`, {
           method: 'POST',
           headers: {
             'X-BUSINESS-API-KEY': apiKey,
@@ -259,6 +261,24 @@ class HitPayService {
           },
           body: JSON.stringify(payload),
         });
+
+        // Auto-retry without payment_methods if specific method is not yet active on the account
+        if (!directRes.ok && payload.payment_methods) {
+          const directErrClone = await directRes.clone().json().catch(() => ({}));
+          const msg = (directErrClone?.message || '').toLowerCase();
+          if (msg.includes('unavailable for your account') || msg.includes('payment method') || directRes.status === 422) {
+            delete payload.payment_methods;
+            directRes = await fetch(`${baseUrl}/payment-requests`, {
+              method: 'POST',
+              headers: {
+                'X-BUSINESS-API-KEY': apiKey,
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+              },
+              body: JSON.stringify(payload),
+            });
+          }
+        }
 
         if (directRes.ok) {
           const directData = await directRes.json();

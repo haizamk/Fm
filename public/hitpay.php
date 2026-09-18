@@ -274,15 +274,19 @@ if ($action === 'create-payment') {
         'send_sms' => false,
     ];
 
-    // Only specify payment_methods if explicitly set by user, otherwise allow all HitPay merchant methods
+    // In HitPay API, omitting 'payment_methods' displays all active channels configured in merchant dashboard (Cards, FPX, DuitNow QR, TNG, etc.)
+    // If specific channels are passed, use official HitPay enums ('duitnow', 'touch_n_go', 'fpx', 'card', 'grabpay_direct', 'shopee_pay')
     if (!empty($config['enabledMethods']) && is_array($config['enabledMethods'])) {
         $allowed = [];
         foreach ($config['enabledMethods'] as $m) {
-            if ($m === 'duitnow') $allowed[] = 'duitnow_qr';
-            elseif ($m === 'tng') $allowed[] = 'touchngo';
-            elseif ($m === 'fpx' || $m === 'card' || $m === 'grabpay' || $m === 'shopeepay') $allowed[] = $m;
+            if ($m === 'duitnow') $allowed[] = 'duitnow';
+            elseif ($m === 'tng') $allowed[] = 'touch_n_go';
+            elseif ($m === 'fpx' || $m === 'card') $allowed[] = $m;
+            elseif ($m === 'grabpay') $allowed[] = 'grabpay_direct';
+            elseif ($m === 'shopeepay') $allowed[] = 'shopee_pay';
         }
-        if (!empty($allowed)) {
+        // Only restrict if user selected a subset of channels; otherwise omit to let HitPay show all active account methods
+        if (!empty($allowed) && count($allowed) < 6) {
             $payload['payment_methods'] = $allowed;
         }
     }
@@ -293,6 +297,21 @@ if ($action === 'create-payment') {
         'Content-Type: application/json',
         'X-Requested-With: XMLHttpRequest'
     ], $payload);
+
+    // Auto-fallback: If HitPay rejected due to a payment method not activated on this merchant account (e.g. DuitNow QR pending),
+    // retry without payment_methods restriction so HitPay automatically opens checkout with all active methods (Card, FPX, etc.)
+    if (($res['code'] < 200 || $res['code'] >= 300) && isset($payload['payment_methods'])) {
+        $errCheck = json_decode($res['body'], true);
+        $errMsgCheck = strtolower($errCheck['message'] ?? '');
+        if (strpos($errMsgCheck, 'unavailable for your account') !== false || strpos($errMsgCheck, 'payment method') !== false || $res['code'] === 422) {
+            unset($payload['payment_methods']);
+            $res = callHitPayApi($apiEndpoint, 'POST', [
+                "X-BUSINESS-API-KEY: $apiKey",
+                'Content-Type: application/json',
+                'X-Requested-With: XMLHttpRequest'
+            ], $payload);
+        }
+    }
 
     if ($res['code'] >= 200 && $res['code'] < 300) {
         $data = json_decode($res['body'], true);

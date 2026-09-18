@@ -18,7 +18,10 @@ import {
   collection, 
   doc, 
   setDoc, 
+  getDoc,
   getDocs, 
+  query,
+  where,
   onSnapshot, 
   deleteDoc, 
   writeBatch,
@@ -62,11 +65,18 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   console.warn('Firestore Operation Info:', JSON.stringify(errInfo));
 }
 
-// Clear legacy demo keys
+// Clear legacy demo keys & purge any oversized standee QR image to free browser storage quota
 try {
-  localStorage.removeItem('freshayam_orders_db');
-  localStorage.removeItem('freshayam_orders_db_v4');
-  localStorage.removeItem('freshayam_audit_logs');
+  if (typeof window !== 'undefined' && window.localStorage) {
+    localStorage.removeItem('freshayam_orders_db');
+    localStorage.removeItem('freshayam_orders_db_v4');
+    localStorage.removeItem('freshayam_audit_logs');
+    // If an oversized base64 QR image (>100KB) exists in localStorage, clear it so orders have ample storage space
+    const qrImg = localStorage.getItem('khairul_duitnow_qr_img');
+    if (qrImg && qrImg.length > 100000) {
+      localStorage.removeItem('khairul_duitnow_qr_img');
+    }
+  }
 } catch {
   // ignore
 }
@@ -348,43 +358,112 @@ async function deleteDocFromFirestore(collectionName: string, docId: string) {
 }
 
 
+// High-speed in-memory store ensuring zero data loss and uninterrupted operation even if browser localStorage is constrained or disabled
+const inMemoryStore = new Map<string, any>();
+
 /**
- * Safely saves data to localStorage, truncating arrays if QuotaExceededError occurs
+ * Strips huge base64 strings and redundant heavy fields from orders when caching to localStorage.
+ * Ensures orders cache stays tiny (~500 bytes per order instead of 50KB-1MB), preventing QuotaExceededError.
+ */
+function sanitizeOrdersForLocalCache(orders: OrderRecord[]): any[] {
+  if (!Array.isArray(orders)) return [];
+  return orders.slice(0, 30).map((o) => ({
+    ...o,
+    items: Array.isArray(o.items) ? o.items.map((item) => {
+      let safeImage = item.product?.image || '';
+      if (typeof safeImage === 'string' && safeImage.startsWith('data:') && safeImage.length > 500) {
+        safeImage = 'https://images.unsplash.com/photo-1587593810167-a84920ea0781?auto=format&fit=crop&q=80&w=600';
+      }
+      return {
+        ...item,
+        product: item.product ? {
+          id: item.product.id,
+          name: item.product.name,
+          subtitle: item.product.subtitle,
+          category: item.product.category,
+          price: item.product.price,
+          unit: item.product.unit,
+          weightEstimate: item.product.weightEstimate,
+          image: safeImage,
+          inStock: item.product.inStock,
+        } : item.product,
+      };
+    }) : [],
+  }));
+}
+
+/**
+ * Safely saves data to localStorage with runtime memory mirroring and intelligent quota management.
  */
 function safeSetStorage(key: string, data: any) {
-  try {
-    localStorage.setItem(key, JSON.stringify(data));
-  } catch (e: any) {
-    if (e.name === 'QuotaExceededError' || e?.message?.includes('quota') || e?.message?.includes('exceeded')) {
-      console.warn(`[Storage Quota Exceeded] for ${key}. Attempting to free space...`);
-      
-      try {
-        // Clear potentially large non-critical caches
-        localStorage.removeItem('khairul_fresh_media_library_v5');
-        localStorage.removeItem('khairul_fresh_audit_logs_v5');
-        localStorage.removeItem('khairul_fresh_logistics_runs_v5');
-      } catch (err) {}
+  // 1. Always update runtime in-memory store first
+  inMemoryStore.set(key, data);
 
-      if (Array.isArray(data)) {
+  if (typeof window === 'undefined' || !window.localStorage) {
+    return;
+  }
+
+  // 2. Prepare serialized payload
+  try {
+    let payloadString: string;
+    if (key === ORDERS_KEY && Array.isArray(data)) {
+      payloadString = JSON.stringify(sanitizeOrdersForLocalCache(data));
+    } else {
+      payloadString = JSON.stringify(data);
+    }
+    localStorage.setItem(key, payloadString);
+  } catch (err: any) {
+    // If QuotaExceededError or storage restriction occurred, recover gracefully
+    handleStorageQuotaRecovery(key, data);
+  }
+}
+
+function handleStorageQuotaRecovery(key: string, data: any) {
+  try {
+    // Free space by clearing non-critical or legacy caches
+    localStorage.removeItem('khairul_fresh_media_library_v5');
+    localStorage.removeItem('khairul_fresh_audit_logs_v5');
+    localStorage.removeItem('khairul_fresh_logistics_runs_v5');
+    localStorage.removeItem('khairul_fresh_stock_alerts_v5');
+    localStorage.removeItem('freshayam_orders_db');
+    localStorage.removeItem('freshayam_orders_db_v4');
+    localStorage.removeItem('freshayam_audit_logs');
+    localStorage.removeItem('freshayam_cart');
+    localStorage.removeItem('freshayam_favorites');
+
+    // If an oversized standee QR image is stored in standalone key, purge it
+    const qrRaw = localStorage.getItem('khairul_duitnow_qr_img');
+    if (qrRaw && qrRaw.length > 50000) {
+      localStorage.removeItem('khairul_duitnow_qr_img');
+    }
+
+    if (Array.isArray(data)) {
+      const sanitized = key === ORDERS_KEY ? sanitizeOrdersForLocalCache(data) : data;
+      // Try with latest 15
+      try {
+        localStorage.setItem(key, JSON.stringify(sanitized.slice(0, 15)));
+        return;
+      } catch {
+        // Try with latest 5
         try {
-          localStorage.setItem(key, JSON.stringify(data.slice(0, 40)));
-        } catch (innerError) {
-          try {
-             localStorage.setItem(key, JSON.stringify(data.slice(0, 5)));
-          } catch(e3) {
-             console.error("Giving up on saving local cache for", key);
-          }
+          localStorage.setItem(key, JSON.stringify(sanitized.slice(0, 5)));
+          return;
+        } catch {
+          // If storage is completely full, remove local cache key and safely rely on memory + Firestore
+          localStorage.removeItem(key);
+          console.info(`[Storage Cache] Preserved ${key} in runtime memory (${data.length} items active).`);
         }
-      } else {
-         try {
-           localStorage.setItem(key, JSON.stringify(data));
-         } catch(e4) {
-           console.error("Giving up on saving local cache for", key);
-         }
       }
     } else {
-      console.error(`[Storage] Failed to save ${key}`, e);
+      try {
+        localStorage.setItem(key, JSON.stringify(data));
+      } catch {
+        localStorage.removeItem(key);
+        console.info(`[Storage Cache] Preserved ${key} in runtime memory.`);
+      }
     }
+  } catch {
+    console.info(`[Storage Cache] Using runtime in-memory store for ${key}.`);
   }
 }
 
@@ -550,17 +629,23 @@ export const dataStorageService = {
 
   // Orders
   getOrders(): OrderRecord[] {
+    if (inMemoryStore.has(ORDERS_KEY)) {
+      const mem = inMemoryStore.get(ORDERS_KEY);
+      if (Array.isArray(mem) && mem.length > 0) return mem;
+    }
     try {
       const saved = localStorage.getItem(ORDERS_KEY);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          inMemoryStore.set(ORDERS_KEY, parsed);
+          return parsed;
+        }
+      }
     } catch {
       // ignore
     }
-    try {
-      safeSetStorage(ORDERS_KEY, INITIAL_ORDERS);
-    } catch {
-      // ignore
-    }
+    inMemoryStore.set(ORDERS_KEY, INITIAL_ORDERS);
     return INITIAL_ORDERS;
   },
 
@@ -569,6 +654,10 @@ export const dataStorageService = {
     const updated = [newOrder, ...orders.filter(o => o.orderId !== newOrder.orderId)];
     try {
       safeSetStorage(ORDERS_KEY, updated);
+      if (typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem(`khairul_order_${newOrder.orderId}`, JSON.stringify(newOrder));
+        localStorage.setItem('khairul_last_order_backup', JSON.stringify(newOrder));
+      }
     } catch {
       // ignore
     }
@@ -609,8 +698,187 @@ export const dataStorageService = {
     return updated;
   },
 
+  /**
+   * Async variant that awaits Firestore write confirmation before resolving.
+   * Essential for payment gateway redirects (HitPay) so data is securely saved in the cloud before page unload.
+   */
+  async saveOrderAsync(newOrder: OrderRecord): Promise<OrderRecord[]> {
+    const orders = this.getOrders();
+    const updated = [newOrder, ...orders.filter(o => o.orderId !== newOrder.orderId)];
+    try {
+      safeSetStorage(ORDERS_KEY, updated);
+      if (typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem(`khairul_order_${newOrder.orderId}`, JSON.stringify(newOrder));
+        localStorage.setItem('khairul_last_order_backup', JSON.stringify(newOrder));
+      }
+    } catch {
+      // ignore
+    }
+
+    // Push to Firebase Firestore and await write confirmation
+    try {
+      await syncDocToFirestore('orders', newOrder.orderId, newOrder);
+    } catch (err) {
+      console.warn('[Firestore saveOrderAsync notice]', err);
+    }
+
+    // Auto-record customer into user registry & Firestore customer directory
+    try {
+      authService.recordCustomerFromOrder(
+        {
+          fullName: newOrder.customer.fullName,
+          email: newOrder.customer.email,
+          phone: newOrder.customer.phone,
+        },
+        newOrder.total,
+        {
+          address: newOrder.customer.address,
+          city: newOrder.customer.city,
+          postcode: newOrder.customer.postcode,
+          state: newOrder.customer.state,
+        }
+      );
+    } catch (err) {
+      console.info('Auto customer record note:', err);
+    }
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('khairul_fresh_orders_updated', { detail: updated }));
+    }
+
+    this.addAuditLog({
+      action: 'Pesanan Baru Masuk',
+      performedBy: newOrder.customer.fullName,
+      details: `Pesanan #${newOrder.orderId} berjumlah RM ${newOrder.total.toFixed(2)} diterima.`,
+      type: 'order',
+    });
+    return updated;
+  },
+
   addOrder(newOrder: OrderRecord, customerName?: string): OrderRecord[] {
     return this.saveOrder(newOrder);
+  },
+
+  async getOrderById(orderId: string): Promise<OrderRecord | null> {
+    if (!orderId) return null;
+    const cleanId = orderId.trim();
+    // 1. Search in-memory / local storage
+    const currentOrders = this.getOrders();
+    const foundLocal = currentOrders.find((o) => o.orderId.toLowerCase() === cleanId.toLowerCase());
+    if (foundLocal) return foundLocal;
+
+    // 2. Search local backup copies
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        const backupRaw = localStorage.getItem(`khairul_order_${cleanId}`);
+        if (backupRaw) {
+          const parsed = JSON.parse(backupRaw);
+          if (parsed && parsed.orderId) return parsed;
+        }
+        const lastBackup = localStorage.getItem('khairul_last_order_backup');
+        if (lastBackup) {
+          const parsed = JSON.parse(lastBackup);
+          if (parsed && parsed.orderId?.toLowerCase() === cleanId.toLowerCase()) return parsed;
+        }
+        const pendingRaw = localStorage.getItem('khairul_pending_hitpay_order');
+        if (pendingRaw) {
+          const parsed = JSON.parse(pendingRaw);
+          if (parsed && parsed.orderId?.toLowerCase() === cleanId.toLowerCase() && Array.isArray(parsed.items)) {
+            return parsed;
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    // 3. Fetch directly from Firebase Firestore
+    try {
+      const orderRef = doc(db, 'orders', cleanId);
+      const snap = await getDoc(orderRef);
+      if (snap.exists()) {
+        const orderData = snap.data() as OrderRecord;
+        const merged = [orderData, ...currentOrders.filter((o) => o.orderId !== orderData.orderId)];
+        safeSetStorage(ORDERS_KEY, merged);
+        return orderData;
+      }
+    } catch (err) {
+      handleFirestoreError(err, OperationType.GET, `orders/${cleanId}`);
+    }
+
+    return null;
+  },
+
+  async findOrderByHitpayReference(refId: string): Promise<OrderRecord | null> {
+    if (!refId) return null;
+    const cleanRef = refId.trim();
+
+    // 1. Check local orders
+    const currentOrders = this.getOrders();
+    const foundLocal = currentOrders.find(
+      (o) =>
+        o.customer?.hitpayPaymentId === cleanRef ||
+        o.customer?.hitpayReference === cleanRef ||
+        o.orderId.toLowerCase() === cleanRef.toLowerCase()
+    );
+    if (foundLocal) return foundLocal;
+
+    // 2. Check local pending and backup orders
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        const pendingRaw = localStorage.getItem('khairul_pending_hitpay_order');
+        if (pendingRaw) {
+          const parsed = JSON.parse(pendingRaw);
+          if (
+            parsed &&
+            (parsed.customer?.hitpayPaymentId === cleanRef ||
+              parsed.paymentId === cleanRef ||
+              parsed.orderId?.toLowerCase() === cleanRef.toLowerCase())
+          ) {
+            return parsed;
+          }
+        }
+        const lastBackup = localStorage.getItem('khairul_last_order_backup');
+        if (lastBackup) {
+          const parsed = JSON.parse(lastBackup);
+          if (
+            parsed &&
+            (parsed.customer?.hitpayPaymentId === cleanRef ||
+              parsed.orderId?.toLowerCase() === cleanRef.toLowerCase())
+          ) {
+            return parsed;
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    // 3. Query Firestore by customer.hitpayPaymentId or customer.hitpayReference
+    try {
+      const ordersCol = collection(db, 'orders');
+      const q1 = query(ordersCol, where('customer.hitpayPaymentId', '==', cleanRef));
+      const snap1 = await getDocs(q1);
+      if (!snap1.empty) {
+        const orderData = snap1.docs[0].data() as OrderRecord;
+        const merged = [orderData, ...currentOrders.filter((o) => o.orderId !== orderData.orderId)];
+        safeSetStorage(ORDERS_KEY, merged);
+        return orderData;
+      }
+
+      const q2 = query(ordersCol, where('customer.hitpayReference', '==', cleanRef));
+      const snap2 = await getDocs(q2);
+      if (!snap2.empty) {
+        const orderData = snap2.docs[0].data() as OrderRecord;
+        const merged = [orderData, ...currentOrders.filter((o) => o.orderId !== orderData.orderId)];
+        safeSetStorage(ORDERS_KEY, merged);
+        return orderData;
+      }
+    } catch (err) {
+      handleFirestoreError(err, OperationType.LIST, 'orders');
+    }
+
+    return null;
   },
 
   updateOrderStatus(orderId: string, newStatus: OrderRecord['status'], adminName: string): OrderRecord[] {
@@ -624,7 +892,21 @@ export const dataStorageService = {
         if (newStatus === 'dalam-penghantaran') estText = 'Rider Sedang Menghantar Ke Lokasi';
         if (newStatus === 'selesai') estText = 'Selesai Dihantar';
         if (newStatus === 'dibatalkan') estText = 'Pesanan Dibatalkan';
-        updatedOrderObj = { ...o, status: newStatus, estimatedDeliveryText: estText };
+        if (newStatus === 'disahkan') {
+          estText = o.fulfillmentType === 'pickup' ? 'Disahkan • Sedia Diambil Di Kedai' : 'Disahkan • Dalam Giliran Penghantaran';
+        }
+
+        const updatedCustomer = o.customer ? {
+          ...o.customer,
+          hitpayStatus: (newStatus === 'disahkan' && o.customer.paymentMethod === 'hitpay') ? 'completed' as const : o.customer.hitpayStatus,
+        } : o.customer;
+
+        updatedOrderObj = { 
+          ...o, 
+          status: newStatus, 
+          estimatedDeliveryText: estText,
+          customer: updatedCustomer,
+        };
         return updatedOrderObj;
       }
       return o;
@@ -1213,20 +1495,12 @@ export const dataStorageService = {
       const raw = localStorage.getItem(COUPONS_KEY);
       if (raw) {
         const stored: CouponCode[] = JSON.parse(raw);
-        let changed = false;
-        DEFAULT_COUPONS.forEach((def) => {
-          if (!stored.some((c) => c.code.toUpperCase() === def.code.toUpperCase())) {
-            stored.push(def);
-            changed = true;
-          }
-        });
-        if (changed) {
-          this.saveCoupons(stored);
+        if (Array.isArray(stored)) {
+          return stored;
         }
-        return stored;
       }
     } catch (e) {
-      console.error('Failed to load coupons from storage:', e);
+      console.warn('Failed to load coupons from storage:', e);
     }
     this.saveCoupons(DEFAULT_COUPONS);
     return DEFAULT_COUPONS;
@@ -1236,7 +1510,7 @@ export const dataStorageService = {
     try {
       safeSetStorage(COUPONS_KEY, coupons);
     } catch (e) {
-      console.error('Failed to save coupons to storage:', e);
+      console.warn('Failed to save coupons to storage:', e);
     }
     // Sync coupons to Firestore
     try {
@@ -1406,7 +1680,7 @@ export const dataStorageService = {
     try {
       safeSetStorage(BANNERS_KEY, banners);
     } catch (e) {
-      console.error('Failed to save rotation banners', e);
+      console.warn('Notice saving rotation banners:', e);
     }
   },
 

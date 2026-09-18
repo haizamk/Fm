@@ -201,7 +201,9 @@ async function startServer() {
       const hostOrigin = req.headers.origin || req.headers.referer || 'https://ais-dev-ibciauzkghto525j7ma3h5-707200717362.asia-east1.run.app';
       const cleanOrigin = String(hostOrigin).replace(/\/$/, '');
 
-      const redirectUrl = config?.redirectUrl || `${cleanOrigin}/?hitpay_status=completed&order_id=${encodeURIComponent(order.orderId)}`;
+      const baseReturnUrl = config?.redirectUrl ? String(config.redirectUrl).replace(/\/$/, '') : cleanOrigin;
+      const cleanBase = baseReturnUrl.split('?')[0];
+      const redirectUrl = `${cleanBase}?hitpay_status=completed&order_id=${encodeURIComponent(order.orderId)}`;
       const webhookUrl = config?.webhookUrl || `${cleanOrigin}/api/hitpay/webhook`;
 
       const customerEmail = (order.customer?.email && order.customer.email.includes('@'))

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   X, 
   Search, 
@@ -6,10 +6,12 @@ import {
   CheckCircle2, 
   Snowflake, 
   PhoneCall,
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 import { dataStorageService } from '../services/dataStorage';
 import { getWhatsAppOrderStatusLink } from '../utils/whatsappHelper';
+import { OrderRecord } from '../types';
 
 interface OrderTrackingModalProps {
   isOpen: boolean;
@@ -24,25 +26,65 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
 }) => {
   const [orderQuery, setOrderQuery] = useState(initialOrderId || '');
   const [hasSearched, setHasSearched] = useState(Boolean(initialOrderId));
+  const [orders, setOrders] = useState<OrderRecord[]>(() => dataStorageService.getOrders());
+  const [cloudOrder, setCloudOrder] = useState<OrderRecord | null>(null);
+  const [isSearchingCloud, setIsSearchingCloud] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setOrders(dataStorageService.getOrders());
+    const unsub = dataStorageService.subscribeOrders((liveOrders) => {
+      setOrders(liveOrders);
+    });
+    return () => {
+      unsub();
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (initialOrderId) {
+      setOrderQuery(initialOrderId);
+      setHasSearched(true);
+    }
+  }, [initialOrderId]);
 
   if (!isOpen) return null;
 
-  const orders = dataStorageService.getOrders();
   const cleanQuery = orderQuery.trim().toLowerCase();
   
-  const matchedOrder = cleanQuery 
+  const localMatched = cleanQuery 
     ? orders.find(
         (o) => 
           o.orderId.toLowerCase() === cleanQuery || 
           o.orderId.toLowerCase().includes(cleanQuery) ||
-          o.customer.phone.replace(/\D/g, '').includes(cleanQuery.replace(/\D/g, ''))
+          o.customer.phone.replace(/\D/g, '').includes(cleanQuery.replace(/\D/g, '')) ||
+          (o.customer?.hitpayReference && o.customer.hitpayReference.toLowerCase() === cleanQuery)
       ) 
     : null;
 
-  const handleSearch = (e: React.FormEvent) => {
+  const matchedOrder = localMatched || cloudOrder;
+
+  const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (orderQuery.trim()) {
-      setHasSearched(true);
+    if (!orderQuery.trim()) return;
+    setHasSearched(true);
+    if (!localMatched) {
+      setIsSearchingCloud(true);
+      try {
+        const foundCloud = await dataStorageService.getOrderById(orderQuery.trim());
+        if (foundCloud) {
+          setCloudOrder(foundCloud);
+        } else {
+          const foundByRef = await dataStorageService.findOrderByHitpayReference(orderQuery.trim());
+          if (foundByRef) {
+            setCloudOrder(foundByRef);
+          }
+        }
+      } catch {
+        // ignore
+      } finally {
+        setIsSearchingCloud(false);
+      }
     }
   };
 
@@ -96,8 +138,10 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
             </div>
             <button
               type="submit"
-              className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm px-4 py-2.5 rounded-xl transition-all cursor-pointer"
+              disabled={isSearchingCloud}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm px-4 py-2.5 rounded-xl transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
             >
+              {isSearchingCloud && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
               Cari
             </button>
           </form>

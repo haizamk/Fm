@@ -140,8 +140,22 @@ class HitPayService {
       );
     }
 
-    const redirectUrl = config.redirectUrl || `${window.location.origin}/?hitpay_status=completed&order_id=${encodeURIComponent(order.orderId)}`;
-    const webhookUrl = config.webhookUrl || `${window.location.origin}/api/hitpay/webhook`;
+    let baseReturnUrl = typeof window !== 'undefined' ? window.location.origin : '';
+    if (config.redirectUrl && config.redirectUrl.trim() !== '') {
+      try {
+        const u = new URL(config.redirectUrl.trim(), typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000');
+        u.searchParams.delete('hitpay_status');
+        u.searchParams.delete('order_id');
+        u.searchParams.delete('status');
+        u.searchParams.delete('reference');
+        baseReturnUrl = u.toString().replace(/\/$/, '');
+      } catch {
+        baseReturnUrl = config.redirectUrl.trim().replace(/\/$/, '');
+      }
+    }
+    const separator = baseReturnUrl.includes('?') ? '&' : '?';
+    const redirectUrl = `${baseReturnUrl}${separator}hitpay_status=completed&order_id=${encodeURIComponent(order.orderId)}`;
+    const webhookUrl = config.webhookUrl || `${baseReturnUrl}/api/hitpay/webhook`;
 
     // 1. Try PHP Backend Proxy First (Fast, Native HestiaCP / Apache / Nginx PHP support)
     const phpEndpoints = [
@@ -232,6 +246,7 @@ class HitPayService {
           purpose: `Tempahan Ayam Segar Pasar Semenyih #${order.orderId}`,
           reference_number: String(order.orderId),
           redirect_url: redirectUrl,
+          webhook: webhookUrl,
           send_email: false,
           send_sms: false,
         };

@@ -87,6 +87,7 @@ import { AdminWhatsAppGatewayTab } from './AdminWhatsAppGatewayTab';
 import { QRScannerModal } from './QRScannerModal';
 import { DuitNowStandeeVisual } from './DuitNowOCBCQR';
 import { getProductCleanUrl, slugify, copyShareableLink } from '../utils/seoHelper';
+import { compressImageFile } from '../utils/imageCompressor';
 
 interface AdminPortalProps {
   isOpen: boolean;
@@ -180,6 +181,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
   // Coupon Form State
   const [isCreatingCoupon, setIsCreatingCoupon] = useState(false);
+  const [editingCouponId, setEditingCouponId] = useState<string | null>(null);
+  const [couponCategory, setCouponCategory] = useState<'item' | 'delivery'>('item');
   const [couponCodeInput, setCouponCodeInput] = useState('');
   const [couponDiscountType, setCouponDiscountType] = useState<CouponDiscountType>('fixed');
   const [couponDiscountValue, setCouponDiscountValue] = useState<number>(5);
@@ -190,6 +193,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [couponUsageLimit, setCouponUsageLimit] = useState<number | undefined>(100);
   const [couponIsActive, setCouponIsActive] = useState(true);
   const [couponSearch, setCouponSearch] = useState('');
+  const [couponFilterCategory, setCouponFilterCategory] = useState<'all' | 'item' | 'delivery'>('all');
   const [copiedCouponId, setCopiedCouponId] = useState<string | null>(null);
 
   // WhatsApp Status Update Modal State & Auto-Dispatch
@@ -794,7 +798,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   };
 
   // COUPON MANAGEMENT HANDLERS
-  const handleCreateCoupon = (e: React.FormEvent) => {
+  const handleSaveCoupon = (e: React.FormEvent) => {
     e.preventDefault();
     const cleanCode = couponCodeInput.trim().toUpperCase();
     if (!cleanCode) {
@@ -807,44 +811,123 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       return;
     }
 
-    // Check duplicate code
-    const existing = coupons.find((c) => c.code.toUpperCase() === cleanCode);
+    // Check duplicate code (excluding current editing coupon)
+    const existing = coupons.find((c) => c.code.toUpperCase() === cleanCode && c.id !== editingCouponId);
     if (existing) {
       showNotification('error', `Kod kupon "${cleanCode}" sudah wujud. Sila guna kod lain.`);
       return;
     }
 
-    const newCoupon = dataStorageService.addCoupon({
-      code: cleanCode,
-      discountType: couponDiscountType,
-      discountValue: Number(couponDiscountValue),
-      minSpend: Number(couponMinSpend || 0),
-      maxDiscount: couponDiscountType === 'percentage' && couponMaxDiscount ? Number(couponMaxDiscount) : undefined,
-      description: couponDescription.trim() || `${couponDiscountType === 'fixed' ? `Potongan RM${couponDiscountValue}` : `Diskaun ${couponDiscountValue}%`} untuk belian minimum RM${couponMinSpend}`,
-      isActive: couponIsActive,
-      expiryDate: couponExpiryDate || undefined,
-      usageLimit: couponUsageLimit ? Number(couponUsageLimit) : undefined,
-    });
+    // If category is delivery, discountType is delivery
+    const actualDiscountType: CouponDiscountType = couponCategory === 'delivery' ? 'delivery' : couponDiscountType;
 
-    const updated = dataStorageService.getCoupons();
-    setCoupons(updated);
+    const defaultDesc = couponCategory === 'delivery'
+      ? `Diskaun caj penghantaran RM${Number(couponDiscountValue).toFixed(2)} untuk belian minimum RM${couponMinSpend}`
+      : `${actualDiscountType === 'fixed' ? `Potongan RM${Number(couponDiscountValue).toFixed(2)}` : `Diskaun ${couponDiscountValue}%`} untuk belian minimum RM${couponMinSpend}`;
 
-    // Audit log
-    dataStorageService.addAuditLog({
-      action: 'KOD KUPON DICIPTA',
-      details: `Kupon baharu [${cleanCode}] bernilai ${couponDiscountType === 'fixed' ? `RM${couponDiscountValue}` : `${couponDiscountValue}%`} dicipta oleh ${adminUser.name}`,
-      performedBy: adminUser.name,
-      type: 'system',
-    });
-    setAuditLogs(dataStorageService.getAuditLogs());
+    if (editingCouponId) {
+      // EDIT MODE
+      const targetCoupon = coupons.find((c) => c.id === editingCouponId);
+      if (!targetCoupon) {
+        showNotification('error', 'Kupon tidak dijumpai untuk dikemaskini.');
+        return;
+      }
 
-    // Reset Form
+      const updatedCoupon: CouponCode = {
+        ...targetCoupon,
+        code: cleanCode,
+        category: couponCategory,
+        discountType: actualDiscountType,
+        discountValue: Number(couponDiscountValue),
+        minSpend: Number(couponMinSpend || 0),
+        maxDiscount: actualDiscountType === 'percentage' && couponMaxDiscount ? Number(couponMaxDiscount) : undefined,
+        description: couponDescription.trim() || defaultDesc,
+        isActive: couponIsActive,
+        expiryDate: couponExpiryDate || undefined,
+        usageLimit: couponUsageLimit ? Number(couponUsageLimit) : undefined,
+      };
+
+      dataStorageService.updateCoupon(updatedCoupon);
+      const updated = dataStorageService.getCoupons();
+      setCoupons(updated);
+
+      dataStorageService.addAuditLog({
+        action: 'KOD KUPON DIKEMASKINI',
+        details: `Kupon [${cleanCode}] (${couponCategory === 'delivery' ? 'Diskaun Penghantaran' : 'Diskaun Produk'}) dikemaskini oleh ${adminUser.name}`,
+        performedBy: adminUser.name,
+        type: 'system',
+      });
+      setAuditLogs(dataStorageService.getAuditLogs());
+
+      handleCancelCouponForm();
+      showNotification('success', `Kod Kupon "${cleanCode}" berjaya dikemaskini!`);
+    } else {
+      // CREATE MODE
+      const newCoupon = dataStorageService.addCoupon({
+        code: cleanCode,
+        category: couponCategory,
+        discountType: actualDiscountType,
+        discountValue: Number(couponDiscountValue),
+        minSpend: Number(couponMinSpend || 0),
+        maxDiscount: actualDiscountType === 'percentage' && couponMaxDiscount ? Number(couponMaxDiscount) : undefined,
+        description: couponDescription.trim() || defaultDesc,
+        isActive: couponIsActive,
+        expiryDate: couponExpiryDate || undefined,
+        usageLimit: couponUsageLimit ? Number(couponUsageLimit) : undefined,
+      });
+
+      const updated = dataStorageService.getCoupons();
+      setCoupons(updated);
+
+      dataStorageService.addAuditLog({
+        action: 'KOD KUPON DICIPTA',
+        details: `Kupon baharu [${cleanCode}] (${couponCategory === 'delivery' ? 'Diskaun Penghantaran' : 'Diskaun Produk'}) bernilai ${actualDiscountType === 'fixed' || actualDiscountType === 'delivery' ? `RM${couponDiscountValue}` : `${couponDiscountValue}%`} dicipta oleh ${adminUser.name}`,
+        performedBy: adminUser.name,
+        type: 'system',
+      });
+      setAuditLogs(dataStorageService.getAuditLogs());
+
+      handleCancelCouponForm();
+      showNotification('success', `Kod Kupon "${cleanCode}" berjaya dicipta & sedia digunakan pelanggan!`);
+    }
+  };
+
+  const handleStartEditCoupon = (coupon: CouponCode) => {
+    setEditingCouponId(coupon.id);
+    setCouponCodeInput(coupon.code);
+    const cat = coupon.category || (coupon.discountType === 'delivery' ? 'delivery' : 'item');
+    setCouponCategory(cat);
+    setCouponDiscountType(coupon.discountType === 'delivery' ? 'fixed' : coupon.discountType);
+    setCouponDiscountValue(coupon.discountValue ?? 5);
+    setCouponMinSpend(coupon.minSpend ?? 0);
+    setCouponMaxDiscount(coupon.maxDiscount);
+    setCouponDescription(coupon.description || '');
+    setCouponExpiryDate(coupon.expiryDate || '');
+    setCouponUsageLimit(coupon.usageLimit);
+    setCouponIsActive(coupon.isActive);
+    setIsCreatingCoupon(true);
+
+    setTimeout(() => {
+      const el = document.getElementById('coupon-form-container');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 100);
+  };
+
+  const handleCancelCouponForm = () => {
+    setIsCreatingCoupon(false);
+    setEditingCouponId(null);
     setCouponCodeInput('');
+    setCouponCategory('item');
+    setCouponDiscountType('fixed');
     setCouponDiscountValue(5);
     setCouponMinSpend(30);
+    setCouponMaxDiscount(undefined);
     setCouponDescription('');
-    setIsCreatingCoupon(false);
-    showNotification('success', `Kod Kupon "${cleanCode}" berjaya dicipta & sedia digunakan pelanggan!`);
+    setCouponExpiryDate('2026-12-31');
+    setCouponUsageLimit(100);
+    setCouponIsActive(true);
   };
 
   const handleToggleCoupon = (coupon: CouponCode) => {
@@ -863,6 +946,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
   const handleDeleteCoupon = (coupon: CouponCode) => {
     if (!window.confirm(`Adakah anda pasti ingin memadam kod kupon "${coupon.code}"?`)) return;
+    if (editingCouponId === coupon.id) {
+      handleCancelCouponForm();
+    }
     dataStorageService.deleteCoupon(coupon.id);
     const updated = dataStorageService.getCoupons();
     setCoupons(updated);
@@ -887,13 +973,25 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     }
   };
 
-  const handleApplyPreset = (preset: { code: string; type: CouponDiscountType; value: number; min: number; desc: string; max?: number }) => {
+  const handleApplyPreset = (preset: {
+    code: string;
+    type: CouponDiscountType;
+    category?: 'item' | 'delivery';
+    value: number;
+    min: number;
+    desc: string;
+    max?: number;
+  }) => {
+    setEditingCouponId(null);
     setCouponCodeInput(preset.code);
-    setCouponDiscountType(preset.type);
+    const cat = preset.category || (preset.type === 'delivery' ? 'delivery' : 'item');
+    setCouponCategory(cat);
+    setCouponDiscountType(preset.type === 'delivery' ? 'fixed' : preset.type);
     setCouponDiscountValue(preset.value);
     setCouponMinSpend(preset.min);
     setCouponDescription(preset.desc);
     if (preset.max) setCouponMaxDiscount(preset.max);
+    else setCouponMaxDiscount(undefined);
     setIsCreatingCoupon(true);
   };
 
@@ -1375,6 +1473,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 rounded-xl px-2.5 py-2 text-xs font-semibold focus:outline-hidden"
                   >
                     <option value="all">Semua Status</option>
+                    <option value="menunggu_bayaran">0. Menunggu Bayaran</option>
                     <option value="disahkan">1. Bayaran Disahkan</option>
                     <option value="sembelih-potong">2. Potong & Sedia</option>
                     <option value="pembungkusan-sejuk">3. Pek Sejuk</option>
@@ -1486,8 +1585,24 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                               </span>
                               <span className="text-[10px] text-stone-500">{order.customer.deliveryDate}</span>
                             </td>
-                            <td className="p-3 font-black text-emerald-700 dark:text-emerald-400 font-['Outfit'] whitespace-nowrap">
-                              RM {order.total.toFixed(2)}
+                            <td className="p-3 whitespace-nowrap">
+                              <span className="font-black text-emerald-700 dark:text-emerald-400 font-['Outfit'] block">
+                                RM {order.total.toFixed(2)}
+                              </span>
+                              <div className="flex items-center gap-1 mt-0.5">
+                                <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded tracking-wider uppercase ${
+                                  order.customer?.paymentMethod === 'hitpay'
+                                    ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-300 border border-blue-200 dark:border-blue-700'
+                                    : order.customer?.paymentMethod === 'duitnow'
+                                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700'
+                                    : 'bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300'
+                                }`}>
+                                  {order.customer?.paymentMethod === 'hitpay' ? '⚡ HitPay' : order.customer?.paymentMethod === 'duitnow' ? '🏦 DuitNow QR' : (order.customer?.paymentMethod || 'Manual')}
+                                </span>
+                                {order.customer?.hitpayStatus === 'completed' && (
+                                  <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400">✓ Lunas</span>
+                                )}
+                              </div>
                             </td>
                             <td className="p-3 whitespace-nowrap">
                               <div className="flex items-center gap-1.5">
@@ -1495,7 +1610,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                                   value={order.status}
                                   onChange={(e) => handleUpdateStatus(order.orderId, e.target.value as OrderRecord['status'])}
                                   className={`px-2 py-1 rounded-lg text-xs font-bold border cursor-pointer ${
-                                    order.status === 'disahkan'
+                                    order.status === 'menunggu_bayaran'
+                                      ? 'bg-amber-50 text-amber-900 border-amber-300 dark:bg-amber-950 dark:text-amber-200'
+                                      : order.status === 'disahkan'
                                       ? 'bg-blue-50 text-blue-800 border-blue-200 dark:bg-blue-950 dark:text-blue-300'
                                       : order.status === 'sembelih-potong'
                                       ? 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950 dark:text-amber-300'
@@ -1506,6 +1623,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                                       : 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300'
                                   }`}
                                 >
+                                  <option value="menunggu_bayaran">0. Menunggu Bayaran</option>
                                   <option value="disahkan">1. Disahkan</option>
                                   <option value="sembelih-potong">2. Potong & Sedia</option>
                                   <option value="pembungkusan-sejuk">3. Pek Sejuk</option>
@@ -2468,21 +2586,28 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     <span>Pengurusan Kod Kupon & Baucar Promosi</span>
                   </h3>
                   <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
-                    Cipta kod promo khas untuk kempen jualan, pelanggan baharu, atau promosi hujung minggu.
+                    Cipta dan urus kupon diskaun produk atau baucar penghantaran (delivery) untuk pelanggan.
                   </p>
                 </div>
 
                 <button
                   type="button"
-                  onClick={() => setIsCreatingCoupon(!isCreatingCoupon)}
+                  onClick={() => {
+                    if (isCreatingCoupon) {
+                      handleCancelCouponForm();
+                    } else {
+                      handleCancelCouponForm();
+                      setIsCreatingCoupon(true);
+                    }
+                  }}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow-md flex items-center gap-2 cursor-pointer shrink-0"
                 >
                   <Plus className="w-4 h-4" />
-                  <span>{isCreatingCoupon ? 'Tutup Borang' : 'Cipta Kod Kupon Baharu'}</span>
+                  <span>{isCreatingCoupon ? (editingCouponId ? 'Tutup / Batal Edit' : 'Tutup Borang') : 'Cipta Kod Kupon Baharu'}</span>
                 </button>
               </div>
 
-              {/* Coupon Metrics Summary */}
+              {/* Coupon Metrics Summary with Product vs Delivery distinction */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                 <div className="p-4 rounded-2xl bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 shadow-2xs">
                   <span className="text-stone-500 text-[11px] block">Jumlah Kod Kupon</span>
@@ -2503,48 +2628,73 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 </div>
 
                 <div className="p-4 rounded-2xl bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 shadow-2xs">
-                  <span className="text-stone-500 text-[11px] block">Kupon Diskaun Tetap</span>
-                  <span className="text-xl font-black text-blue-700 dark:text-blue-400 font-['Outfit'] block mt-1">
-                    {coupons.filter((c) => c.discountType === 'fixed').length} Kod
+                  <span className="text-stone-500 text-[11px] block flex items-center gap-1 font-bold text-emerald-700 dark:text-emerald-400">
+                    <Tag className="w-3.5 h-3.5" />
+                    <span>Kupon Produk (Item)</span>
                   </span>
-                  <span className="text-[10px] text-stone-500">Potongan RM tetap</span>
+                  <span className="text-xl font-black text-emerald-700 dark:text-emerald-400 font-['Outfit'] block mt-1">
+                    {coupons.filter((c) => c.category !== 'delivery' && c.discountType !== 'delivery').length} Kod
+                  </span>
+                  <span className="text-[10px] text-stone-500">Diskaun barangan ayam</span>
                 </div>
 
                 <div className="p-4 rounded-2xl bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 shadow-2xs">
-                  <span className="text-stone-500 text-[11px] block">Kupon Peratusan</span>
-                  <span className="text-xl font-black text-purple-700 dark:text-purple-400 font-['Outfit'] block mt-1">
-                    {coupons.filter((c) => c.discountType === 'percentage').length} Kod
+                  <span className="text-stone-500 text-[11px] block flex items-center gap-1 font-bold text-blue-700 dark:text-blue-400">
+                    <Truck className="w-3.5 h-3.5" />
+                    <span>Kupon Delivery</span>
                   </span>
-                  <span className="text-[10px] text-stone-500">Potongan diskaun %</span>
+                  <span className="text-xl font-black text-blue-700 dark:text-blue-400 font-['Outfit'] block mt-1">
+                    {coupons.filter((c) => c.category === 'delivery' || c.discountType === 'delivery').length} Kod
+                  </span>
+                  <span className="text-[10px] text-stone-500">Diskaun caj penghantaran</span>
                 </div>
               </div>
 
-              {/* Create / Add Coupon Form */}
+              {/* Create / Edit Coupon Form */}
               {isCreatingCoupon && (
-                <div className="p-5 bg-stone-50 dark:bg-stone-800/90 rounded-3xl border-2 border-emerald-500/50 shadow-lg space-y-4 animate-fade-in">
+                <div id="coupon-form-container" className="p-5 bg-stone-50 dark:bg-stone-800/90 rounded-3xl border-2 border-emerald-500/60 shadow-xl space-y-4 animate-fade-in">
                   <div className="flex items-center justify-between border-b pb-3 border-stone-200 dark:border-stone-700">
                     <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 flex items-center justify-center font-black">
-                        <Gift className="w-4 h-4" />
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-black ${
+                        editingCouponId
+                          ? 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300'
+                          : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                      }`}>
+                        {editingCouponId ? <Edit className="w-4 h-4" /> : <Gift className="w-4 h-4" />}
                       </div>
-                      <h4 className="text-sm font-black uppercase text-stone-900 dark:text-white">
-                        Borang Cipta Kod Kupon Baharu
-                      </h4>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-sm font-black uppercase text-stone-900 dark:text-white">
+                            {editingCouponId ? `Kemaskini Kod Kupon [${couponCodeInput || 'Kupon'}]` : 'Borang Cipta Kod Kupon Baharu'}
+                          </h4>
+                          {editingCouponId && (
+                            <span className="px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200 text-[10px] font-black uppercase">
+                              Mod Edit
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-stone-500 dark:text-stone-400">
+                          {editingCouponId
+                            ? 'Ubah maklumat kupon sedia ada dan klik Simpan Perubahan Kupon di bawah.'
+                            : 'Isi butiran kupon promosi atau pilih template pantas untuk menjimatkan masa.'}
+                        </p>
+                      </div>
                     </div>
 
                     <button
                       type="button"
-                      onClick={() => setIsCreatingCoupon(false)}
-                      className="p-1 rounded-full text-stone-400 hover:text-stone-700 dark:hover:text-stone-200"
+                      onClick={handleCancelCouponForm}
+                      className="p-1.5 rounded-full text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors"
+                      title="Batal & Tutup Borang"
                     >
                       <X className="w-5 h-5" />
                     </button>
                   </div>
 
-                  {/* Quick Preset Buttons */}
+                  {/* Quick Preset Buttons (Product & Delivery) */}
                   <div>
                     <span className="text-[11px] font-bold text-stone-500 dark:text-stone-400 block mb-1.5">
-                      Pilihan Pantas (Template Cepat):
+                      Pilihan Pantas (Template Cepat Siap):
                     </span>
                     <div className="flex flex-wrap gap-2">
                       <button
@@ -2552,13 +2702,14 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         onClick={() => handleApplyPreset({
                           code: 'AYAMJIMAT5',
                           type: 'fixed',
+                          category: 'item',
                           value: 5,
                           min: 40,
                           desc: 'Diskaun RM5.00 untuk belian minimum RM40.00'
                         })}
-                        className="px-2.5 py-1 bg-white dark:bg-stone-700 border border-stone-200 dark:border-stone-600 rounded-lg text-xs font-semibold hover:border-emerald-500 hover:text-emerald-600 transition-colors"
+                        className="px-2.5 py-1.5 bg-white dark:bg-stone-700 border border-emerald-200 dark:border-emerald-800/80 rounded-xl text-xs font-semibold text-emerald-800 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-stone-600 transition-colors flex items-center gap-1 cursor-pointer"
                       >
-                        ⚡ RM5 Off (Min RM40)
+                        <span>🍗 ⚡ RM5 Off Produk (Min RM40)</span>
                       </button>
 
                       <button
@@ -2566,28 +2717,45 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         onClick={() => handleApplyPreset({
                           code: 'SEMENYIH10',
                           type: 'percentage',
+                          category: 'item',
                           value: 10,
                           min: 50,
                           max: 10,
                           desc: 'Diskaun 10% (Maksimum RM10) untuk pesanan RM50 ke atas'
                         })}
-                        className="px-2.5 py-1 bg-white dark:bg-stone-700 border border-stone-200 dark:border-stone-600 rounded-lg text-xs font-semibold hover:border-emerald-500 hover:text-emerald-600 transition-colors"
+                        className="px-2.5 py-1.5 bg-white dark:bg-stone-700 border border-emerald-200 dark:border-emerald-800/80 rounded-xl text-xs font-semibold text-emerald-800 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-stone-600 transition-colors flex items-center gap-1 cursor-pointer"
                       >
-                        ⚡ 10% Off (Min RM50)
+                        <span>🍗 ⚡ 10% Off Produk (Min RM50)</span>
                       </button>
 
                       <button
                         type="button"
                         onClick={() => handleApplyPreset({
-                          code: 'WEEKENDJIMAT',
-                          type: 'fixed',
-                          value: 4,
-                          min: 35,
-                          desc: 'Tawaran istimewa pasar segar hujung minggu'
+                          code: 'FREEDEL6',
+                          type: 'delivery',
+                          category: 'delivery',
+                          value: 6,
+                          min: 40,
+                          desc: 'Percuma caj penghantaran biasa RM6.00 untuk belian RM40 ke atas'
                         })}
-                        className="px-2.5 py-1 bg-white dark:bg-stone-700 border border-stone-200 dark:border-stone-600 rounded-lg text-xs font-semibold hover:border-emerald-500 hover:text-emerald-600 transition-colors"
+                        className="px-2.5 py-1.5 bg-white dark:bg-stone-700 border border-blue-200 dark:border-blue-800/80 rounded-xl text-xs font-semibold text-blue-800 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-stone-600 transition-colors flex items-center gap-1 cursor-pointer"
                       >
-                        ⚡ RM4 Off Hujung Minggu
+                        <span>🚚 ⚡ Percuma Delivery RM6 (Min RM40)</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleApplyPreset({
+                          code: 'DELIV3',
+                          type: 'delivery',
+                          category: 'delivery',
+                          value: 3,
+                          min: 25,
+                          desc: 'Potongan caj penghantaran RM3.00 untuk belian RM25 ke atas'
+                        })}
+                        className="px-2.5 py-1.5 bg-white dark:bg-stone-700 border border-blue-200 dark:border-blue-800/80 rounded-xl text-xs font-semibold text-blue-800 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-stone-600 transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        <span>🚚 ⚡ Diskaun Delivery RM3 (Min RM25)</span>
                       </button>
 
                       <button
@@ -2595,18 +2763,88 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         onClick={() => handleApplyPreset({
                           code: 'PELANGGANBARU',
                           type: 'fixed',
+                          category: 'item',
                           value: 3,
                           min: 25,
                           desc: 'Selamat datang ke Khairul Fresh Food! Jimat RM3'
                         })}
-                        className="px-2.5 py-1 bg-white dark:bg-stone-700 border border-stone-200 dark:border-stone-600 rounded-lg text-xs font-semibold hover:border-emerald-500 hover:text-emerald-600 transition-colors"
+                        className="px-2.5 py-1.5 bg-white dark:bg-stone-700 border border-stone-200 dark:border-stone-600 rounded-xl text-xs font-semibold hover:border-emerald-500 hover:text-emerald-600 transition-colors flex items-center gap-1 cursor-pointer"
                       >
-                        ⚡ RM3 Pelanggan Baru
+                        <span>🍗 ⚡ RM3 Pelanggan Baru</span>
                       </button>
                     </div>
                   </div>
 
-                  <form onSubmit={handleCreateCoupon} className="space-y-4 pt-2">
+                  <form onSubmit={handleSaveCoupon} className="space-y-4 pt-2">
+                    {/* Category Selection: Product vs Delivery */}
+                    <div>
+                      <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1.5">
+                        Kategori Kupon * (Bezakan Kupon Produk vs Kupon Penghantaran)
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCouponCategory('item');
+                            if (couponDiscountType === 'delivery') setCouponDiscountType('fixed');
+                          }}
+                          className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex items-start gap-3 ${
+                            couponCategory === 'item'
+                              ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-500 text-emerald-900 dark:text-emerald-100 ring-2 ring-emerald-500/30'
+                              : 'bg-white dark:bg-stone-900 border-stone-200 dark:border-stone-700 hover:border-stone-300'
+                          }`}
+                        >
+                          <div className={`p-2 rounded-xl shrink-0 ${couponCategory === 'item' ? 'bg-emerald-600 text-white' : 'bg-stone-100 dark:bg-stone-800 text-stone-600'}`}>
+                            <Tag className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="text-xs font-black flex items-center gap-1.5">
+                              <span>🍗 Diskaun Produk (Barangan)</span>
+                              {couponCategory === 'item' && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />}
+                            </div>
+                            <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5 leading-snug">
+                              Potongan harga ayam segar / produk dalam troli (Pilihan: Tunai Tetap RM atau Peratusan %).
+                            </p>
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCouponCategory('delivery');
+                            setCouponDiscountType('delivery');
+                          }}
+                          className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex items-start gap-3 ${
+                            couponCategory === 'delivery'
+                              ? 'bg-blue-50 dark:bg-blue-950/60 border-blue-500 text-blue-900 dark:text-blue-100 ring-2 ring-blue-500/30'
+                              : 'bg-white dark:bg-stone-900 border-stone-200 dark:border-stone-700 hover:border-stone-300'
+                          }`}
+                        >
+                          <div className={`p-2 rounded-xl shrink-0 ${couponCategory === 'delivery' ? 'bg-blue-600 text-white' : 'bg-stone-100 dark:bg-stone-800 text-stone-600'}`}>
+                            <Truck className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="text-xs font-black flex items-center gap-1.5">
+                              <span>🚚 Diskaun Penghantaran (Delivery)</span>
+                              {couponCategory === 'delivery' && <CheckCircle2 className="w-3.5 h-3.5 text-blue-600" />}
+                            </div>
+                            <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5 leading-snug">
+                              Potongan kos penghantaran runner (cth: RM6.00 untuk percuma delivery Semenyih).
+                            </p>
+                          </div>
+                        </button>
+                      </div>
+
+                      {couponCategory === 'delivery' && (
+                        <div className="mt-2 p-2.5 rounded-xl bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 text-[11px] text-blue-800 dark:text-blue-300 flex items-center gap-2">
+                          <Truck className="w-4 h-4 shrink-0 text-blue-600" />
+                          <span>
+                            <strong>Kelebihan Kupon Delivery:</strong> Pelanggan boleh menggabungkan <strong>1 Kupon Produk</strong> (diskaun ayam) dan <strong>1 Kupon Delivery</strong> secara serentak dalam satu pesanan semasa checkout!
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       {/* Coupon Code Input */}
                       <div>
@@ -2619,7 +2857,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                             required
                             value={couponCodeInput}
                             onChange={(e) => setCouponCodeInput(e.target.value.toUpperCase().replace(/\s/g, ''))}
-                            placeholder="cth: AYAM5, RAYA2026"
+                            placeholder="cth: AYAM5, FREEDEL6"
                             className="w-full bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl px-3 py-2 text-xs font-mono font-bold uppercase focus:border-emerald-500 focus:outline-hidden"
                           />
                         </div>
@@ -2630,31 +2868,50 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1">
                           Jenis Diskaun *
                         </label>
-                        <select
-                          value={couponDiscountType}
-                          onChange={(e) => setCouponDiscountType(e.target.value as CouponDiscountType)}
-                          className="w-full bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl px-3 py-2 text-xs font-bold focus:border-emerald-500 focus:outline-hidden"
-                        >
-                          <option value="fixed">Jumlah Tetap (RM)</option>
-                          <option value="percentage">Peratusan (%)</option>
-                        </select>
+                        {couponCategory === 'delivery' ? (
+                          <div className="w-full bg-blue-50 dark:bg-blue-950/60 border border-blue-300 dark:border-blue-800 rounded-xl px-3 py-2 text-xs font-bold text-blue-900 dark:text-blue-200 flex items-center gap-1.5">
+                            <Truck className="w-3.5 h-3.5 text-blue-600" />
+                            <span>Potongan Caj Runner (RM)</span>
+                          </div>
+                        ) : (
+                          <select
+                            value={couponDiscountType}
+                            onChange={(e) => setCouponDiscountType(e.target.value as CouponDiscountType)}
+                            className="w-full bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl px-3 py-2 text-xs font-bold focus:border-emerald-500 focus:outline-hidden"
+                          >
+                            <option value="fixed">Jumlah Tetap (RM)</option>
+                            <option value="percentage">Peratusan (%)</option>
+                          </select>
+                        )}
                       </div>
 
-                      {/* Discount Value */}
+                      {/* Discount Value (Fixed bug: step="any" allows 5, 5.00 without error) */}
                       <div>
                         <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1">
-                          Nilai Diskaun ({couponDiscountType === 'fixed' ? 'RM' : '%'}) *
+                          {couponCategory === 'delivery'
+                            ? 'Potongan Caj Penghantaran (RM) *'
+                            : `Nilai Diskaun (${couponDiscountType === 'fixed' ? 'RM' : '%'}) *`}
                         </label>
                         <input
                           type="number"
                           required
-                          min="0.1"
-                          step="0.5"
-                          value={couponDiscountValue}
-                          onChange={(e) => setCouponDiscountValue(parseFloat(e.target.value) || 0)}
-                          placeholder="5.00"
+                          min="0"
+                          step="any"
+                          value={couponDiscountValue === 0 ? '' : couponDiscountValue}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setCouponDiscountValue(val === '' ? 0 : parseFloat(val) || 0);
+                          }}
+                          placeholder={couponCategory === 'delivery' ? '6.00' : '5.00'}
                           className="w-full bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl px-3 py-2 text-xs font-bold text-emerald-700 dark:text-emerald-400 focus:border-emerald-500 focus:outline-hidden"
                         />
+                        <span className="text-[10px] text-stone-400 mt-0.5 block">
+                          {couponCategory === 'delivery'
+                            ? 'Masukkan nilai potongan caj runner (cth: RM6.00)'
+                            : couponDiscountType === 'fixed'
+                              ? 'Masukkan nilai potongan RM (cth: 5 atau 5.00)'
+                              : 'Masukkan peratusan potongan (cth: 10)'}
+                        </span>
                       </div>
                     </div>
 
@@ -2667,23 +2924,27 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         <input
                           type="number"
                           min="0"
-                          step="1"
-                          value={couponMinSpend}
-                          onChange={(e) => setCouponMinSpend(parseFloat(e.target.value) || 0)}
+                          step="any"
+                          value={couponMinSpend === 0 ? '' : couponMinSpend}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setCouponMinSpend(val === '' ? 0 : parseFloat(val) || 0);
+                          }}
                           placeholder="30.00"
                           className="w-full bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl px-3 py-2 text-xs font-bold focus:border-emerald-500 focus:outline-hidden"
                         />
                       </div>
 
                       {/* Max Discount (for %) */}
-                      {couponDiscountType === 'percentage' && (
+                      {couponCategory === 'item' && couponDiscountType === 'percentage' && (
                         <div>
                           <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1">
                             Had Maksimum Diskaun (RM)
                           </label>
                           <input
                             type="number"
-                            min="1"
+                            min="0"
+                            step="any"
                             value={couponMaxDiscount || ''}
                             onChange={(e) => setCouponMaxDiscount(e.target.value ? parseFloat(e.target.value) : undefined)}
                             placeholder="cth: 15.00"
@@ -2713,6 +2974,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         <input
                           type="number"
                           min="1"
+                          step="1"
                           value={couponUsageLimit || ''}
                           onChange={(e) => setCouponUsageLimit(e.target.value ? parseInt(e.target.value) : undefined)}
                           placeholder="cth: 100 kali"
@@ -2730,7 +2992,11 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         type="text"
                         value={couponDescription}
                         onChange={(e) => setCouponDescription(e.target.value)}
-                        placeholder="cth: Diskaun RM5 untuk belian melebihi RM40 ayam bulat segar"
+                        placeholder={
+                          couponCategory === 'delivery'
+                            ? 'cth: Percuma penghantaran RM6.00 untuk belian melebihi RM40'
+                            : 'cth: Diskaun RM5 untuk belian melebihi RM40 ayam bulat segar'
+                        }
                         className="w-full bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-xl px-3 py-2 text-xs focus:border-emerald-500 focus:outline-hidden"
                       />
                     </div>
@@ -2750,8 +3016,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
-                          onClick={() => setIsCreatingCoupon(false)}
-                          className="px-4 py-2 border border-stone-300 dark:border-stone-700 rounded-xl text-xs font-bold hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors"
+                          onClick={handleCancelCouponForm}
+                          className="px-4 py-2 border border-stone-300 dark:border-stone-700 rounded-xl text-xs font-bold hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors cursor-pointer"
                         >
                           Batal
                         </button>
@@ -2760,7 +3026,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                           className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
                         >
                           <Save className="w-4 h-4" />
-                          <span>Simpan & Terbitkan Kupon</span>
+                          <span>{editingCouponId ? 'Simpan Perubahan Kupon' : 'Simpan & Terbitkan Kupon'}</span>
                         </button>
                       </div>
                     </div>
@@ -2770,7 +3036,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
               {/* Coupons List & Filters */}
               <div className="space-y-3">
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-stone-50 dark:bg-stone-800/80 p-3 rounded-2xl border border-stone-200 dark:border-stone-700">
+                {/* Search and Category Filter Tabs */}
+                <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-stone-50 dark:bg-stone-800/80 p-3 rounded-2xl border border-stone-200 dark:border-stone-700">
                   <div className="relative flex-1">
                     <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
                     <input
@@ -2781,15 +3048,59 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                       className="w-full bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 rounded-xl pl-9 pr-3 py-2 text-xs text-stone-900 dark:text-white focus:outline-hidden"
                     />
                   </div>
-                  <span className="text-xs text-stone-500 font-bold self-center px-2">
-                    {coupons.filter(c => !couponSearch.trim() || c.code.toLowerCase().includes(couponSearch.toLowerCase()) || c.description.toLowerCase().includes(couponSearch.toLowerCase())).length} Kupon Dijumpai
-                  </span>
+
+                  {/* Category Filter Pills */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
+                    <button
+                      type="button"
+                      onClick={() => setCouponFilterCategory('all')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
+                        couponFilterCategory === 'all'
+                          ? 'bg-stone-900 text-white dark:bg-emerald-600'
+                          : 'bg-white dark:bg-stone-900 text-stone-600 dark:text-stone-300 border border-stone-200 dark:border-stone-700 hover:border-stone-400'
+                      }`}
+                    >
+                      Semua ({coupons.length})
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setCouponFilterCategory('item')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-colors flex items-center gap-1 cursor-pointer ${
+                        couponFilterCategory === 'item'
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-white dark:bg-stone-900 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-50 dark:hover:bg-stone-800'
+                      }`}
+                    >
+                      <Tag className="w-3.5 h-3.5" />
+                      <span>Kupon Produk ({coupons.filter((c) => c.category !== 'delivery' && c.discountType !== 'delivery').length})</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setCouponFilterCategory('delivery')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-colors flex items-center gap-1 cursor-pointer ${
+                        couponFilterCategory === 'delivery'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-white dark:bg-stone-900 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800 hover:bg-blue-50 dark:hover:bg-stone-800'
+                      }`}
+                    >
+                      <Truck className="w-3.5 h-3.5" />
+                      <span>Kupon Delivery ({coupons.filter((c) => c.category === 'delivery' || c.discountType === 'delivery').length})</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Coupon Cards Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {coupons
                     .filter((c) => {
+                      if (couponFilterCategory === 'item') {
+                        if (c.category === 'delivery' || c.discountType === 'delivery') return false;
+                      } else if (couponFilterCategory === 'delivery') {
+                        if (c.category !== 'delivery' && c.discountType !== 'delivery') return false;
+                      }
+
                       if (!couponSearch.trim()) return true;
                       const q = couponSearch.toLowerCase();
                       return c.code.toLowerCase().includes(q) || c.description.toLowerCase().includes(q);
@@ -2797,27 +3108,37 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     .map((coupon) => {
                       const isExpired = coupon.expiryDate ? new Date().toISOString().split('T')[0] > coupon.expiryDate : false;
                       const isMaxedOut = coupon.usageLimit ? coupon.usageCount >= coupon.usageLimit : false;
+                      const isDeliveryCoupon = coupon.category === 'delivery' || coupon.discountType === 'delivery';
+                      const isCurrentlyEditing = editingCouponId === coupon.id;
 
                       return (
                         <div
                           key={coupon.id}
                           className={`p-4 rounded-3xl border-2 transition-all flex flex-col justify-between ${
-                            coupon.isActive && !isExpired && !isMaxedOut
-                              ? 'bg-white dark:bg-stone-800 border-stone-200 dark:border-stone-700 shadow-xs hover:border-emerald-500/60'
-                              : 'bg-stone-50 dark:bg-stone-800/40 border-stone-200 dark:border-stone-800 opacity-80'
+                            isCurrentlyEditing
+                              ? 'bg-amber-50/50 dark:bg-stone-800 border-amber-500 ring-2 ring-amber-500/30 shadow-md'
+                              : coupon.isActive && !isExpired && !isMaxedOut
+                                ? isDeliveryCoupon
+                                  ? 'bg-white dark:bg-stone-800 border-blue-200/80 dark:border-blue-900/60 shadow-xs hover:border-blue-500/60'
+                                  : 'bg-white dark:bg-stone-800 border-stone-200 dark:border-stone-700 shadow-xs hover:border-emerald-500/60'
+                                : 'bg-stone-50 dark:bg-stone-800/40 border-stone-200 dark:border-stone-800 opacity-80'
                           }`}
                         >
                           <div>
                             {/* Top Badge & Code */}
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex items-center gap-2">
-                                <div className="px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200 font-mono font-black text-sm tracking-wider flex items-center gap-1.5">
+                                <div className={`px-3 py-1.5 rounded-xl border font-mono font-black text-sm tracking-wider flex items-center gap-1.5 ${
+                                  isDeliveryCoupon
+                                    ? 'bg-blue-50 dark:bg-blue-950/60 border-blue-300 dark:border-blue-800 text-blue-900 dark:text-blue-200'
+                                    : 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200'
+                                }`}>
                                   <span>{coupon.code}</span>
                                 </div>
                                 <button
                                   type="button"
                                   onClick={() => handleCopyCouponCode(coupon)}
-                                  className="p-1.5 rounded-lg text-stone-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-stone-700 transition-colors"
+                                  className="p-1.5 rounded-lg text-stone-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-stone-700 transition-colors cursor-pointer"
                                   title="Salin Kod Kupon"
                                 >
                                   {copiedCouponId === coupon.id ? (
@@ -2828,7 +3149,20 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                                 </button>
                               </div>
 
-                              <div className="flex items-center gap-1.5">
+                              <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                                {/* Differentiate Product vs Delivery Badge */}
+                                {isDeliveryCoupon ? (
+                                  <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200 border border-blue-200 dark:border-blue-800 flex items-center gap-1">
+                                    <Truck className="w-3 h-3 text-blue-600" />
+                                    <span>Delivery</span>
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
+                                    <Tag className="w-3 h-3 text-emerald-600" />
+                                    <span>Produk</span>
+                                  </span>
+                                )}
+
                                 {isExpired && (
                                   <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300">
                                     Tamat Tempoh
@@ -2853,10 +3187,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
                             {/* Discount Details */}
                             <div className="mt-3 flex items-baseline gap-2">
-                              <span className="text-xl font-black text-stone-900 dark:text-white font-['Outfit']">
-                                {coupon.discountType === 'fixed'
-                                  ? `RM ${(coupon.discountValue ?? 0).toFixed(2)} OFF`
-                                  : `${coupon.discountValue ?? 0}% OFF`}
+                              <span className={`text-xl font-black font-['Outfit'] ${
+                                isDeliveryCoupon
+                                  ? 'text-blue-700 dark:text-blue-400'
+                                  : 'text-stone-900 dark:text-white'
+                              }`}>
+                                {isDeliveryCoupon
+                                  ? `RM ${(coupon.discountValue ?? 0).toFixed(2)} OFF Penghantaran`
+                                  : coupon.discountType === 'fixed'
+                                    ? `RM ${(coupon.discountValue ?? 0).toFixed(2)} OFF Produk`
+                                    : `${coupon.discountValue ?? 0}% OFF Produk`}
                               </span>
                               {coupon.discountType === 'percentage' && coupon.maxDiscount && (
                                 <span className="text-xs text-stone-500 font-semibold">
@@ -2894,7 +3234,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                             </div>
                           </div>
 
-                          {/* Footer Actions */}
+                          {/* Footer Actions with Edit Button */}
                           <div className="mt-4 pt-3 border-t border-stone-100 dark:border-stone-700 flex items-center justify-between text-xs">
                             <button
                               type="button"
@@ -2909,6 +3249,17 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                             </button>
 
                             <div className="flex items-center gap-1.5">
+                              {/* Edit Button */}
+                              <button
+                                type="button"
+                                onClick={() => handleStartEditCoupon(coupon)}
+                                className="px-2.5 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/80 font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                                title="Edit Maklumat Kupon"
+                              >
+                                <Edit className="w-3.5 h-3.5" />
+                                <span>Edit</span>
+                              </button>
+
                               <button
                                 type="button"
                                 onClick={() => handleCopyCouponCode(coupon)}
@@ -3967,16 +4318,21 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         id="duitnow-upload-input"
                         accept="image/*"
                         className="hidden"
-                        onChange={(e) => {
+                        onChange={async (e) => {
                           const file = e.target.files?.[0];
                           if (file) {
-                            const reader = new FileReader();
-                            reader.onload = () => {
-                              const base64 = reader.result as string;
+                            try {
+                              const compressed = await compressImageFile(file, { maxWidth: 600, maxHeight: 600, quality: 0.82 });
+                              const base64 = compressed.dataUrl;
                               setDuitnowQrImage(base64);
-                              localStorage.setItem('khairul_duitnow_qr_img', base64);
-                            };
-                            reader.readAsDataURL(file);
+                              try {
+                                localStorage.setItem('khairul_duitnow_qr_img', base64);
+                              } catch (err) {
+                                console.warn('Notice saving QR image to storage:', err);
+                              }
+                            } catch (err) {
+                              console.warn('Gagal memproses gambar QR:', err);
+                            }
                           }
                         }}
                       />

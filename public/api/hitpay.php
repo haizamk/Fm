@@ -254,8 +254,11 @@ if ($action === 'create-payment') {
     $host = $_SERVER['HTTP_HOST'] ?? 'freshmarket.my';
     $baseUrlOrigin = "$protocol://$host";
 
-    $redirectUrl = $config['redirectUrl'] ?? "$baseUrlOrigin/?hitpay_status=completed&order_id=" . urlencode($order['orderId']);
-    $webhookUrl = $config['webhookUrl'] ?? "$baseUrlOrigin/api/hitpay.php?action=webhook";
+    $baseReturnUrl = !empty($config['redirectUrl']) ? rtrim($config['redirectUrl'], '/') : $baseUrlOrigin;
+    $urlParts = explode('?', $baseReturnUrl);
+    $cleanBase = $urlParts[0];
+    $redirectUrl = "{$cleanBase}?hitpay_status=completed&order_id=" . urlencode($order['orderId']);
+    $webhookUrl = !empty($config['webhookUrl']) ? $config['webhookUrl'] : "$baseUrlOrigin/api/hitpay.php?action=webhook";
 
     $customerEmail = !empty($order['customer']['email']) && strpos($order['customer']['email'], '@') !== false
         ? trim($order['customer']['email'])
@@ -270,6 +273,7 @@ if ($action === 'create-payment') {
         'purpose' => "Tempahan Ayam Segar Pasar Semenyih #{$order['orderId']}",
         'reference_number' => (string)$order['orderId'],
         'redirect_url' => $redirectUrl,
+        'webhook' => $webhookUrl,
         'send_email' => false,
         'send_sms' => false,
     ];

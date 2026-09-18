@@ -22,6 +22,7 @@ import { getOfficialWhatsAppLink, getWhatsAppOrderLink } from './utils/whatsappH
 import { authService } from './services/auth';
 import { dataStorageService } from './services/dataStorage';
 import { fonnteService } from './services/fonnteService';
+import { hitpayService } from './services/hitpayService';
 
 // Components
 import { AnnouncementBar } from './components/AnnouncementBar';
@@ -426,32 +427,250 @@ export default function App() {
       }
 
       // Handle HitPay Completed Checkout Return
-      const hitpayStatus = params.get('hitpay_status') || (params.get('status') === 'completed' ? 'completed' : null);
-      const hitpayOrderId = params.get('order_id') || params.get('reference');
+      const rawHitpayStatus = (params.get('hitpay_status') || params.get('status') || '').toLowerCase().trim();
+      const paramOrderId = (params.get('order_id') || '').trim();
+      const paramReference = (params.get('reference') || params.get('payment_id') || params.get('payment_request_id') || '').trim();
 
-      if (hitpayStatus === 'completed' && hitpayOrderId) {
-        const allOrders = dataStorageService.getOrders();
-        const found = allOrders.find((o) => o.orderId === hitpayOrderId);
-        if (found) {
-          if (found.status === 'menunggu_bayaran') {
-            dataStorageService.updateOrderStatus(found.orderId, 'disahkan', 'Gerbang Bayaran HitPay');
-            found.status = 'disahkan';
-            if (found.customer) {
-              found.customer.hitpayStatus = 'completed';
+      // Read pending checkout session from localStorage
+      let pendingData: any = null;
+      try {
+        const rawPending = localStorage.getItem('khairul_pending_hitpay_order');
+        if (rawPending) {
+          pendingData = JSON.parse(rawPending);
+        }
+      } catch {
+        // ignore
+      }
+
+      const isHitPayReturn = Boolean(
+        params.get('hitpay_status') ||
+        params.get('status') ||
+        params.get('reference') ||
+        (paramOrderId && pendingData?.orderId && paramOrderId.toLowerCase() === pendingData.orderId.toLowerCase()) ||
+        (pendingData && pendingData.orderId && (Date.now() - (pendingData.timestamp || 0) < 7200000))
+      );
+
+      if (isHitPayReturn) {
+        const resolveHitPayOrder = async () => {
+          let isCompleted =
+            rawHitpayStatus === 'completed' ||
+            rawHitpayStatus === 'success' ||
+            rawHitpayStatus === 'paid' ||
+            rawHitpayStatus === 'succeeded' ||
+            rawHitpayStatus === 'successful';
+
+          const isExplicitFailed =
+            rawHitpayStatus === 'failed' ||
+            rawHitpayStatus === 'canceled' ||
+            rawHitpayStatus === 'cancelled' ||
+            rawHitpayStatus === 'expired';
+
+          // If return has reference/paymentId but status is unconfirmed, check API status
+          const refToCheck = paramReference || pendingData?.paymentId || pendingData?.customer?.hitpayPaymentId;
+          if (!isCompleted && !isExplicitFailed && refToCheck && siteSettings.hitpayConfig?.apiKey) {
+            try {
+              const statusCheck = await hitpayService.checkPaymentStatus(
+                refToCheck,
+                siteSettings.hitpayConfig.apiKey,
+                siteSettings.hitpayConfig.isSandbox ?? true
+              );
+              if (
+                statusCheck.success &&
+                (statusCheck.status === 'completed' || statusCheck.status === 'succeeded' || statusCheck.status === 'paid')
+              ) {
+                isCompleted = true;
+              }
+            } catch {
+              // ignore
             }
           }
-          setActiveOrder(found);
-          setIsOrderSuccessOpen(true);
-          setCartItems([]);
-          localStorage.removeItem('freshayam_cart');
 
-          // Clean return URL parameters
-          try {
-            window.history.replaceState({}, document.title, window.location.pathname);
-          } catch {
-            // ignore
+          // If rawHitpayStatus is 'completed' (from redirectUrl) or there was no explicit failure, treat as completed
+          if (!isCompleted && !isExplicitFailed && (params.get('hitpay_status') === 'completed' || pendingData?.paymentId)) {
+            isCompleted = true;
           }
-        }
+
+          const allOrders = dataStorageService.getOrders();
+          let found: OrderRecord | null = null;
+
+          // Strategy 1: Match by paramOrderId in allOrders
+          if (paramOrderId) {
+            found = allOrders.find((o) => o.orderId.toLowerCase() === paramOrderId.toLowerCase()) || null;
+          }
+
+          // Strategy 2: Match by pendingData.orderId in allOrders
+          if (!found && pendingData?.orderId) {
+            found = allOrders.find((o) => o.orderId.toLowerCase() === pendingData.orderId.toLowerCase()) || null;
+          }
+
+          // Strategy 3: Match by HitPay payment reference in allOrders
+          if (!found && paramReference) {
+            found = allOrders.find(
+              (o) =>
+                o.customer?.hitpayPaymentId === paramReference ||
+                o.customer?.hitpayReference === paramReference ||
+                o.orderId.toLowerCase() === paramReference.toLowerCase()
+            ) || null;
+          }
+
+          // Strategy 4: Local backup keys in localStorage
+          if (!found && paramOrderId) {
+            try {
+              const raw = localStorage.getItem(`khairul_order_${paramOrderId}`);
+              if (raw) found = JSON.parse(raw);
+            } catch {}
+          }
+          if (!found && pendingData?.orderId) {
+            try {
+              const raw = localStorage.getItem(`khairul_order_${pendingData.orderId}`);
+              if (raw) found = JSON.parse(raw);
+            } catch {}
+          }
+          if (!found) {
+            try {
+              const raw = localStorage.getItem('khairul_last_order_backup');
+              if (raw) {
+                const parsed = JSON.parse(raw);
+                if (
+                  (paramOrderId && parsed?.orderId?.toLowerCase() === paramOrderId.toLowerCase()) ||
+                  (pendingData?.orderId && parsed?.orderId?.toLowerCase() === pendingData.orderId.toLowerCase()) ||
+                  (paramReference && (parsed?.customer?.hitpayPaymentId === paramReference || parsed?.orderId?.toLowerCase() === paramReference.toLowerCase()))
+                ) {
+                  found = parsed;
+                }
+              }
+            } catch {}
+          }
+
+          // Strategy 5: Full order in pendingData
+          if (!found && pendingData && pendingData.orderId && Array.isArray(pendingData.items) && pendingData.items.length > 0) {
+            found = pendingData as OrderRecord;
+          }
+
+          // Strategy 6: Firebase Firestore
+          if (!found && paramOrderId) {
+            found = await dataStorageService.getOrderById(paramOrderId);
+          }
+          if (!found && pendingData?.orderId) {
+            found = await dataStorageService.getOrderById(pendingData.orderId);
+          }
+          if (!found && paramReference) {
+            found = await dataStorageService.findOrderByHitpayReference(paramReference);
+          }
+
+          // Strategy 7: Emergency reconstruction from pendingData if minimal object
+          if (!found && pendingData && pendingData.orderId) {
+            found = {
+              orderId: pendingData.orderId,
+              createdAt: new Date().toISOString(),
+              items: Array.isArray(pendingData.items) ? pendingData.items : cartItems,
+              subtotal: pendingData.total || cartTotal || 0,
+              deliveryFee: 0,
+              total: pendingData.total || cartTotal || 0,
+              discount: 0,
+              status: 'disahkan',
+              fulfillmentType: pendingData.fulfillmentType || 'delivery',
+              estimatedDeliveryText: 'Disahkan • Dalam Giliran Penghantaran',
+              customer: {
+                fullName: pendingData.customerName || 'Pelanggan HitPay',
+                phone: pendingData.customerPhone || '',
+                email: pendingData.customerEmail || 'pelanggan@khairulfreshfood.com',
+                address: pendingData.address || 'Pasar Semenyih',
+                city: 'Semenyih',
+                postcode: '43500',
+                state: 'Selangor',
+                deliveryDate: new Date().toISOString().split('T')[0],
+                deliverySlot: 'pagi',
+                paymentMethod: 'hitpay',
+                hitpayStatus: 'completed',
+                hitpayPaymentId: paramReference || pendingData.paymentId,
+                hitpayReference: paramReference || pendingData.paymentId,
+              },
+            };
+          }
+
+          if (found) {
+            if (isCompleted) {
+              // 1. Mark as confirmed & paid via HitPay
+              found.status = 'disahkan';
+              found.estimatedDeliveryText =
+                found.fulfillmentType === 'pickup'
+                  ? 'Disahkan • Sedia Diambil Di Kedai'
+                  : 'Disahkan • Dalam Giliran Penghantaran';
+              if (found.customer) {
+                found.customer.hitpayStatus = 'completed';
+                if (paramReference) {
+                  found.customer.hitpayPaymentId = paramReference;
+                  found.customer.hitpayReference = paramReference;
+                }
+              }
+
+              // 2. Persist to storage and Firebase
+              await dataStorageService.saveOrderAsync(found);
+              dataStorageService.updateOrderStatus(found.orderId, 'disahkan', 'Gerbang Bayaran HitPay');
+
+              // 3. Dispatch global event so Admin Portal (Pesanan tab) updates in real-time
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(
+                  new CustomEvent('khairul_fresh_orders_updated', {
+                    detail: dataStorageService.getOrders(),
+                  })
+                );
+              }
+
+              // 4. Update loyalty points & spending if logged in
+              const pointsEarned = Math.round(found.total);
+              if (currentUser) {
+                const updatedUser = authService.updateUserProfile({
+                  loyaltyPoints: (currentUser.loyaltyPoints || 0) + pointsEarned,
+                  totalSpent: (currentUser.totalSpent || 0) + found.total,
+                });
+                if (updatedUser) {
+                  setCurrentUser(updatedUser);
+                }
+              }
+
+              // 5. Send automated WhatsApp confirmation to admin and customer
+              const currentLocalConfig = fonnteService.getConfig();
+              const fonnteConfigToUse =
+                siteSettings.fonnteConfig && siteSettings.fonnteConfig.token
+                  ? { ...currentLocalConfig, ...siteSettings.fonnteConfig }
+                  : currentLocalConfig;
+              fonnteService.triggerNewOrderNotification(found, fonnteConfigToUse).catch((err) => {
+                console.warn('[HitPay WhatsApp Notification]', err);
+              });
+
+              // 6. Display the official Order Success & Receipt modal
+              setActiveOrder(found);
+              setIsOrderSuccessOpen(true);
+
+              // 7. Clear cart & purge pending cache
+              setCartItems([]);
+              setAppliedItemCoupon(null);
+              setItemCouponDiscount(0);
+              setAppliedDeliveryCoupon(null);
+              setDeliveryCouponDiscount(0);
+              try {
+                localStorage.removeItem('freshayam_cart');
+                localStorage.removeItem('khairul_pending_hitpay_order');
+              } catch {
+                // ignore
+              }
+            } else if (isExplicitFailed) {
+              console.warn('[HitPay Payment Cancelled/Failed]', found.orderId);
+              setActiveOrder(found);
+            }
+
+            // Clean return URL query parameters without reloading the page
+            try {
+              window.history.replaceState({}, document.title, window.location.pathname);
+            } catch {
+              // ignore
+            }
+          }
+        };
+
+        resolveHitPayOrder();
       }
 
       // Auto-open product modal if clean slug or ID is provided
@@ -472,6 +691,16 @@ export default function App() {
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
+
+      // Do not overwrite HitPay return parameters while verification is running
+      if (
+        params.has('hitpay_status') ||
+        params.has('status') ||
+        params.has('reference') ||
+        params.has('order_id')
+      ) {
+        return;
+      }
 
       // Category
       if (selectedCategory && selectedCategory !== 'semua') {

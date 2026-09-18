@@ -604,10 +604,33 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         const hitpayRes = await hitpayService.createPaymentRequest(newOrder, hitpayConfig);
         
         if (hitpayRes.url) {
-          // Save order as pending payment
+          // Link HitPay payment ID and reference to the order
+          newOrder.customer.hitpayPaymentId = hitpayRes.id;
+          newOrder.customer.hitpayReference = hitpayRes.id;
+          newOrder.customer.hitpayStatus = 'pending';
+
+          // Save order coupons
           if (activeItemCoupon?.code) dataStorageService.recordCouponUsage(activeItemCoupon.code);
           if (activeDeliveryCoupon?.code) dataStorageService.recordCouponUsage(activeDeliveryCoupon.code);
-          dataStorageService.saveOrder(newOrder);
+
+          // Store pending HitPay transaction details in localStorage with FULL order object!
+          try {
+            localStorage.setItem(
+              'khairul_pending_hitpay_order',
+              JSON.stringify({
+                ...newOrder,
+                paymentId: hitpayRes.id,
+                timestamp: Date.now(),
+              })
+            );
+            localStorage.setItem(`khairul_order_${newOrder.orderId}`, JSON.stringify(newOrder));
+            localStorage.setItem('khairul_last_order_backup', JSON.stringify(newOrder));
+          } catch {
+            // ignore
+          }
+
+          // Await asynchronous save to Firestore and storage before redirecting
+          await dataStorageService.saveOrderAsync(newOrder);
           
           setHitpayScreenData({
             isOpen: true,
@@ -618,12 +641,14 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           });
           setIsSubmitting(false);
 
-          // Direct automatic redirect to the official HitPay payment gateway!
-          try {
-            window.location.href = hitpayRes.url;
-          } catch {
-            // fallback handled by modal UI
-          }
+          // Allow a brief tick for browser storage and network buffers to complete before redirect
+          setTimeout(() => {
+            try {
+              window.location.href = hitpayRes.url;
+            } catch {
+              // fallback handled by modal UI
+            }
+          }, 300);
           return;
         } else {
           throw new Error(hitpayRes.message || 'Gagal mencipta pautan bayaran HitPay');

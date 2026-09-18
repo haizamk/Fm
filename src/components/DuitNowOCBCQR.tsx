@@ -3,6 +3,7 @@ import QRCode from 'qrcode';
 import { QrCode, Copy, Check, MessageCircle, Download, ExternalLink, ShieldCheck, ZoomIn, X, Upload, Image as ImageIcon, RefreshCw } from 'lucide-react';
 import { normalizeWhatsAppPhone, OFFICIAL_WHATSAPP_DIGITS, openWhatsAppSafe, getOfficialWhatsAppLink } from '../utils/whatsappHelper';
 import { dataStorageService } from '../services/dataStorage';
+import { compressImageFile } from '../utils/imageCompressor';
 
 interface DuitNowOCBCQRProps {
   orderTotal?: number;
@@ -115,12 +116,12 @@ export const DuitNowOCBCQR: React.FC<DuitNowOCBCQRProps> = ({
     setTimeout(() => setCopiedField(null), 2500);
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const base64 = reader.result as string;
+      try {
+        const compressed = await compressImageFile(file, { maxWidth: 600, maxHeight: 600, quality: 0.82 });
+        const base64 = compressed.dataUrl;
         setCustomQrImage(base64);
         try {
           localStorage.setItem('khairul_duitnow_qr_img', base64);
@@ -137,10 +138,11 @@ export const DuitNowOCBCQR: React.FC<DuitNowOCBCQRProps> = ({
             },
           }, 'Admin/Pelanggan');
         } catch (err) {
-          console.error('Failed to save QR image:', err);
+          console.warn('Notice saving QR image to local storage:', err);
         }
-      };
-      reader.readAsDataURL(file);
+      } catch (uploadErr) {
+        console.warn('Gagal memproses imej QR:', uploadErr);
+      }
     }
   };
 

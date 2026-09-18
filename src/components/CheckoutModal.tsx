@@ -604,7 +604,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         const hitpayRes = await hitpayService.createPaymentRequest(newOrder, hitpayConfig);
         
         if (hitpayRes.url) {
-          // Temporarily save order as pending
+          // Save order as pending payment
           if (activeItemCoupon?.code) dataStorageService.recordCouponUsage(activeItemCoupon.code);
           if (activeDeliveryCoupon?.code) dataStorageService.recordCouponUsage(activeDeliveryCoupon.code);
           dataStorageService.saveOrder(newOrder);
@@ -617,6 +617,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             isSimulated: hitpayRes.isSimulated || false,
           });
           setIsSubmitting(false);
+
+          // Direct automatic redirect to the official HitPay payment gateway!
+          try {
+            window.location.href = hitpayRes.url;
+          } catch {
+            // fallback handled by modal UI
+          }
           return;
         } else {
           throw new Error(hitpayRes.message || 'Gagal mencipta pautan bayaran HitPay');
@@ -707,15 +714,16 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
             {/* Primary Action: Open HitPay Payment Window */}
             <div className="space-y-2.5">
-              <a
-                href={hitpayScreenData.paymentUrl}
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                type="button"
+                onClick={() => {
+                  window.location.href = hitpayScreenData.paymentUrl;
+                }}
                 className="w-full py-3.5 px-5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 transition-all cursor-pointer"
               >
                 <ExternalLink className="w-4 h-4" />
                 <span>Buka Halaman Bayaran HitPay Sekarang</span>
-              </a>
+              </button>
 
               {/* Status Checker */}
               <button
@@ -747,8 +755,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   } else {
                     alert(
                       `Status bayaran HitPay semasa: ${
-                        res.status === 'pending' ? 'Belum Selesai (Pending)' : res.status
-                      }\n\nSila lengkapkan transaksi FPX / DuitNow di laman HitPay sebelum menyemak semula.`
+                        res.status === 'pending' ? 'Belum Selesai (Menunggu Bayaran)' : res.status
+                      }\n\nSila lengkapkan bayaran FPX / DuitNow di laman HitPay terlebih dahulu.`
                     );
                   }
                 }}
@@ -759,29 +767,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 ) : (
                   <RefreshCw className="w-4 h-4 text-emerald-600" />
                 )}
-                <span>Semak Status Pembayaran HitPay Terkini</span>
-              </button>
-
-              {/* Direct confirmation fallback */}
-              <button
-                type="button"
-                onClick={() => {
-                  const completedOrder: OrderRecord = {
-                    ...pendingOrder,
-                    status: 'disahkan',
-                    customer: {
-                      ...pendingOrder.customer,
-                      hitpayStatus: 'completed',
-                    },
-                  };
-                  dataStorageService.saveOrder(completedOrder);
-                  setHitpayScreenData(null);
-                  onCompleteOrder(completedOrder);
-                }}
-                className="w-full py-2.5 px-4 rounded-xl bg-stone-900 dark:bg-stone-800 hover:bg-stone-950 text-white font-bold text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
-              >
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                <span>Saya Telah Selesai Buat Bayaran</span>
+                <span>Semak Status Pembayaran HitPay</span>
               </button>
             </div>
 

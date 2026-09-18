@@ -97,12 +97,82 @@ if ($action === 'health') {
     exit;
 }
 
+// Helper to read server-saved config
+function getHitPayServerConfig() {
+    $cfgFile = __DIR__ . '/hitpay_config.json';
+    if (file_exists($cfgFile)) {
+        $content = @file_get_contents($cfgFile);
+        if ($content) {
+            $parsed = @json_decode($content, true);
+            if (is_array($parsed)) return $parsed;
+        }
+    }
+    return [];
+}
+
+// ==========================================================
+// ROUTE: Save Server Config (Admin)
+// ==========================================================
+if ($action === 'save-config') {
+    $apiKey = trim($body['apiKey'] ?? $_POST['apiKey'] ?? '');
+    $salt = trim($body['salt'] ?? $_POST['salt'] ?? '');
+    $isSandbox = !empty($body['isSandbox']) || (isset($_POST['isSandbox']) && $_POST['isSandbox'] === 'true');
+
+    $cfg = [
+        'apiKey' => $apiKey,
+        'salt' => $salt,
+        'isSandbox' => $isSandbox,
+        'updated_at' => date('c'),
+    ];
+
+    $cfgFile = __DIR__ . '/hitpay_config.json';
+    $saved = @file_put_contents($cfgFile, json_encode($cfg, JSON_PRETTY_PRINT));
+
+    if ($saved !== false) {
+        echo json_encode([
+            'success' => true,
+            'message' => 'Konfigurasi HitPay berjaya disimpan ke pelayan HestiaCP!',
+            'environment' => $isSandbox ? 'sandbox' : 'production',
+        ]);
+    } else {
+        http_response_code(500);
+        echo json_encode([
+            'success' => false,
+            'message' => 'Gagal menulis fail konfigurasi di pelayan (periksa keizinan folder api).'
+        ]);
+    }
+    exit;
+}
+
+// ==========================================================
+// ROUTE: Get Server Config
+// ==========================================================
+if ($action === 'get-config') {
+    $cfg = getHitPayServerConfig();
+    echo json_encode([
+        'success' => true,
+        'hasApiKey' => !empty($cfg['apiKey']),
+        'isSandbox' => !empty($cfg['isSandbox']),
+        'maskedApiKey' => !empty($cfg['apiKey']) ? substr($cfg['apiKey'], 0, 4) . '...' . substr($cfg['apiKey'], -4) : '',
+        'updated_at' => $cfg['updated_at'] ?? null,
+    ]);
+    exit;
+}
+
 // ==========================================================
 // ROUTE: Test Connection
 // ==========================================================
 if ($action === 'test-connection') {
     $apiKey = trim($body['apiKey'] ?? $_POST['apiKey'] ?? '');
     $isSandbox = !empty($body['isSandbox']) || (isset($_POST['isSandbox']) && $_POST['isSandbox'] === 'true');
+
+    if (empty($apiKey)) {
+        $serverCfg = getHitPayServerConfig();
+        $apiKey = $serverCfg['apiKey'] ?? '';
+        if (isset($serverCfg['isSandbox'])) {
+            $isSandbox = !empty($serverCfg['isSandbox']);
+        }
+    }
 
     if (empty($apiKey)) {
         http_response_code(400);
@@ -113,8 +183,8 @@ if ($action === 'test-connection') {
         exit;
     }
 
-    $baseUrl = $isSandbox ? 'https://api.sandbox.hitpayapp.com/v1' : 'https://api.hitpayapp.com/v1';
-    $res = callHitPayApi("$baseUrl/payment-methods", 'GET', [
+    $baseUrl = $isSandbox ? 'https://api.sandbox.hit-pay.com/v1' : 'https://api.hit-pay.com/v1';
+    $res = callHitPayApi("$baseUrl/payment-requests", 'GET', [
         "X-BUSINESS-API-KEY: $apiKey",
         'Content-Type: application/json',
         'X-Requested-With: XMLHttpRequest'
@@ -130,7 +200,7 @@ if ($action === 'test-connection') {
         ]);
     } else {
         $errData = json_decode($res['body'], true);
-        $errMsg = $errData['message'] ?? $errData['error'] ?? $res['error'] ?? 'HTTP ' . $res['code'];
+        $errMsg = $errData['message'] ?? $errData['error'] ?? $res['error'] ?? ('HTTP ' . $res['code']);
         http_response_code($res['code'] > 0 ? $res['code'] : 500);
         echo json_encode([
             'success' => false,
@@ -159,6 +229,17 @@ if ($action === 'create-payment') {
 
     $isSandbox = !empty($config['isSandbox']);
     $apiKey = trim($config['apiKey'] ?? '');
+
+    // Fallback to server-saved config if client didn't supply apiKey
+    if (empty($apiKey) || strlen($apiKey) < 5) {
+        $serverCfg = getHitPayServerConfig();
+        if (!empty($serverCfg['apiKey'])) {
+            $apiKey = trim($serverCfg['apiKey']);
+            if (isset($serverCfg['isSandbox'])) {
+                $isSandbox = !empty($serverCfg['isSandbox']);
+            }
+        }
+    }
 
     if (empty($apiKey) || strlen($apiKey) < 5) {
         http_response_code(400);
@@ -189,24 +270,24 @@ if ($action === 'create-payment') {
         'purpose' => "Tempahan Ayam Segar Pasar Semenyih #{$order['orderId']}",
         'reference_number' => (string)$order['orderId'],
         'redirect_url' => $redirectUrl,
-        'webhook' => $webhookUrl,
         'send_email' => false,
         'send_sms' => false,
     ];
 
+    // Only specify payment_methods if explicitly set by user, otherwise allow all HitPay merchant methods
     if (!empty($config['enabledMethods']) && is_array($config['enabledMethods'])) {
         $allowed = [];
         foreach ($config['enabledMethods'] as $m) {
             if ($m === 'duitnow') $allowed[] = 'duitnow_qr';
             elseif ($m === 'tng') $allowed[] = 'touchngo';
-            elseif ($m === 'fpx' || $m === 'card') $allowed[] = $m;
+            elseif ($m === 'fpx' || $m === 'card' || $m === 'grabpay' || $m === 'shopeepay') $allowed[] = $m;
         }
         if (!empty($allowed)) {
             $payload['payment_methods'] = $allowed;
         }
     }
 
-    $apiEndpoint = $isSandbox ? 'https://api.sandbox.hitpayapp.com/v1/payment-requests' : 'https://api.hitpayapp.com/v1/payment-requests';
+    $apiEndpoint = $isSandbox ? 'https://api.sandbox.hit-pay.com/v1/payment-requests' : 'https://api.hit-pay.com/v1/payment-requests';
     $res = callHitPayApi($apiEndpoint, 'POST', [
         "X-BUSINESS-API-KEY: $apiKey",
         'Content-Type: application/json',
@@ -253,6 +334,14 @@ if ($action === 'payment-status') {
     $apiKey = trim($_GET['apiKey'] ?? $body['apiKey'] ?? '');
     $isSandbox = (isset($_GET['isSandbox']) && $_GET['isSandbox'] === 'true') || !empty($body['isSandbox']);
 
+    if (empty($apiKey)) {
+        $serverCfg = getHitPayServerConfig();
+        $apiKey = $serverCfg['apiKey'] ?? '';
+        if (isset($serverCfg['isSandbox'])) {
+            $isSandbox = !empty($serverCfg['isSandbox']);
+        }
+    }
+
     if (empty($id)) {
         http_response_code(400);
         echo json_encode(['success' => false, 'message' => 'ID bayaran diperlukan.']);
@@ -264,7 +353,7 @@ if ($action === 'payment-status') {
         exit;
     }
 
-    $baseUrl = $isSandbox ? 'https://api.sandbox.hitpayapp.com/v1' : 'https://api.hitpayapp.com/v1';
+    $baseUrl = $isSandbox ? 'https://api.sandbox.hit-pay.com/v1' : 'https://api.hit-pay.com/v1';
     $res = callHitPayApi("$baseUrl/payment-requests/" . urlencode($id), 'GET', [
         "X-BUSINESS-API-KEY: $apiKey",
         'Content-Type: application/json',

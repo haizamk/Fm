@@ -660,6 +660,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     setSettingsForm(saved);
     onSettingsUpdated(saved);
 
+    // Also persist config directly to server PHP backend
+    hitpayService.saveServerConfig(hitpayApiKey.trim(), hitpaySalt.trim(), hitpayIsSandbox).catch(() => {});
+
     dataStorageService.addAuditLog({
       action: 'GATEWAY HITPAY DIKEMASKINI',
       performedBy: adminUser.name,
@@ -668,7 +671,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     });
     setAuditLogs(dataStorageService.getAuditLogs());
 
-    showNotification('success', 'Tetapan API HitPay berjaya disimpan!');
+    showNotification('success', 'Tetapan API HitPay berjaya disimpan ke pelayar dan pelayan!');
   };
 
   const handleTestHitpayConnection = async () => {

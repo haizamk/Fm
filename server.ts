@@ -120,10 +120,10 @@ async function startServer() {
 
       const cleanKey = apiKey.trim();
       const baseUrl = isSandbox 
-        ? 'https://api.sandbox.hitpayapp.com/v1' 
-        : 'https://api.hitpayapp.com/v1';
+        ? 'https://api.sandbox.hit-pay.com/v1' 
+        : 'https://api.hit-pay.com/v1';
 
-      const response = await fetch(`${baseUrl}/payment-methods`, {
+      const response = await fetch(`${baseUrl}/payment-requests`, {
         method: 'GET',
         headers: {
           'X-BUSINESS-API-KEY': cleanKey,
@@ -195,8 +195,8 @@ async function startServer() {
       }
 
       const baseUrl = isSandbox 
-        ? 'https://api.sandbox.hitpayapp.com/v1' 
-        : 'https://api.hitpayapp.com/v1';
+        ? 'https://api.sandbox.hit-pay.com/v1' 
+        : 'https://api.hit-pay.com/v1';
 
       const hostOrigin = req.headers.origin || req.headers.referer || 'https://ais-dev-ibciauzkghto525j7ma3h5-707200717362.asia-east1.run.app';
       const cleanOrigin = String(hostOrigin).replace(/\/$/, '');
@@ -319,7 +319,7 @@ async function startServer() {
         return res.status(400).json({ success: false, message: 'API Key diperlukan untuk menyemak status bayaran.' });
       }
 
-      const baseUrl = isSandbox ? 'https://api.sandbox.hitpayapp.com/v1' : 'https://api.hitpayapp.com/v1';
+      const baseUrl = isSandbox ? 'https://api.sandbox.hit-pay.com/v1' : 'https://api.hit-pay.com/v1';
 
       try {
         const response = await fetch(`${baseUrl}/payment-requests/${encodeURIComponent(paymentRequestId)}`, {

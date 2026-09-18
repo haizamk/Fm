@@ -56,7 +56,13 @@ class HitPayService {
         const text = await serverRes.text();
         try {
           const data = JSON.parse(text);
-          if (data && typeof data === 'object' && data.success) return data;
+          if (data && typeof data === 'object') {
+            return {
+              success: !!data.success,
+              message: data.message || (data.success ? 'Sambungan Berjaya' : 'Ralat sambungan HitPay'),
+              data: data.data,
+            };
+          }
         } catch {
           // Fallback to next endpoint
         }
@@ -67,8 +73,8 @@ class HitPayService {
 
     // Direct Client-Side HitPay API Check
     try {
-      const baseUrl = isSandbox ? 'https://api.sandbox.hitpayapp.com/v1' : 'https://api.hitpayapp.com/v1';
-      const directRes = await fetch(`${baseUrl}/payment-methods`, {
+      const baseUrl = isSandbox ? 'https://api.sandbox.hit-pay.com/v1' : 'https://api.hit-pay.com/v1';
+      const directRes = await fetch(`${baseUrl}/payment-requests`, {
         method: 'GET',
         headers: {
           'X-BUSINESS-API-KEY': cleanKey,
@@ -77,22 +83,45 @@ class HitPayService {
         },
       });
 
+      const data = await directRes.json().catch(() => ({}));
       if (directRes.ok) {
-        const data = await directRes.json().catch(() => ({}));
         return {
           success: true,
           message: `Sambungan API HitPay Berjaya! (${isSandbox ? 'Mod Sandbox / Ujian' : 'Mod Pengeluaran / Live'})`,
           data,
         };
+      } else {
+        return {
+          success: false,
+          message: `Ralat HitPay: ${data.message || 'Kunci API tidak sah atau tidak dibenarkan.'}`,
+        };
       }
     } catch {
-      // Ignore network errors and pass simulation validation
+      return {
+        success: false,
+        message: 'Pelayan backend tidak dapat dihubungi untuk mengesahkan kunci API HitPay. Sila semak fail hitpay.php di pelayan.',
+      };
     }
+  }
 
-    return {
-      success: true,
-      message: `Tetapan Kunci API HitPay Disimpan & Sah! (${isSandbox ? 'Mod Ujian Sandbox' : 'Mod Pengeluaran Live'})`,
-    };
+  /**
+   * Save HitPay configuration to PHP backend server
+   */
+  async saveServerConfig(apiKey: string, salt: string, isSandbox: boolean): Promise<boolean> {
+    const endpoints = ['/api/hitpay.php?action=save-config', '/hitpay.php?action=save-config'];
+    for (const ep of endpoints) {
+      try {
+        const res = await fetch(ep, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ apiKey: apiKey.trim(), salt: salt.trim(), isSandbox }),
+        });
+        if (res.ok) return true;
+      } catch {
+        // continue
+      }
+    }
+    return false;
   }
 
   /**
@@ -143,6 +172,8 @@ class HitPayService {
       },
     });
 
+    let lastErrorMessage = '';
+
     for (const endpoint of phpEndpoints) {
       try {
         const serverResponse = await fetch(endpoint, {
@@ -174,90 +205,95 @@ class HitPayService {
             message: data.message,
           };
         }
-      } catch (err) {
+
+        if (data && data.message) {
+          lastErrorMessage = data.message;
+        }
+      } catch (err: any) {
         console.warn(`[HitPay Endpoint Call ${endpoint} Notice]`, err);
+        lastErrorMessage = err?.message || 'Gagal menghubungi pelayan backend HitPay.';
       }
     }
 
     // 2. Second Attempt: Direct Client-Side HitPay API Call
-    try {
-      const baseUrl = isSandbox ? 'https://api.sandbox.hitpayapp.com/v1' : 'https://api.hitpayapp.com/v1';
-      const customerEmail = (order.customer?.email && order.customer.email.includes('@'))
-        ? order.customer.email.trim()
-        : `${(order.customer?.phone || 'cust').replace(/\D/g, '') || 'order'}@khairulfreshfood.my`;
+    if (apiKey && apiKey.length >= 5) {
+      try {
+        const baseUrl = isSandbox ? 'https://api.sandbox.hit-pay.com/v1' : 'https://api.hit-pay.com/v1';
+        const customerEmail = (order.customer?.email && order.customer.email.includes('@'))
+          ? order.customer.email.trim()
+          : `${(order.customer?.phone || 'cust').replace(/\D/g, '') || 'order'}@khairulfreshfood.my`;
 
-      const payload: Record<string, any> = {
-        amount: Number(order.total).toFixed(2),
-        currency: 'MYR',
-        email: customerEmail,
-        name: order.customer?.fullName || 'Pelanggan Khairul Fresh Food',
-        phone: order.customer?.phone || '',
-        purpose: `Tempahan Ayam Segar Pasar Semenyih #${order.orderId}`,
-        reference_number: String(order.orderId),
-        redirect_url: redirectUrl,
-        webhook: webhookUrl,
-        send_email: false,
-        send_sms: false,
-      };
+        const payload: Record<string, any> = {
+          amount: Number(order.total).toFixed(2),
+          currency: 'MYR',
+          email: customerEmail,
+          name: order.customer?.fullName || 'Pelanggan Khairul Fresh Food',
+          phone: order.customer?.phone || '',
+          purpose: `Tempahan Ayam Segar Pasar Semenyih #${order.orderId}`,
+          reference_number: String(order.orderId),
+          redirect_url: redirectUrl,
+          send_email: false,
+          send_sms: false,
+        };
 
-      if (Array.isArray(config.enabledMethods) && config.enabledMethods.length > 0) {
-        const allowedMethods = config.enabledMethods
-          .map((m: string) => {
-            if (m === 'duitnow') return 'duitnow_qr';
-            if (m === 'tng') return 'touchngo';
-            if (m === 'fpx' || m === 'card') return m;
-            return null;
-          })
-          .filter(Boolean);
-        if (allowedMethods.length > 0) {
-          payload.payment_methods = allowedMethods;
+        if (Array.isArray(config.enabledMethods) && config.enabledMethods.length > 0) {
+          const allowedMethods = config.enabledMethods
+            .map((m: string) => {
+              if (m === 'duitnow') return 'duitnow_qr';
+              if (m === 'tng') return 'touchngo';
+              if (m === 'fpx' || m === 'card' || m === 'grabpay' || m === 'shopeepay') return m;
+              return null;
+            })
+            .filter(Boolean);
+          if (allowedMethods.length > 0) {
+            payload.payment_methods = allowedMethods;
+          }
         }
-      }
 
-      const directRes = await fetch(`${baseUrl}/payment-requests`, {
-        method: 'POST',
-        headers: {
-          'X-BUSINESS-API-KEY': apiKey,
-          'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-        body: JSON.stringify(payload),
-      });
+        const directRes = await fetch(`${baseUrl}/payment-requests`, {
+          method: 'POST',
+          headers: {
+            'X-BUSINESS-API-KEY': apiKey,
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+          },
+          body: JSON.stringify(payload),
+        });
 
-      if (directRes.ok) {
-        const directData = await directRes.json();
-        if (directData && directData.url) {
-          return {
-            id: directData.id || `hp_${Date.now()}`,
-            url: directData.url,
-            status: directData.status || 'pending',
-            reference_number: directData.reference_number || String(order.orderId),
-            amount: directData.amount || payload.amount,
-            currency: directData.currency || 'MYR',
-            created_at: directData.created_at || new Date().toISOString(),
-            payment_methods: directData.payment_methods || payload.payment_methods,
-            isSimulated: false,
-          };
+        if (directRes.ok) {
+          const directData = await directRes.json();
+          if (directData && directData.url) {
+            return {
+              id: directData.id || `hp_${Date.now()}`,
+              url: directData.url,
+              status: directData.status || 'pending',
+              reference_number: directData.reference_number || String(order.orderId),
+              amount: directData.amount || payload.amount,
+              currency: directData.currency || 'MYR',
+              created_at: directData.created_at || new Date().toISOString(),
+              payment_methods: directData.payment_methods || payload.payment_methods,
+              isSimulated: false,
+            };
+          }
+        } else {
+          const directErrData = await directRes.json().catch(() => ({}));
+          if (directErrData?.message) {
+            throw new Error(`HitPay: ${directErrData.message}`);
+          }
         }
+      } catch (directErr: any) {
+        if (directErr.message?.includes('HitPay:')) {
+          throw directErr;
+        }
+        console.warn('[HitPay Direct API Call Notice]', directErr);
       }
-    } catch (directErr) {
-      console.warn('[HitPay Direct API Call Notice]', directErr);
     }
 
-    // 3. Final Resilient Fallback: Seamless Interactive Checkout Simulation Page
-    const simUrl = `${window.location.origin}/?hitpay_simulate=1&order_id=${encodeURIComponent(order.orderId)}`;
-    return {
-      id: `hp_sim_${Date.now()}`,
-      url: simUrl,
-      status: 'pending',
-      reference_number: String(order.orderId),
-      amount: String(order.total),
-      currency: 'MYR',
-      payment_methods: ['fpx', 'duitnow_qr', 'card', 'touchngo'],
-      created_at: new Date().toISOString(),
-      isSimulated: true,
-      message: 'Pautan pembayaran sedia untuk diproses.',
-    };
+    // Fail clearly instead of quietly falling back to simulation
+    throw new Error(
+      lastErrorMessage ||
+      'Gagal menghasilkan pautan bayaran HitPay. Sila pastikan API Key dimasukkan dengan betul di Portal Pentadbir > Tetapan Kedai.'
+    );
   }
 
   /**

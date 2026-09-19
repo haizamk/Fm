@@ -357,6 +357,9 @@ export async function sendReceiptPDFToWhatsApp(
   const pdfBlob = doc.output('blob');
   const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
 
+  const cleanPhone = whatsappPhone.replace(/[^0-9]/g, '');
+  const isAdmin = cleanPhone === '601111135503' || cleanPhone === '01111135503';
+
   const itemsList = order.items
     .map(
       (it) =>
@@ -364,7 +367,14 @@ export async function sendReceiptPDFToWhatsApp(
     )
     .join('\n');
 
-  const messageText = `Salam Khairul Fresh Food Direct,%0A%0ASaya ingin lampirkan resit pesanan rasmi saya (PDF):%0A*No. Pesanan:* ${order.orderId}%0A*Nama:* ${encodeURIComponent(order.customer.fullName)}%0A*Telefon:* ${order.customer.phone}%0A*Slot Penghantaran:* ${encodeURIComponent(order.estimatedDeliveryText)}%0A*Jumlah Bayaran (Lunas):* RM ${order.total.toFixed(2)}%0A%0A*Senarai Item:*%0A${encodeURIComponent(itemsList)}%0A%0ATerima kasih!`;
+  let rawMessageText = '';
+  if (isAdmin) {
+    rawMessageText = `Salam Admin Khairul Fresh Food,\n\nNotifikasi Pesanan Baharu (#${order.orderId}):\n*Nama Pelanggan:* ${order.customer.fullName}\n*No. Telefon:* ${order.customer.phone}\n*Alamat Hantar:* ${order.customer.address}, ${order.customer.postcode} ${order.customer.city}\n*Slot Penghantaran:* ${order.estimatedDeliveryText}\n*Jumlah Bayaran (Lunas):* RM ${order.total.toFixed(2)}\n\n*Senarai Item:* \n${itemsList}\n\nSila semak & sediakan pesanan. Terima kasih!`;
+  } else {
+    rawMessageText = `Salam ${order.customer.fullName},\n\nResit Pesanan Rasmi Khairul Fresh Food (#${order.orderId}):\n*Slot Penghantaran:* ${order.estimatedDeliveryText}\n*Jumlah Bayaran (Lunas):* RM ${order.total.toFixed(2)}\n\n*Senarai Item:* \n${itemsList}\n\nTerima kasih kerana membeli di Khairul Fresh Food Direct!`;
+  }
+
+  const messageText = encodeURIComponent(rawMessageText);
 
   // Check if native Web Share API with file support is available
   if (
@@ -392,7 +402,6 @@ export async function sendReceiptPDFToWhatsApp(
   doc.save(fileName);
 
   // 2. Open WhatsApp with pre-filled message
-  const cleanPhone = whatsappPhone.replace(/[^0-9]/g, '');
   openWhatsAppSafe(`https://api.whatsapp.com/send?phone=${cleanPhone}&text=${messageText}`);
 
   return { success: true, mode: 'downloaded_and_opened' };

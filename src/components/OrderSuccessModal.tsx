@@ -2,7 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { OrderRecord } from '../types';
 import { getCutLabel } from '../data/products';
 import { downloadReceiptPDF, sendReceiptPDFToWhatsApp } from '../utils/pdfReceipt';
-import { getWhatsAppOrderConfirmationLink, openWhatsAppSafe } from '../utils/whatsappHelper';
+import { 
+  getWhatsAppOrderConfirmationLink, 
+  openWhatsAppSafe, 
+  OFFICIAL_WHATSAPP_DIGITS, 
+  normalizeWhatsAppPhone 
+} from '../utils/whatsappHelper';
 import { fonnteService } from '../services/fonnteService';
 import { DuitNowOCBCQR } from './DuitNowOCBCQR';
 import confetti from 'canvas-confetti';
@@ -123,19 +128,39 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
     }
   };
 
-  const handleSendPdfToWhatsApp = async () => {
+  const handleSendPdfToAdmin = async () => {
+    if (!order) return;
     try {
       setIsSharingPdf(true);
-      const res = await sendReceiptPDFToWhatsApp(order);
+      const res = await sendReceiptPDFToWhatsApp(order, OFFICIAL_WHATSAPP_DIGITS);
       if (res.mode === 'downloaded_and_opened') {
-        setActionNotice('Fail PDF telah dimuat turun & WhatsApp telah dibuka untuk dilampirkan!');
+        setActionNotice('Resit (PDF) telah dimuat turun & WhatsApp Admin (011-11135503) dibuka!');
       } else {
-        setActionNotice('Resit PDF telah dikongsi ke WhatsApp!');
+        setActionNotice('Resit PDF telah dikongsi ke WhatsApp Admin!');
       }
       setTimeout(() => setActionNotice(null), 5000);
     } catch (err) {
-      console.error('Failed to share PDF to WhatsApp:', err);
-      // Fallback direct download
+      console.error('Failed to share PDF to WhatsApp Admin:', err);
+      downloadReceiptPDF(order);
+    } finally {
+      setIsSharingPdf(false);
+    }
+  };
+
+  const handleSendPdfToCustomer = async () => {
+    if (!order) return;
+    try {
+      setIsSharingPdf(true);
+      const customerPhoneDigits = normalizeWhatsAppPhone(order.customer.phone || OFFICIAL_WHATSAPP_DIGITS);
+      const res = await sendReceiptPDFToWhatsApp(order, customerPhoneDigits);
+      if (res.mode === 'downloaded_and_opened') {
+        setActionNotice(`Resit (PDF) telah dimuat turun & WhatsApp anda (${order.customer.phone}) dibuka!`);
+      } else {
+        setActionNotice('Resit PDF telah dikongsi ke WhatsApp anda!');
+      }
+      setTimeout(() => setActionNotice(null), 5000);
+    } catch (err) {
+      console.error('Failed to share PDF to WhatsApp Customer:', err);
       downloadReceiptPDF(order);
     } finally {
       setIsSharingPdf(false);
@@ -219,24 +244,21 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
                   Simpan & Kongsi Resit Pembayaran
                 </h3>
               </div>
-              <span className="px-2.5 py-1 rounded-full bg-emerald-600 text-white text-[10px] font-bold self-start sm:self-auto shrink-0 shadow-xs">
-                Format PDF Bersih
-              </span>
             </div>
 
             <p className="text-xs text-stone-600 dark:text-stone-300 mb-3.5 leading-relaxed">
               Resit PDF lengkap dengan nombor pesanan, butiran ayam segar, status bayaran HitPay, dan slot penghantaran dijana terus untuk simpanan peribadi atau rujukan bersama.
             </p>
 
-            {/* Action Buttons Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            {/* Action Buttons */}
+            <div className="space-y-2.5">
               
               {/* Download PDF Button */}
               <button
                 type="button"
                 onClick={handleDownloadPdf}
                 disabled={isGeneratingPdf}
-                className="p-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-sm hover:shadow transition-all cursor-pointer disabled:opacity-50"
+                className="w-full p-3.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-sm hover:shadow transition-all cursor-pointer disabled:opacity-50"
               >
                 {isGeneratingPdf ? (
                   <>
@@ -251,25 +273,40 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
                 )}
               </button>
 
-              {/* Send PDF to WhatsApp Button */}
-              <button
-                type="button"
-                onClick={handleSendPdfToWhatsApp}
-                disabled={isSharingPdf}
-                className="p-3 rounded-xl bg-emerald-100 dark:bg-emerald-900/70 hover:bg-emerald-200 dark:hover:bg-emerald-800 text-emerald-900 dark:text-emerald-100 font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 border border-emerald-300 dark:border-emerald-700 transition-all cursor-pointer disabled:opacity-50"
-              >
-                {isSharingPdf ? (
-                  <>
+              {/* Two Direct WhatsApp Action Buttons */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                {/* 1. Resit ke WhatsApp (Customer Phone) */}
+                <button
+                  type="button"
+                  onClick={handleSendPdfToCustomer}
+                  disabled={isSharingPdf}
+                  className="p-3 rounded-xl bg-teal-100 dark:bg-teal-900/70 hover:bg-teal-200 dark:hover:bg-teal-800 text-teal-950 dark:text-teal-100 font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 border border-teal-300 dark:border-teal-700 transition-all cursor-pointer disabled:opacity-50"
+                  title={`Hantar resit PDF ke WhatsApp pelanggan (${order.customer.phone})`}
+                >
+                  {isSharingPdf ? (
+                    <span className="w-4 h-4 border-2 border-teal-700 dark:border-teal-200 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <MessageCircle className="w-4 h-4 text-teal-700 dark:text-teal-300 shrink-0" />
+                  )}
+                  <span>Resit ke WhatsApp (Customer)</span>
+                </button>
+
+                {/* 2. Hantar Notifikasi ke Admin (Admin 011-11135503) */}
+                <button
+                  type="button"
+                  onClick={handleSendPdfToAdmin}
+                  disabled={isSharingPdf}
+                  className="p-3 rounded-xl bg-emerald-100 dark:bg-emerald-900/70 hover:bg-emerald-200 dark:hover:bg-emerald-800 text-emerald-950 dark:text-emerald-100 font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 border border-emerald-300 dark:border-emerald-700 transition-all cursor-pointer disabled:opacity-50"
+                  title="Hantar notifikasi pesanan baharu ke WhatsApp Admin (011-11135503)"
+                >
+                  {isSharingPdf ? (
                     <span className="w-4 h-4 border-2 border-emerald-700 dark:border-emerald-200 border-t-transparent rounded-full animate-spin" />
-                    <span>Memproses Resit WhatsApp...</span>
-                  </>
-                ) : (
-                  <>
-                    <MessageCircle className="w-4 h-4 text-emerald-700 dark:text-emerald-300" />
-                    <span>Hantar Resit (PDF) ke WhatsApp</span>
-                  </>
-                )}
-              </button>
+                  ) : (
+                    <MessageCircle className="w-4 h-4 text-emerald-700 dark:text-emerald-300 shrink-0" />
+                  )}
+                  <span>Hantar Notification ke Admin</span>
+                </button>
+              </div>
 
             </div>
           </div>
@@ -293,63 +330,6 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 font-bold text-xs border border-amber-200 dark:border-amber-800">
               <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
               <span>Status: Disahkan & Menunggu Persediaan Pagi</span>
-            </div>
-          </div>
-
-          {/* WhatsApp Auto-Notification & Quick Contact Banner */}
-          <div className="p-3.5 sm:p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-start gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs mt-0.5">
-                <MessageCircle className="w-4 h-4" />
-              </div>
-              <div className="text-xs space-y-0.5">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="font-bold text-stone-900 dark:text-white">
-                    WhatsApp Gateway Automatik
-                  </span>
-                  {fonnteDispatchStatus ? (
-                    fonnteDispatchStatus.adminSent ? (
-                      <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/80 dark:text-emerald-200 text-[10px] font-extrabold flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                        Tersambung & Dihantar ke Admin (011-11135503)
-                      </span>
-                    ) : (
-                      <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/80 dark:text-amber-200 text-[10px] font-bold flex items-center gap-1">
-                        <span>Menunggu Hantaran Auto</span>
-                      </span>
-                    )
-                  ) : (
-                    <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/80 dark:text-emerald-200 text-[10px] font-bold">
-                      Admin: 011-11135503
-                    </span>
-                  )}
-                </div>
-                <p className="text-[11px] text-stone-600 dark:text-stone-300">
-                  Pesanan anda telah direkod dan sistem menghantar butiran lengkap terus ke WhatsApp pengurusan Khairul Fresh.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={handleAutoResend}
-                disabled={isAutoSending}
-                className="px-3 py-2 bg-white dark:bg-stone-800 hover:bg-stone-50 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-200 text-xs font-semibold rounded-xl border border-stone-200 dark:border-stone-700 transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
-                title="Hantar semula notifikasi automatik melalui Fonnte Gateway"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${isAutoSending ? 'animate-spin text-emerald-600' : ''}`} />
-                <span>{isAutoSending ? 'Menghantar...' : 'Hantar Auto'}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={generateWhatsAppMessage}
-                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                <MessageCircle className="w-3.5 h-3.5" />
-                <span>Buka WhatsApp Admin</span>
-              </button>
             </div>
           </div>
 
@@ -584,37 +564,17 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
         <div className="p-4 sm:p-5 bg-stone-50 dark:bg-stone-950/80 border-t border-stone-200 dark:border-stone-800 shrink-0 flex flex-wrap items-center justify-between gap-2.5 print:hidden">
           <div className="flex flex-wrap items-center gap-2">
             <button
-              onClick={handleDownloadPdf}
-              disabled={isGeneratingPdf}
-              className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 rounded-xl transition-colors cursor-pointer shadow-xs disabled:opacity-50"
-              title="Muat turun fail resit PDF"
-            >
-              <FileDown className="w-3.5 h-3.5" />
-              <span>{isGeneratingPdf ? 'Menjana...' : 'Muat Turun PDF'}</span>
-            </button>
-
-            <button
-              onClick={handleSendPdfToWhatsApp}
-              disabled={isSharingPdf}
-              className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-emerald-800 dark:text-emerald-200 bg-emerald-100 dark:bg-emerald-900/60 hover:bg-emerald-200 dark:hover:bg-emerald-800 rounded-xl border border-emerald-300 dark:border-emerald-700 transition-colors cursor-pointer disabled:opacity-50"
-              title="Kongsi fail resit PDF terus ke WhatsApp"
-            >
-              <MessageCircle className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
-              <span>Resit ke WhatsApp</span>
-            </button>
-
-            <button
               onClick={handlePrint}
-              className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-stone-700 dark:text-stone-300 bg-white dark:bg-stone-800 hover:bg-stone-100 dark:hover:bg-stone-700 border border-stone-300 dark:border-stone-600 rounded-xl transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-bold text-stone-700 dark:text-stone-300 bg-white dark:bg-stone-800 hover:bg-stone-100 dark:hover:bg-stone-700 border border-stone-300 dark:border-stone-600 rounded-xl transition-colors cursor-pointer"
             >
-              <Printer className="w-3.5 h-3.5" />
+              <Printer className="w-4 h-4" />
               <span>Cetak</span>
             </button>
           </div>
 
           <button
             onClick={onClose}
-            className="bg-stone-900 dark:bg-emerald-600 hover:bg-stone-800 dark:hover:bg-emerald-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition-all cursor-pointer"
+            className="bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs sm:text-sm px-5 py-2.5 rounded-xl transition-all cursor-pointer shadow-xs"
           >
             Kembali ke Halaman Utama
           </button>

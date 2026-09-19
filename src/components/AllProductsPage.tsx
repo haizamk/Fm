@@ -301,7 +301,7 @@ export const AllProductsPage: React.FC<AllProductsPageProps> = ({
                 onClick={() => setShowOnlyPromo(!showOnlyPromo)}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                   showOnlyPromo
-                    ? 'bg-rose-600 text-white shadow-xs'
+                    ? 'bg-yellow-400 text-stone-950 font-black shadow-md border border-yellow-300 ring-2 ring-yellow-400/50'
                     : 'bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-700 border border-stone-200 dark:border-stone-700'
                 }`}
               >

@@ -227,8 +227,8 @@ export const ProductCutModal: React.FC<ProductCutModalProps> = ({
                   {activeWeightOpt ? activeWeightOpt.weightLabel : product.weightEstimate}
                 </span>
                 {product.originalPrice && product.originalPrice > baseUnitPrice && (
-                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-300 border border-rose-500/40">
-                    {t('savingBadge')} RM {(product.originalPrice - baseUnitPrice).toFixed(2)}
+                  <span className="text-[11px] font-black px-2.5 py-0.5 rounded-md bg-yellow-400 text-stone-950 border border-yellow-300 shadow-xs">
+                    PROMO: {t('savingBadge')} RM {(product.originalPrice - baseUnitPrice).toFixed(2)}
                   </span>
                 )}
               </div>

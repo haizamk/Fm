@@ -72,7 +72,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   return (
     <div 
       ref={cardRef}
-      className="animate-fade-in-up group bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-800 hover:border-emerald-500/60 dark:hover:border-emerald-500/60 hover:shadow-2xl hover:-translate-y-1.5 hover:scale-[1.018] dark:shadow-stone-950/50 transition-all duration-300 ease-out flex flex-col overflow-hidden relative cursor-pointer"
+      className={`animate-fade-in-up group bg-white dark:bg-stone-900 rounded-2xl border transition-all duration-300 ease-out flex flex-col overflow-hidden relative cursor-pointer ${
+        hasDiscount 
+          ? 'border-yellow-400 dark:border-yellow-400/80 ring-2 ring-yellow-400/50 shadow-md' 
+          : 'border-stone-200 dark:border-stone-800 hover:border-emerald-500/60 dark:hover:border-emerald-500/60'
+      } hover:shadow-2xl hover:-translate-y-1.5 hover:scale-[1.018] dark:shadow-stone-950/50`}
       style={{ animationDelay: staggerDelay }}
     >
       
@@ -153,8 +157,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
           {/* Jimat RM X Promotional Savings Badge */}
           {hasDiscount && savingsAmount > 0 && !isOutOfStock && (
-            <span className="text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider shadow-md text-white bg-rose-600 flex items-center gap-1 w-fit ring-1 ring-white/30">
-              <Sparkles className="w-3 h-3 text-amber-300 fill-amber-300 shrink-0" />
+            <span className="text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider shadow-md text-stone-950 bg-yellow-400 border border-yellow-300 flex items-center gap-1 w-fit ring-2 ring-yellow-400/40">
+              <Sparkles className="w-3 h-3 text-stone-950 fill-stone-950 shrink-0" />
               <span>{t('savingBadge')} RM {savingsAmount.toFixed(2)}</span>
             </span>
           )}
@@ -302,8 +306,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               )}
 
               {hasDiscount && savingsAmount > 0 && (
-                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 font-extrabold text-[10px] border border-rose-200 dark:border-rose-900 shadow-2xs">
-                  {t('savingBadge')} RM {savingsAmount.toFixed(2)}
+                <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md bg-stone-950 text-yellow-300 font-black text-[11px] border border-yellow-400 shadow-xs">
+                  <Sparkles className="w-3 h-3 text-yellow-300 fill-yellow-300" />
+                  <span>{t('savingBadge')} RM {savingsAmount.toFixed(2)}</span>
                 </span>
               )}
             </div>

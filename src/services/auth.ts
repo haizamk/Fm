@@ -14,7 +14,7 @@ import {
 export const ADMIN_ACCOUNT: UserAccount = {
   id: 'usr-admin-krul411',
   username: 'krul411',
-  email: 'krul411@freshayam.com',
+  email: 'vpsrush@gmail.com',
   name: 'Encik Khairul (Admin)',
   role: 'admin',
   phone: '011-11135503',
@@ -27,6 +27,55 @@ export const ADMIN_ACCOUNT: UserAccount = {
 const STORAGE_USERS_KEY = 'khairul_fresh_users_registry_v5';
 const STORAGE_SESSION_KEY = 'khairul_fresh_secure_session_v5';
 const STORAGE_ATTEMPTS_KEY = 'khairul_fresh_login_attempts_v5';
+
+// Deduplicate user list by email/username/id
+export function deduplicateUsers(users: UserAccount[]): UserAccount[] {
+  const map = new Map<string, UserAccount>();
+  for (const u of users) {
+    if (!u) continue;
+    const emailKey = u.email ? u.email.toLowerCase().trim() : '';
+    const usernameKey = u.username ? u.username.toLowerCase().trim() : '';
+    const phoneKey = u.phone ? u.phone.replace(/\D/g, '') : '';
+    const idKey = u.id || '';
+
+    let matchedKey: string | null = null;
+    for (const [k, existing] of map.entries()) {
+      const eEmail = existing.email ? existing.email.toLowerCase().trim() : '';
+      const eUsername = existing.username ? existing.username.toLowerCase().trim() : '';
+      const ePhone = existing.phone ? existing.phone.replace(/\D/g, '') : '';
+
+      if (
+        (emailKey && eEmail === emailKey) ||
+        (usernameKey && eUsername === usernameKey) ||
+        (idKey && existing.id === idKey) ||
+        (phoneKey && phoneKey.length >= 8 && ePhone === phoneKey)
+      ) {
+        matchedKey = k;
+        break;
+      }
+    }
+
+    if (matchedKey) {
+      const existing = map.get(matchedKey)!;
+      const isAdmin = existing.role === 'admin' || u.role === 'admin';
+      map.set(matchedKey, {
+        ...existing,
+        ...u,
+        id: existing.id === 'usr-admin-krul411' ? 'usr-admin-krul411' : (u.id || existing.id),
+        name: isAdmin ? 'Encik Khairul (Admin)' : (u.name || existing.name),
+        role: isAdmin ? 'admin' : u.role,
+        email: emailKey || existing.email,
+        username: usernameKey || existing.username,
+        loyaltyPoints: Math.max(existing.loyaltyPoints || 0, u.loyaltyPoints || 0),
+        totalSpent: Math.max(existing.totalSpent || 0, u.totalSpent || 0),
+      });
+    } else {
+      const primaryKey = emailKey || usernameKey || idKey || `user-${Date.now()}`;
+      map.set(primaryKey, u);
+    }
+  }
+  return Array.from(map.values());
+}
 
 // Clean up any legacy demo keys from prior sessions
 try {
@@ -54,41 +103,49 @@ async function syncUserToCloud(user: UserAccount, passwordHash?: string) {
 
 // Initialize users registry in localStorage
 function getUsersRegistry(): Record<string, { user: UserAccount; passwordHash: string }> {
+  let registry: Record<string, { user: UserAccount; passwordHash: string }> = {};
+
   try {
     const saved = localStorage.getItem(STORAGE_USERS_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);
       if (parsed && typeof parsed === 'object') {
-        // Ensure admin account always exists and is up to date
-        if (!parsed['krul411']) {
-          parsed['krul411'] = {
-            user: ADMIN_ACCOUNT,
-            passwordHash: 'Haizamk411',
-          };
-          localStorage.setItem(STORAGE_USERS_KEY, JSON.stringify(parsed));
-        }
-        return parsed;
+        registry = parsed;
       }
     }
   } catch {
     // fallback
   }
 
-  // Initial users: Admin only (no dummy customers)
-  const initial: Record<string, { user: UserAccount; passwordHash: string }> = {
-    'krul411': {
-      user: ADMIN_ACCOUNT,
-      passwordHash: 'Haizamk411',
-    },
+  // Ensure primary admin account exists and is synchronized
+  registry['krul411'] = {
+    user: ADMIN_ACCOUNT,
+    passwordHash: 'Haizamk411',
   };
 
+  // Clean up duplicate admin entries that share vpsrush@gmail.com or krul411@freshayam.com
+  for (const key of Object.keys(registry)) {
+    if (key !== 'krul411') {
+      const u = registry[key]?.user;
+      if (
+        u &&
+        (u.email?.toLowerCase() === 'vpsrush@gmail.com' ||
+          u.email?.toLowerCase() === 'krul411@freshayam.com' ||
+          u.username?.toLowerCase() === 'krul411' ||
+          u.username?.toLowerCase() === 'kru1411')
+      ) {
+        delete registry[key];
+      }
+    }
+  }
+
   try {
-    localStorage.setItem(STORAGE_USERS_KEY, JSON.stringify(initial));
+    localStorage.setItem(STORAGE_USERS_KEY, JSON.stringify(registry));
   } catch {
     // ignore
   }
 
-  return initial;
+  return registry;
 }
 
 function saveUsersRegistry(registry: Record<string, { user: UserAccount; passwordHash: string }>) {
@@ -99,8 +156,9 @@ function saveUsersRegistry(registry: Record<string, { user: UserAccount; passwor
   }
   // Dispatch real-time window notification so any listening UI (Admin/Customer portal) updates immediately
   if (typeof window !== 'undefined') {
+    const rawList = Object.values(registry).map(entry => entry.user);
     window.dispatchEvent(new CustomEvent('khairul_fresh_users_updated', {
-      detail: Object.values(registry).map(entry => entry.user)
+      detail: deduplicateUsers(rawList)
     }));
   }
 }
@@ -642,7 +700,7 @@ export const authService = {
                 localStorage.setItem(STORAGE_USERS_KEY, JSON.stringify(registry));
               } catch {}
             }
-            callback(Object.values(registry).map(item => item.user));
+            callback(deduplicateUsers(Object.values(registry).map(item => item.user)));
           }
         }, (err) => {
           console.info('[Auth] Offline subscription mode active');
@@ -749,7 +807,8 @@ export const authService = {
   // Get all registered users (for Admin Directory)
   getAllUsers(): UserAccount[] {
     const registry = getUsersRegistry();
-    return Object.values(registry).map((item) => item.user);
+    const rawList = Object.values(registry).map((item) => item.user);
+    return deduplicateUsers(rawList);
   },
 
   // Subscribe to real-time updates for a single user

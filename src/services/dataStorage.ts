@@ -631,13 +631,13 @@ export const dataStorageService = {
   getOrders(): OrderRecord[] {
     if (inMemoryStore.has(ORDERS_KEY)) {
       const mem = inMemoryStore.get(ORDERS_KEY);
-      if (Array.isArray(mem) && mem.length > 0) return mem;
+      if (Array.isArray(mem)) return mem;
     }
     try {
       const saved = localStorage.getItem(ORDERS_KEY);
-      if (saved) {
+      if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           inMemoryStore.set(ORDERS_KEY, parsed);
           return parsed;
         }
@@ -647,6 +647,45 @@ export const dataStorageService = {
     }
     inMemoryStore.set(ORDERS_KEY, INITIAL_ORDERS);
     return INITIAL_ORDERS;
+  },
+
+  clearAllOrders(adminName: string = 'Admin'): OrderRecord[] {
+    inMemoryStore.set(ORDERS_KEY, []);
+    try {
+      localStorage.setItem(ORDERS_KEY, JSON.stringify([]));
+      localStorage.removeItem('khairul_last_order_backup');
+      localStorage.removeItem('khairul_pending_hitpay_order');
+    } catch {
+      // ignore
+    }
+
+    // Delete all order documents from Cloud Firestore
+    try {
+      getDocs(collection(db, 'orders')).then((snap) => {
+        if (!snap.empty) {
+          const batch = writeBatch(db);
+          snap.forEach((docSnap) => {
+            batch.delete(docSnap.ref);
+          });
+          batch.commit().catch((err) => console.warn('[Firestore] Clear orders batch error:', err));
+        }
+      }).catch((e) => console.warn('[Firestore] Clear orders query error:', e));
+    } catch (e) {
+      console.warn('Clear orders error:', e);
+    }
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('khairul_fresh_orders_updated', { detail: [] }));
+    }
+
+    this.addAuditLog({
+      action: 'SEMUA PESANAN DIPADAM',
+      performedBy: adminName,
+      details: 'Semua pesanan sedia ada telah dibersihkan daripada pangkalan data.',
+      type: 'system',
+    });
+
+    return [];
   },
 
   saveOrder(newOrder: OrderRecord): OrderRecord[] {

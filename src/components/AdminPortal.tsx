@@ -54,7 +54,8 @@ import {
   FolderOpen,
   QrCode,
   Image as ImageIcon,
-  Upload
+  Upload,
+  AlertTriangle
 } from 'lucide-react';
 import { 
   UserAccount, 
@@ -178,6 +179,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [thermalReceiptOrder, setThermalReceiptOrder] = useState<OrderRecord | null>(null);
   const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<UserAccount | null>(null);
+  const [showClearAllOrdersConfirm, setShowClearAllOrdersConfirm] = useState(false);
 
   // Coupon Form State
   const [isCreatingCoupon, setIsCreatingCoupon] = useState(false);
@@ -286,6 +288,13 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const showNotification = (type: 'success' | 'error' | 'info', text: string) => {
     setFeedback({ type, text });
     setTimeout(() => setFeedback(null), 3500);
+  };
+
+  const handleClearAllOrders = () => {
+    const emptyList = dataStorageService.clearAllOrders(adminUser.name);
+    setOrders(emptyList);
+    setSelectedOrderForDetail(null);
+    showNotification('success', 'Semua pesanan telah dipadam daripada pangkalan data.');
   };
 
   // Helper to construct official WhatsApp messages for 3 statuses
@@ -546,22 +555,19 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   };
 
   const handleDeleteProduct = (productId: string) => {
-    if (!window.confirm('Adakah anda pasti ingin memadam produk ini daripada katalog?')) return;
     const updated = dataStorageService.deleteProduct(productId, adminUser.name);
     setProducts(updated);
     onProductsUpdated(updated);
     setAuditLogs(dataStorageService.getAuditLogs());
-    showNotification('success', 'Produk telah dipadam.');
+    showNotification('success', 'Produk telah dipadam daripada katalog.');
   };
 
   const handleResetAllProductImages = () => {
-    if (window.confirm('Adakah anda pasti mahu memadam SEMUA gambar produk dalam katalog?\n\nTindakan ini akan mengosongkan gambar semua produk supaya anda boleh muat naik gambar foto sebenar satu persatu.')) {
-      const updated = dataStorageService.resetAllProductImages(adminUser.name);
-      setProducts(updated);
-      onProductsUpdated(updated);
-      setAuditLogs(dataStorageService.getAuditLogs());
-      showNotification('success', 'Semua foto produk telah dikosongkan. Sedia untuk dimuat naik satu persatu.');
-    }
+    const updated = dataStorageService.resetAllProductImages(adminUser.name);
+    setProducts(updated);
+    onProductsUpdated(updated);
+    setAuditLogs(dataStorageService.getAuditLogs());
+    showNotification('success', 'Semua gambar produk telah dipadam untuk dimuat naik semula.');
   };
 
   const handleToggleProductStock = (productId: string, current: boolean) => {
@@ -945,7 +951,6 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   };
 
   const handleDeleteCoupon = (coupon: CouponCode) => {
-    if (!window.confirm(`Adakah anda pasti ingin memadam kod kupon "${coupon.code}"?`)) return;
     if (editingCouponId === coupon.id) {
       handleCancelCouponForm();
     }
@@ -1508,6 +1513,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   >
                     <QrCode className="w-3.5 h-3.5" />
                     <span>Imbas QR</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowClearAllOrdersConfirm(true)}
+                    className="px-3 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
+                    title="Padam semua pesanan sedia ada daripada sistem"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Padam Semua Pesanan</span>
                   </button>
 
                   <button
@@ -4803,6 +4818,55 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>Padam Akaun</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Clear All Orders Confirmation Modal */}
+      {showClearAllOrdersConfirm && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="p-3 bg-rose-100 dark:bg-rose-950/60 rounded-2xl">
+                <AlertTriangle className="w-6 h-6 text-rose-600 dark:text-rose-400" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-stone-900 dark:text-white text-base">
+                  Sahkan Memadam Semua Pesanan
+                </h3>
+                <p className="text-xs text-rose-600 dark:text-rose-400 font-semibold">Tindakan ini kekal & tidak boleh dibatalkan!</p>
+              </div>
+            </div>
+
+            <div className="p-3.5 bg-rose-50 dark:bg-rose-950/30 rounded-2xl border border-rose-200 dark:border-rose-900/50 text-xs text-rose-900 dark:text-rose-200 space-y-1.5">
+              <p className="font-bold">
+                Adakah anda pasti mahu memadam kesemua {orders.length} pesanan daripada pangkalan data?
+              </p>
+              <p className="text-stone-600 dark:text-stone-300">
+                Semua rekod pesanan, senarai item, dan status transaksi akan dibersihkan daripada pangkalan data Firestore serta-merta.
+              </p>
+            </div>
+
+            <div className="pt-2 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setShowClearAllOrdersConfirm(false)}
+                className="px-4 py-2.5 rounded-xl border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 font-bold hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer text-xs"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  handleClearAllOrders();
+                  setShowClearAllOrdersConfirm(false);
+                }}
+                className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-bold rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer text-xs"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Ya, Padam Semua Pesanan</span>
               </button>
             </div>
           </div>

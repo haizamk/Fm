@@ -203,7 +203,7 @@ async function startServer() {
 
       const baseReturnUrl = config?.redirectUrl ? String(config.redirectUrl).replace(/\/$/, '') : cleanOrigin;
       const cleanBase = baseReturnUrl.split('?')[0];
-      const redirectUrl = `${cleanBase}?hitpay_status=completed&order_id=${encodeURIComponent(order.orderId)}`;
+      const redirectUrl = `${cleanBase}?hitpay_return=1&order_id=${encodeURIComponent(order.orderId)}`;
       const webhookUrl = config?.webhookUrl || `${cleanOrigin}/api/hitpay/webhook`;
 
       const customerEmail = (order.customer?.email && order.customer.email.includes('@'))
@@ -368,7 +368,7 @@ async function startServer() {
       } catch (fetchErr: any) {
         const isDnsOrNetworkErr = fetchErr?.code === 'ENOTFOUND' || fetchErr?.message?.includes('ENOTFOUND') || fetchErr?.message?.includes('fetch failed');
         if (isDnsOrNetworkErr) {
-          return res.json({ success: true, status: 'completed', reference_number: paymentRequestId, amount: '0.00' });
+          return res.json({ success: false, status: 'pending', message: 'Tidak dapat menghubungi gerbang bayaran HitPay untuk pengesahan.', reference_number: paymentRequestId, amount: '0.00' });
         }
         throw fetchErr;
       }

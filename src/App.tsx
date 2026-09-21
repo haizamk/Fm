@@ -12,7 +12,8 @@ import {
   SiteSettings,
   CouponCode,
   RotationBannerItem,
-  ProductWeightOption
+  ProductWeightOption,
+  HitPayConfig
 } from './types';
 import { COVERAGE_AREAS } from './data/coverage';
 import { getLoyaltyStatus } from './utils/loyalty';
@@ -51,6 +52,7 @@ import { TrustBadgesRow } from './components/TrustBadgesRow';
 import { HomeStoryRow } from './components/HomeStoryRow';
 import { FloatingProductOverlay, FlyingProductItem } from './components/FloatingProductOverlay';
 import { WhatsAppQuickOrderModal } from './components/WhatsAppQuickOrderModal';
+import { PaymentRetryModal } from './components/PaymentRetryModal';
 
 // Portals & Secure Authentication Components (Code-Split / Lazy Loaded for Performance)
 import { AuthModal } from './components/AuthModal';
@@ -309,6 +311,8 @@ export default function App() {
   const [isLoyaltyOpen, setIsLoyaltyOpen] = useState<boolean>(false);
   const [stockNotifyProduct, setStockNotifyProduct] = useState<Product | null>(null);
   const [activeOrder, setActiveOrder] = useState<OrderRecord | null>(null);
+  const [isPaymentRetryOpen, setIsPaymentRetryOpen] = useState<boolean>(false);
+  const [paymentRetryOrder, setPaymentRetryOrder] = useState<OrderRecord | null>(null);
 
   // Coupon state in Cart (Supports 1 item discount coupon + 1 delivery discount coupon concurrently)
   const [appliedItemCoupon, setAppliedItemCoupon] = useState<CouponCode | null>(null);
@@ -458,18 +462,19 @@ export default function App() {
 
       if (isHitPayReturn) {
         const resolveHitPayOrder = async () => {
+          const statusParam = (rawHitpayStatus || params.get('status') || '').toLowerCase().trim();
           let isCompleted =
-            rawHitpayStatus === 'completed' ||
-            rawHitpayStatus === 'success' ||
-            rawHitpayStatus === 'paid' ||
-            rawHitpayStatus === 'succeeded' ||
-            rawHitpayStatus === 'successful';
+            statusParam === 'completed' ||
+            statusParam === 'success' ||
+            statusParam === 'paid' ||
+            statusParam === 'succeeded' ||
+            statusParam === 'successful';
 
-          const isExplicitFailed =
-            rawHitpayStatus === 'failed' ||
-            rawHitpayStatus === 'canceled' ||
-            rawHitpayStatus === 'cancelled' ||
-            rawHitpayStatus === 'expired';
+          let isExplicitFailed =
+            statusParam === 'failed' ||
+            statusParam === 'canceled' ||
+            statusParam === 'cancelled' ||
+            statusParam === 'expired';
 
           // If return has reference/paymentId but status is unconfirmed, check API status
           const refToCheck = paramReference || pendingData?.paymentId || pendingData?.customer?.hitpayPaymentId;
@@ -485,15 +490,22 @@ export default function App() {
                 (statusCheck.status === 'completed' || statusCheck.status === 'succeeded' || statusCheck.status === 'paid')
               ) {
                 isCompleted = true;
+              } else if (
+                statusCheck.status === 'canceled' ||
+                statusCheck.status === 'cancelled' ||
+                statusCheck.status === 'failed' ||
+                statusCheck.status === 'expired'
+              ) {
+                isExplicitFailed = true;
               }
             } catch {
               // ignore
             }
           }
 
-          // If rawHitpayStatus is 'completed' (from redirectUrl) or there was no explicit failure, treat as completed
-          if (!isCompleted && !isExplicitFailed && (params.get('hitpay_status') === 'completed' || pendingData?.paymentId)) {
-            isCompleted = true;
+          // If not confirmed completed, strictly treat as incomplete / cancelled
+          if (!isCompleted) {
+            isExplicitFailed = true;
           }
 
           const allOrders = dataStorageService.getOrders();
@@ -574,9 +586,9 @@ export default function App() {
               deliveryFee: 0,
               total: pendingData.total || cartTotal || 0,
               discount: 0,
-              status: 'disahkan',
+              status: isCompleted ? 'disahkan' : 'menunggu_bayaran',
               fulfillmentType: pendingData.fulfillmentType || 'delivery',
-              estimatedDeliveryText: 'Disahkan • Dalam Giliran Penghantaran',
+              estimatedDeliveryText: isCompleted ? 'Disahkan • Dalam Giliran Penghantaran' : 'Menunggu Pembayaran Dilengkapkan',
               customer: {
                 fullName: pendingData.customerName || 'Pelanggan HitPay',
                 phone: pendingData.customerPhone || '',
@@ -588,7 +600,7 @@ export default function App() {
                 deliveryDate: new Date().toISOString().split('T')[0],
                 deliverySlot: 'pagi',
                 paymentMethod: 'hitpay',
-                hitpayStatus: 'completed',
+                hitpayStatus: isCompleted ? 'completed' : 'canceled',
                 hitpayPaymentId: paramReference || pendingData.paymentId,
                 hitpayReference: paramReference || pendingData.paymentId,
               },
@@ -662,9 +674,46 @@ export default function App() {
               } catch {
                 // ignore
               }
-            } else if (isExplicitFailed) {
-              console.warn('[HitPay Payment Cancelled/Failed]', found.orderId);
-              setActiveOrder(found);
+            } else {
+              // Payment Cancelled or Failed
+              console.warn('[HitPay Payment Incomplete/Cancelled]', found.orderId);
+              found.status = 'menunggu_bayaran';
+              found.estimatedDeliveryText = 'Menunggu Pembayaran Dilengkapkan';
+              if (found.customer) {
+                found.customer.hitpayStatus = 'canceled';
+                if (paramReference) {
+                  found.customer.hitpayPaymentId = paramReference;
+                  found.customer.hitpayReference = paramReference;
+                }
+              }
+
+              // Persist status to 'menunggu_bayaran'
+              await dataStorageService.saveOrderAsync(found);
+              dataStorageService.updateOrderStatus(
+                found.orderId,
+                'menunggu_bayaran',
+                'Pembayaran HitPay dibatalkan / belum selesai'
+              );
+
+              // Broadcast update so Admin Portal and tracking shows 'menunggu_bayaran'
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(
+                  new CustomEvent('khairul_fresh_orders_updated', {
+                    detail: dataStorageService.getOrders(),
+                  })
+                );
+              }
+
+              // Clear pending local session to prevent stuck loops
+              try {
+                localStorage.removeItem('khairul_pending_hitpay_order');
+              } catch {
+                // ignore
+              }
+
+              // Open Payment Retry Modal with DuitNow QR option
+              setPaymentRetryOrder(found);
+              setIsPaymentRetryOpen(true);
             }
 
             // Clean return URL query parameters without reloading the page
@@ -693,6 +742,41 @@ export default function App() {
     }
   }, []);
 
+  // Handler to retry HitPay payment from PaymentRetryModal
+  const handleRetryHitpay = async (order: OrderRecord) => {
+    const settings = dataStorageService.getSiteSettings();
+    const cfg: HitPayConfig = {
+      apiKey: '',
+      salt: '',
+      isSandbox: true,
+      isActive: true,
+      currency: 'MYR',
+      merchantName: 'Khairul FRESH Food',
+      enabledMethods: ['fpx', 'duitnow', 'card', 'grabpay', 'tng', 'shopeepay'],
+      webhookUrl: '',
+      redirectUrl: '',
+      ...(settings.hitpayConfig || {}),
+    };
+    const res = await hitpayService.createPaymentRequest(order, cfg);
+    if (res && res.url) {
+      try {
+        localStorage.setItem(
+          'khairul_pending_hitpay_order',
+          JSON.stringify({
+            ...order,
+            paymentId: res.id,
+            timestamp: Date.now(),
+          })
+        );
+      } catch {
+        // ignore
+      }
+      window.location.href = res.url;
+    } else {
+      throw new Error('Gagal menjana pautan bayaran HitPay. Sila cuba lagi atau pilih DuitNow QR.');
+    }
+  };
+
   // 2. Dynamic SEO & Clean URL Synchronization
   useEffect(() => {
     try {
@@ -700,6 +784,7 @@ export default function App() {
 
       // Do not overwrite HitPay return parameters while verification is running
       if (
+        params.has('hitpay_return') ||
         params.has('hitpay_status') ||
         params.has('status') ||
         params.has('reference') ||
@@ -1427,6 +1512,10 @@ export default function App() {
             setIsCustomerPortalOpen(false);
             setIsCoverageOpen(true);
           }}
+          onOpenPaymentRetry={(order) => {
+            setPaymentRetryOrder(order);
+            setIsPaymentRetryOpen(true);
+          }}
         />
       )}
 
@@ -1509,6 +1598,20 @@ export default function App() {
         }}
       />
 
+      {/* 4b. Payment Retry & DuitNow QR Alternative Modal */}
+      <PaymentRetryModal
+        order={paymentRetryOrder}
+        isOpen={isPaymentRetryOpen}
+        onClose={() => {
+          setIsPaymentRetryOpen(false);
+          setPaymentRetryOrder(null);
+        }}
+        onRetryHitpay={handleRetryHitpay}
+        onOrderUpdated={(updated) => {
+          setPaymentRetryOrder(updated);
+        }}
+      />
+
       {/* 5. Party / Catering Portion Calculator Modal */}
       <PartyCalculatorModal
         isOpen={isCalculatorOpen}
@@ -1542,6 +1645,10 @@ export default function App() {
         isOpen={isTrackingOpen}
         onClose={() => setIsTrackingOpen(false)}
         initialOrderId={activeOrder ? activeOrder.orderId : undefined}
+        onOpenPaymentRetry={(order) => {
+          setPaymentRetryOrder(order);
+          setIsPaymentRetryOpen(true);
+        }}
       />
 
       {/* 9. Loyalty Points & Rewards Modal */}

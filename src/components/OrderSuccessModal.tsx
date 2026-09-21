@@ -546,7 +546,7 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
                 <div className="w-6 h-6 rounded-full bg-stone-200 dark:bg-stone-700 text-stone-600 dark:text-stone-300 flex items-center justify-center font-bold mb-1">
                   3
                 </div>
-                <span className="text-stone-500 dark:text-stone-400">Pek Sejuk Dingin</span>
+                <span className="text-stone-500 dark:text-stone-400">Pack Dan Tunggu Rider</span>
               </div>
 
               <div className="flex flex-col items-center">

@@ -159,15 +159,23 @@ export const WhatsAppQuickOrderModal: React.FC<WhatsAppQuickOrderModalProps> = (
       bankName: 'OCBC Bank (Malaysia) Berhad',
       accountName: 'KHAIRUL FRESH AND FROZEN FOOD',
       accountNumber: '70 6116 3993',
+      duitnowId: '202503301954',
       qrImageUrl: '',
     };
   }, []);
   const [copiedAccount, setCopiedAccount] = useState(false);
+  const [copiedDuitNowId, setCopiedDuitNowId] = useState(false);
 
   const handleCopyAccount = (accNo: string) => {
     navigator.clipboard.writeText(accNo.replace(/\s+/g, ''));
     setCopiedAccount(true);
     setTimeout(() => setCopiedAccount(false), 2000);
+  };
+
+  const handleCopyDuitNowId = (id: string) => {
+    navigator.clipboard.writeText(id.replace(/\s+/g, ''));
+    setCopiedDuitNowId(true);
+    setTimeout(() => setCopiedDuitNowId(false), 2000);
   };
 
   const isMondaySelected = useMemo(() => {
@@ -233,7 +241,8 @@ export const WhatsAppQuickOrderModal: React.FC<WhatsAppQuickOrderModalProps> = (
       `• Kaedah: DuitNow QR / Pindahan Bank Sahaja\n` +
       `• Bank: ${duitnow.bankName || 'OCBC Bank (Malaysia) Berhad'}\n` +
       `• No Akaun: ${duitnow.accountNumber || '70 6116 3993'}\n` +
-      `• Nama Akaun: ${duitnow.accountName || 'KHAIRUL FRESH AND FROZEN FOOD'}\n\n` +
+      `• Nama Akaun: ${duitnow.accountName || 'KHAIRUL FRESH AND FROZEN FOOD'}\n` +
+      `• DuitNow ID (No. Pendaftaran Perniagaan / SSM): ${duitnow.duitnowId || '202503301954'}\n\n` +
       `*(PENTING: Pembayaran hanya melalui DuitNow QR atau transfer bank ke akaun syarikat kami. Saya akan hantar resit bayaran di sini untuk pengesahan order)*\n\n` +
       `Mohon pengesahan stok, total harga & caj penghantaran minima. Terima kasih!`;
 
@@ -634,6 +643,25 @@ export const WhatsAppQuickOrderModal: React.FC<WhatsAppQuickOrderModalProps> = (
                     >
                       {copiedAccount ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                       <span>{copiedAccount ? 'Disalin!' : 'Salin'}</span>
+                    </button>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-pink-50 dark:bg-pink-950/40 border border-pink-200 dark:border-pink-800 flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] font-bold text-pink-700 dark:text-pink-300 uppercase tracking-wider block">
+                        DuitNow ID (No. SSM / Perniagaan)
+                      </span>
+                      <span className="text-sm font-black text-stone-900 dark:text-white font-mono tracking-wider">
+                        {duitnow.duitnowId || '202503301954'}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyDuitNowId(duitnow.duitnowId || '202503301954')}
+                      className="px-3 py-1.5 rounded-xl bg-pink-600 hover:bg-pink-700 text-white text-[11px] font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                    >
+                      {copiedDuitNowId ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedDuitNowId ? 'Disalin!' : 'Salin'}</span>
                     </button>
                   </div>
                 </div>

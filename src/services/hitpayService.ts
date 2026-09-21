@@ -154,7 +154,7 @@ class HitPayService {
       }
     }
     const separator = baseReturnUrl.includes('?') ? '&' : '?';
-    const redirectUrl = `${baseReturnUrl}${separator}hitpay_status=completed&order_id=${encodeURIComponent(order.orderId)}`;
+    const redirectUrl = `${baseReturnUrl}${separator}hitpay_return=1&order_id=${encodeURIComponent(order.orderId)}`;
     const webhookUrl = config.webhookUrl || `${baseReturnUrl}/api/hitpay/webhook`;
 
     // 1. Try PHP Backend Proxy First (Fast, Native HestiaCP / Apache / Nginx PHP support)

@@ -90,6 +90,8 @@ export const DuitNowOCBCQR: React.FC<DuitNowOCBCQRProps> = ({
   const accountName = 'KHAIRUL FRESH AND FROZEN FOOD';
   const accountNumber = '70 6116 3993';
   const accountNumberRaw = '7061163993';
+  const duitnowId = '202503301954';
+  const duitnowIdType = 'No. Pendaftaran Perniagaan (SSM)';
   const orderRef = customerPhone 
     ? `${customerPhone} / ${orderId ? `#${orderId}` : 'Pesanan'}`
     : (orderId ? `#${orderId}` : 'No. Telefon Pelanggan / no pesanan');
@@ -161,7 +163,8 @@ export const DuitNowOCBCQR: React.FC<DuitNowOCBCQRProps> = ({
       (totalText ? `• *Jumlah Dibayar:* ${totalText}\n` : '') +
       `• *Bank:* ${bankName}\n` +
       `• *Nama Akaun:* ${accountName}\n` +
-      `• *No. Akaun:* ${accountNumber}\n\n` +
+      `• *No. Akaun:* ${accountNumber}\n` +
+      `• *DuitNow ID (No. Pendaftaran Perniagaan / SSM):* ${duitnowId}\n\n` +
       `Dilampirkan resit / bukti transaksi pindahan DuitNow saya. Mohon semakan & pengesahan. Terima kasih!`;
 
     const url = getOfficialWhatsAppLink(message, whatsappNumber || OFFICIAL_WHATSAPP_DIGITS);
@@ -337,6 +340,36 @@ export const DuitNowOCBCQR: React.FC<DuitNowOCBCQRProps> = ({
                   <>
                     <Copy className="w-3.5 h-3.5" />
                     <span>Salin No. Akaun</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* DuitNow ID (Business Registration No. / SSM) */}
+            <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-white dark:bg-stone-900 border border-pink-300 dark:border-pink-800">
+              <div>
+                <span className="text-pink-600 dark:text-pink-400 font-bold block text-[11px] uppercase tracking-wide">
+                  DuitNow ID (No. Pendaftaran Perniagaan):
+                </span>
+                <span className="font-mono font-black text-stone-900 dark:text-white text-sm sm:text-base tracking-wider">
+                  {duitnowId}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleCopy(duitnowId, 'duitnowId')}
+                className="px-2.5 py-1.5 rounded-lg bg-pink-100 hover:bg-pink-200 dark:bg-pink-900/60 dark:hover:bg-pink-800 text-pink-800 dark:text-pink-200 font-bold text-[11px] flex items-center gap-1 transition-colors cursor-pointer"
+                title="Salin DuitNow ID"
+              >
+                {copiedField === 'duitnowId' ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Disalin!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Salin ID</span>
                   </>
                 )}
               </button>

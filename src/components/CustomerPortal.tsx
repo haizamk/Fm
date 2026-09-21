@@ -32,7 +32,8 @@ import {
   FileText,
   Filter,
   Download,
-  Share2
+  Share2,
+  CreditCard
 } from 'lucide-react';
 import { UserAccount, OrderRecord, CartItem, SavedAddress, Product } from '../types';
 import { authService } from '../services/auth';
@@ -64,6 +65,7 @@ interface CustomerPortalProps {
   onUpdateUser: (updated: UserAccount) => void;
   onReorder: (items: CartItem[]) => void;
   onOpenCoverage: () => void;
+  onOpenPaymentRetry?: (order: OrderRecord) => void;
 }
 
 export const CustomerPortal: React.FC<CustomerPortalProps> = ({
@@ -74,6 +76,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({
   onUpdateUser,
   onReorder,
   onOpenCoverage,
+  onOpenPaymentRetry,
 }) => {
   const { t, isEn } = useLanguage();
   const [activeTab, setActiveTab] = useState<'orders' | 'addresses' | 'profile' | 'loyalty'>('orders');
@@ -366,7 +369,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({
         };
       case 'pembungkusan-sejuk':
         return {
-          label: isEn ? 'Cold-Chain Chilled Packaging (0-4°C)' : 'Pembungkusan Sejuk 0-4°C',
+          label: isEn ? 'Packed & Waiting for Rider' : 'Pack Dan Tunggu Rider',
           bg: 'bg-cyan-100 dark:bg-cyan-950/80 text-cyan-800 dark:text-cyan-300 border-cyan-200 dark:border-cyan-800',
           step: 3,
         };
@@ -702,6 +705,22 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({
                             </span>
 
                             <div className="flex items-center gap-1.5 ml-auto">
+                              {order.status === 'menunggu_bayaran' && onOpenPaymentRetry && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onClose();
+                                    onOpenPaymentRetry(order);
+                                  }}
+                                  className="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-black flex items-center gap-1 transition-colors cursor-pointer shadow-xs"
+                                  title="Selesaikan Bayaran (HitPay / DuitNow QR)"
+                                >
+                                  <CreditCard className="w-3 h-3" />
+                                  <span>{isEn ? 'Pay Now' : 'Bayar Sekarang'}</span>
+                                </button>
+                              )}
+
                               {/* Direct Cetak Resit (PDF) Button on Order Card */}
                               <button
                                 type="button"
@@ -802,6 +821,35 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({
                           </div>
                         </div>
 
+                        {/* Menunggu Bayaran Action Alert */}
+                        {selectedOrder.status === 'menunggu_bayaran' && (
+                          <div className="p-4 bg-amber-50 dark:bg-amber-950/60 border-2 border-amber-300 dark:border-amber-700 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+                            <div>
+                              <h4 className="text-xs font-black uppercase text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
+                                <span>⚠️ Bayaran Belum Selesai</span>
+                              </h4>
+                              <p className="text-xs text-amber-800 dark:text-amber-300 mt-0.5">
+                                {isEn 
+                                  ? 'Payment was cancelled or is pending. Please complete your payment via HitPay or DuitNow QR.'
+                                  : 'Pembayaran FPX/HitPay dibatalkan atau belum dilunaskan. Sila buat bayaran semula atau guna DuitNow QR.'}
+                              </p>
+                            </div>
+                            {onOpenPaymentRetry && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  onClose();
+                                  onOpenPaymentRetry(selectedOrder);
+                                }}
+                                className="px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs shrink-0 cursor-pointer shadow-md flex items-center gap-1.5 transition-colors"
+                              >
+                                <CreditCard className="w-3.5 h-3.5" />
+                                <span>{isEn ? 'Pay Now' : 'Bayar Sekarang'}</span>
+                              </button>
+                            )}
+                          </div>
+                        )}
+
                         {/* Live Status Progress Stepper */}
                         <div className="bg-white dark:bg-stone-900 p-4 rounded-2xl border border-stone-200 dark:border-stone-700 space-y-3">
                           <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -819,7 +867,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({
                             {[
                               { label: isEn ? 'Confirmed' : 'Disahkan', step: 1 },
                               { label: isEn ? 'Cuts' : 'Potongan', step: 2 },
-                              { label: isEn ? 'Cold Pack' : 'Pek Sejuk', step: 3 },
+                              { label: isEn ? 'Pack & Wait Rider' : 'Pack Dan Tunggu Rider', step: 3 },
                               { label: isEn ? 'Out for Delivery' : 'Hantar', step: 4 },
                               { label: isEn ? 'Completed' : 'Selesai', step: 5 },
                             ].map((s) => {

@@ -427,8 +427,8 @@ export const LogisticsZoneIndicator: React.FC<LogisticsZoneIndicatorProps> = ({
                       <div className={`p-1 rounded-md ${summary.statusCounts.sembelihPotong > 0 ? 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 font-black' : 'bg-stone-100 dark:bg-stone-800 text-stone-400'}`} title="Sembelih & Potong">
                         {summary.statusCounts.sembelihPotong} Potong
                       </div>
-                      <div className={`p-1 rounded-md ${summary.statusCounts.pekSejuk > 0 ? 'bg-cyan-100 dark:bg-cyan-950 text-cyan-800 dark:text-cyan-300 font-black' : 'bg-stone-100 dark:bg-stone-800 text-stone-400'}`} title="Pek Sejuk">
-                        {summary.statusCounts.pekSejuk} Pek
+                      <div className={`p-1 rounded-md ${summary.statusCounts.pekSejuk > 0 ? 'bg-cyan-100 dark:bg-cyan-950 text-cyan-800 dark:text-cyan-300 font-black' : 'bg-stone-100 dark:bg-stone-800 text-stone-400'}`} title="Pack Dan Tunggu Rider">
+                        {summary.statusCounts.pekSejuk} Pack
                       </div>
                       <div className={`p-1 rounded-md ${summary.statusCounts.penghantaran > 0 ? 'bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300 font-black' : 'bg-stone-100 dark:bg-stone-800 text-stone-400'}`} title="Rider / Ambil">
                         {summary.statusCounts.penghantaran} Rider

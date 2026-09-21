@@ -7,7 +7,8 @@ import {
   Snowflake, 
   PhoneCall,
   AlertCircle,
-  Loader2
+  Loader2,
+  CreditCard
 } from 'lucide-react';
 import { dataStorageService } from '../services/dataStorage';
 import { getWhatsAppOrderStatusLink } from '../utils/whatsappHelper';
@@ -17,12 +18,14 @@ interface OrderTrackingModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialOrderId?: string;
+  onOpenPaymentRetry?: (order: OrderRecord) => void;
 }
 
 export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
   isOpen,
   onClose,
   initialOrderId = '',
+  onOpenPaymentRetry,
 }) => {
   const [orderQuery, setOrderQuery] = useState(initialOrderId || '');
   const [hasSearched, setHasSearched] = useState(Boolean(initialOrderId));
@@ -161,9 +164,10 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
                     <span className="text-xs text-stone-500">({matchedOrder.customer.fullName})</span>
                   </div>
                   <h3 className="text-base font-extrabold text-stone-900 mt-0.5">
+                    {matchedOrder.status === 'menunggu_bayaran' && 'Menunggu Pembayaran Dilengkapkan'}
                     {matchedOrder.status === 'disahkan' && 'Pesanan Diterima & Disahkan'}
                     {matchedOrder.status === 'sembelih-potong' && 'Ayam Sedang Dipotong & Dicuci Bersih'}
-                    {matchedOrder.status === 'pembungkusan-sejuk' && 'Ayam Dibungkus Dalam Suhu Chilled 0-4°C'}
+                    {matchedOrder.status === 'pembungkusan-sejuk' && 'Ayam Telah Di-pack & Sedang Menunggu Rider'}
                     {matchedOrder.status === 'dalam-penghantaran' && 'Rider Sedang Menghantar Ke Lokasi Anda'}
                     {matchedOrder.status === 'selesai' && 'Pesanan Telah Selesai Dihantar'}
                     {matchedOrder.status === 'dibatalkan' && 'Pesanan Telah Dibatalkan'}
@@ -173,11 +177,36 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
                   </p>
                 </div>
 
-                <div className="bg-emerald-600 text-white text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1 shadow-xs">
-                  <span className="w-2 h-2 rounded-full bg-emerald-300 animate-ping" />
+                <div className={`text-white text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1 shadow-xs ${
+                  matchedOrder.status === 'menunggu_bayaran' ? 'bg-amber-600' : 'bg-emerald-600'
+                }`}>
+                  <span className="w-2 h-2 rounded-full bg-white/70 animate-ping" />
                   <span className="capitalize">{matchedOrder.status.replace('-', ' ')}</span>
                 </div>
               </div>
+
+              {/* Menunggu Bayaran Action Banner */}
+              {matchedOrder.status === 'menunggu_bayaran' && (
+                <div className="p-3.5 bg-amber-50 dark:bg-amber-950/50 border border-amber-300 dark:border-amber-800 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div className="text-xs text-amber-900 dark:text-amber-200">
+                    <span className="font-black block text-sm">⚠️ Pembayaran Belum Selesai</span>
+                    <span>Transaksi FPX/HitPay dibatalkan atau belum dilunaskan. Sila buat bayaran semula atau pindah melalui DuitNow QR.</span>
+                  </div>
+                  {onOpenPaymentRetry && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        onOpenPaymentRetry(matchedOrder);
+                      }}
+                      className="px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs shrink-0 cursor-pointer shadow-md flex items-center gap-1.5 transition-colors"
+                    >
+                      <CreditCard className="w-3.5 h-3.5" />
+                      <span>Bayar Sekarang (HitPay / DuitNow)</span>
+                    </button>
+                  )}
+                </div>
+              )}
 
               {/* Items Summary */}
               <div className="p-3 bg-stone-50 rounded-xl border border-stone-200 text-xs space-y-1">
@@ -239,10 +268,10 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
                   </div>
                   <div className="flex-1 min-w-0">
                     <h4 className="text-xs font-bold text-blue-900">
-                      Kawalan Suhu Rantaian Sejuk 0°C – 4°C & Pembungkusan
+                      Pack Dan Tunggu Rider
                     </h4>
                     <p className="text-[11px] text-stone-600 mt-0.5">
-                      Ayam dimuatkan ke dalam kotak bertebat suhu rendah untuk mengekalkan kesegaran.
+                      Ayam siap dipotong, dibungkus kemas (pack) dan kini sedia menunggu ketibaan rider.
                     </p>
                   </div>
                 </div>

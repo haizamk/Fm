@@ -177,7 +177,7 @@ export interface CustomerDetails {
   paymentMethod: 'hitpay' | 'duitnow' | 'fpx' | 'cod' | 'whatsapp';
   hitpayReference?: string;
   hitpayPaymentId?: string;
-  hitpayStatus?: 'completed' | 'pending' | 'failed';
+  hitpayStatus?: 'completed' | 'pending' | 'failed' | 'canceled';
   orderNotes?: string;
   deliveryInstructions?: string;
 }
@@ -198,6 +198,8 @@ export interface OrderRecord {
   appliedCoupon?: string;
   packagingType?: 'bungkusan-biasa-ais' | 'cooler-box';
   coolerBoxFee?: number;
+  orderSource?: 'web' | 'whatsapp';
+  paymentStatus?: 'paid' | 'unpaid';
 }
 
 export type CouponDiscountType = 'fixed' | 'percentage' | 'delivery';
@@ -344,6 +346,8 @@ export interface DuitNowBankConfig {
   bankName: string;
   accountName: string;
   accountNumber: string;
+  duitnowId?: string;
+  duitnowIdType?: string;
   orderReferenceGuide?: string;
   qrImageUrl?: string;
   isActive: boolean;

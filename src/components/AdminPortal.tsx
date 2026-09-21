@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   X, 
   LayoutDashboard, 
@@ -77,6 +77,7 @@ import { authService } from '../services/auth';
 import { hitpayService, DEFAULT_HITPAY_CONFIG } from '../services/hitpayService';
 import { fonnteService, DEFAULT_FONNTE_CONFIG, FonnteConfig } from '../services/fonnteService';
 import { AdminDashboardTab } from './AdminDashboardTab';
+import { AdminWhatsAppOrdersTab } from './AdminWhatsAppOrdersTab';
 import { BannerEditorTab } from './BannerEditorTab';
 import { ImageUploadDropzone } from './ImageUploadDropzone';
 import { ProductImage } from './ProductImage';
@@ -112,12 +113,23 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   banners: propBanners,
   onBannersUpdated: propOnBannersUpdated,
 }) => {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'orders' | 'customers' | 'products' | 'media' | 'banners' | 'coupons' | 'settings' | 'payment' | 'whatsapp_gateway' | 'security'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'orders' | 'whatsapp_orders' | 'customers' | 'products' | 'media' | 'banners' | 'coupons' | 'settings' | 'payment' | 'whatsapp_gateway' | 'security'>('dashboard');
 
 
   // Data states from dataStorageService
   const [orders, setOrders] = useState<OrderRecord[]>(() => dataStorageService.getOrders());
   const [products, setProducts] = useState<Product[]>(() => dataStorageService.getProducts());
+
+  // Dedicated count for WhatsApp orders tab badge
+  const whatsappOrdersCount = useMemo(() => {
+    return orders.filter(
+      (o) =>
+        o.orderSource === 'whatsapp' ||
+        o.customer?.paymentMethod === 'whatsapp' ||
+        o.orderId.startsWith('WA-') ||
+        (o.customer?.orderNotes && o.customer.orderNotes.toLowerCase().includes('whatsapp'))
+    ).length;
+  }, [orders]);
   const [banners, setBanners] = useState<RotationBannerItem[]>(() => propBanners || dataStorageService.getRotationBanners());
   const [coupons, setCoupons] = useState<CouponCode[]>(() => dataStorageService.getCoupons());
   const [siteSettings, setSiteSettings] = useState<SiteSettings>(() => dataStorageService.getSiteSettings());
@@ -146,6 +158,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     bankName: 'OCBC Bank (Malaysia) Berhad',
     accountName: 'KHAIRUL FRESH AND FROZEN FOOD',
     accountNumber: '70 6116 3993',
+    duitnowId: '202503301954',
+    duitnowIdType: 'Business Registration No. (SSM)',
     orderReferenceGuide: 'No. Telefon Pelanggan / no pesanan',
     qrImageUrl: '',
     isActive: true,
@@ -153,6 +167,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [duitnowBankName, setDuitnowBankName] = useState(initialDuitNow.bankName || 'OCBC Bank (Malaysia) Berhad');
   const [duitnowAccountName, setDuitnowAccountName] = useState(initialDuitNow.accountName || 'KHAIRUL FRESH AND FROZEN FOOD');
   const [duitnowAccountNumber, setDuitnowAccountNumber] = useState(initialDuitNow.accountNumber || '70 6116 3993');
+  const [duitnowId, setDuitnowId] = useState(initialDuitNow.duitnowId || '202503301954');
+  const [duitnowIdType, setDuitnowIdType] = useState(initialDuitNow.duitnowIdType || 'Business Registration No. (SSM)');
   const [duitnowQrImage, setDuitnowQrImage] = useState(initialDuitNow.qrImageUrl || '');
   const [duitnowIsActive, setDuitnowIsActive] = useState(initialDuitNow.isActive ?? true);
   const [duitnowFileInputRef] = useState<React.RefObject<HTMLInputElement | null>>({ current: null });
@@ -332,7 +348,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       return `🔪 SEDANG DIPOTONG & DISEDIAKAN: Pesanan ayam segar anda (#${order.orderId}) kini sedang diproses dan dipotong rapi mengikut arahan anda di Khairul Fresh Food Pasar Semenyih.${storeHelpline}`;
     }
 
-    return `📦 PEK SEJUK DINGIN: Pesanan ayam segar anda (#${order.orderId}) telah siap dipotong dan kini disimpan dalam pek sejuk 0-4°C menunggu waktu pelepasan.${storeHelpline}`;
+    return `📦 PACK & TUNGGU RIDER: Pesanan ayam segar anda (#${order.orderId}) telah siap dipotong, dibungkus kemas (pack) dan kini sedang menunggu rider untuk penghantaran.${storeHelpline}`;
   };
 
   const openStatusUpdateModal = (order: OrderRecord, initialStatus?: OrderRecord['status']) => {
@@ -601,6 +617,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         bankName: duitnowBankName.trim() || 'OCBC Bank (Malaysia) Berhad',
         accountName: duitnowAccountName.trim() || 'KHAIRUL FRESH AND FROZEN FOOD',
         accountNumber: duitnowAccountNumber.trim() || '70 6116 3993',
+        duitnowId: duitnowId.trim() || '202503301954',
+        duitnowIdType: duitnowIdType.trim() || 'Business Registration No. (SSM)',
         orderReferenceGuide: 'No. Telefon Pelanggan / no pesanan',
         qrImageUrl: duitnowQrImage,
         isActive: duitnowIsActive,
@@ -621,6 +639,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       bankName: duitnowBankName.trim() || 'OCBC Bank (Malaysia) Berhad',
       accountName: duitnowAccountName.trim() || 'KHAIRUL FRESH AND FROZEN FOOD',
       accountNumber: duitnowAccountNumber.trim() || '70 6116 3993',
+      duitnowId: duitnowId.trim() || '202503301954',
+      duitnowIdType: duitnowIdType.trim() || 'Business Registration No. (SSM)',
       orderReferenceGuide: 'No. Telefon Pelanggan / no pesanan',
       qrImageUrl: duitnowQrImage,
       isActive: duitnowIsActive,
@@ -1290,11 +1310,28 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             }`}
           >
             <ShoppingBag className="w-3.5 h-3.5" />
-            <span>Pesanan</span>
+            <span>Pesanan (Web)</span>
             <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
               activeTab === 'orders' ? 'bg-emerald-800 text-emerald-100' : 'bg-stone-200 dark:bg-stone-800 text-stone-700 dark:text-stone-300'
             }`}>
               {orders.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('whatsapp_orders')}
+            className={`py-1.5 px-3 rounded-lg font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+              activeTab === 'whatsapp_orders'
+                ? 'bg-emerald-700 text-white shadow-xs'
+                : 'text-stone-600 dark:text-stone-400 hover:bg-stone-200/60 dark:hover:bg-stone-800/60 hover:text-stone-900 dark:hover:text-stone-200'
+            }`}
+          >
+            <MessageCircle className="w-3.5 h-3.5 text-emerald-500" />
+            <span>Pesanan WhatsApp</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+              activeTab === 'whatsapp_orders' ? 'bg-emerald-800 text-emerald-100' : 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300'
+            }`}>
+              {whatsappOrdersCount}
             </span>
           </button>
 
@@ -1443,6 +1480,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 if (zone) setOrderZoneFilter(zone);
                 setActiveTab('orders');
               }}
+              onNavigateToWhatsAppOrders={() => setActiveTab('whatsapp_orders')}
             />
           )}
 
@@ -1482,7 +1520,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     <option value="menunggu_bayaran">0. Menunggu Bayaran</option>
                     <option value="disahkan">1. Bayaran Disahkan</option>
                     <option value="sembelih-potong">2. Potong & Sedia</option>
-                    <option value="pembungkusan-sejuk">3. Pek Sejuk</option>
+                    <option value="pembungkusan-sejuk">3. Pack Dan Tunggu Rider</option>
                     <option value="dalam-penghantaran">4. Rider / Sedia Ambil</option>
                     <option value="selesai">5. Selesai</option>
                   </select>
@@ -1642,7 +1680,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                                   <option value="menunggu_bayaran">0. Menunggu Bayaran</option>
                                   <option value="disahkan">1. Disahkan</option>
                                   <option value="sembelih-potong">2. Potong & Sedia</option>
-                                  <option value="pembungkusan-sejuk">3. Pek Sejuk</option>
+                                  <option value="pembungkusan-sejuk">3. Pack Dan Tunggu Rider</option>
                                   <option value="dalam-penghantaran">4. Rider / Sedia Ambil</option>
                                   <option value="selesai">5. Selesai</option>
                                 </select>
@@ -1823,7 +1861,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         >
                           <option value="disahkan">1. Bayaran Disahkan (payment_confirmed)</option>
                           <option value="sembelih-potong">2. Potong & Sedia</option>
-                          <option value="pembungkusan-sejuk">3. Pek Sejuk (0-4°C)</option>
+                          <option value="pembungkusan-sejuk">3. Pack Dan Tunggu Rider</option>
                           <option value="dalam-penghantaran">4. Rider Dihantar / Sedia Ambil (out_for_delivery)</option>
                           <option value="selesai">5. Penghantaran Selesai (delivered)</option>
                         </select>
@@ -1909,6 +1947,18 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               )}
 
             </div>
+          )}
+
+          {/* TAB: WHATSAPP ORDERS (MANUAL ENTRY & MANAGEMENT) */}
+          {activeTab === 'whatsapp_orders' && (
+            <AdminWhatsAppOrdersTab
+              orders={orders}
+              products={products}
+              adminName={adminUser.name}
+              onOrdersUpdated={(updated) => setOrders(updated)}
+              onShowNotification={showNotification}
+              onOpenThermalReceipt={(order) => setThermalReceiptOrder(order)}
+            />
           )}
 
           {/* TAB 2: CUSTOMER & ADMIN DIRECTORY */}
@@ -4438,6 +4488,23 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl px-3.5 py-2.5 text-sm text-emerald-700 dark:text-emerald-400 font-mono font-black focus:outline-hidden focus:border-pink-500 tracking-wider"
                         placeholder="cth: 70 6116 3993"
                       />
+                    </div>
+
+                    {/* DuitNow ID (Business Registration No.) */}
+                    <div>
+                      <label className="text-xs font-bold text-stone-700 dark:text-stone-300 block mb-1">
+                        DuitNow ID (No. Pendaftaran Perniagaan / SSM)
+                      </label>
+                      <input
+                        type="text"
+                        value={duitnowId}
+                        onChange={(e) => setDuitnowId(e.target.value)}
+                        className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 dark:text-white font-mono font-bold focus:outline-hidden focus:border-pink-500 tracking-wider"
+                        placeholder="cth: 202503301954"
+                      />
+                      <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-1">
+                        DuitNow ID rasmi syarikat berdaftar dengan SSM (202503301954) yang dipaparkan pada pelanggan semasa pembayaran.
+                      </p>
                     </div>
 
                     {/* Reference Instructions */}

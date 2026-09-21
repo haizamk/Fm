@@ -257,7 +257,7 @@ if ($action === 'create-payment') {
     $baseReturnUrl = !empty($config['redirectUrl']) ? rtrim($config['redirectUrl'], '/') : $baseUrlOrigin;
     $urlParts = explode('?', $baseReturnUrl);
     $cleanBase = $urlParts[0];
-    $redirectUrl = "{$cleanBase}?hitpay_status=completed&order_id=" . urlencode($order['orderId']);
+    $redirectUrl = "{$cleanBase}?hitpay_return=1&order_id=" . urlencode($order['orderId']);
     $webhookUrl = !empty($config['webhookUrl']) ? $config['webhookUrl'] : "$baseUrlOrigin/api/hitpay.php?action=webhook";
 
     $customerEmail = !empty($order['customer']['email']) && strpos($order['customer']['email'], '@') !== false

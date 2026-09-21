@@ -279,6 +279,8 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
     bankName: 'OCBC Bank (Malaysia) Berhad',
     accountName: 'KHAIRUL FRESH AND FROZEN FOOD',
     accountNumber: '70 6116 3993',
+    duitnowId: '202503301954',
+    duitnowIdType: 'Business Registration No. (SSM)',
     orderReferenceGuide: 'No. Telefon Pelanggan / no pesanan',
     qrImageUrl: '',
     isActive: true,
@@ -927,7 +929,7 @@ export const dataStorageService = {
       if (o.orderId === orderId) {
         let estText = o.estimatedDeliveryText;
         if (newStatus === 'sembelih-potong') estText = 'Sedang Dipotong & Disediakan';
-        if (newStatus === 'pembungkusan-sejuk') estText = 'Pek Chilled Suhu 0-4°C Siap';
+        if (newStatus === 'pembungkusan-sejuk') estText = 'Pack Dan Tunggu Rider';
         if (newStatus === 'dalam-penghantaran') estText = 'Rider Sedang Menghantar Ke Lokasi';
         if (newStatus === 'selesai') estText = 'Selesai Dihantar';
         if (newStatus === 'dibatalkan') estText = 'Pesanan Dibatalkan';
@@ -970,6 +972,69 @@ export const dataStorageService = {
       action: 'Kemaskini Status Pesanan',
       performedBy: adminName,
       details: `Pesanan #${orderId} ditukar status kepada: "${newStatus}".`,
+      type: 'order',
+    });
+
+    return updated;
+  },
+
+  updateOrderPaymentStatus(orderId: string, paymentStatus: 'paid' | 'unpaid', adminName: string): OrderRecord[] {
+    const orders = this.getOrders();
+    let updatedOrderObj: OrderRecord | null = null;
+    const updated = orders.map((o) => {
+      if (o.orderId === orderId) {
+        let newStatus = o.status;
+        if (paymentStatus === 'paid' && o.status === 'menunggu_bayaran') {
+          newStatus = 'disahkan';
+        } else if (paymentStatus === 'unpaid' && o.status === 'disahkan') {
+          newStatus = 'menunggu_bayaran';
+        }
+
+        let estText = o.estimatedDeliveryText;
+        if (newStatus === 'disahkan') {
+          estText = o.fulfillmentType === 'pickup' ? 'Disahkan • Sedia Diambil Di Kedai' : 'Disahkan • Dalam Giliran Penghantaran';
+        } else if (newStatus === 'menunggu_bayaran') {
+          estText = 'Menunggu Pembayaran Dilengkapkan';
+        }
+
+        const updatedCustomer = o.customer ? {
+          ...o.customer,
+          hitpayStatus: paymentStatus === 'paid' ? ('completed' as const) : ('pending' as const),
+        } : o.customer;
+
+        updatedOrderObj = {
+          ...o,
+          paymentStatus,
+          status: newStatus,
+          estimatedDeliveryText: estText,
+          customer: updatedCustomer,
+        };
+        return updatedOrderObj;
+      }
+      return o;
+    });
+
+    try {
+      safeSetStorage(ORDERS_KEY, updated);
+      if (typeof window !== 'undefined' && window.localStorage && updatedOrderObj) {
+        localStorage.setItem(`khairul_order_${orderId}`, JSON.stringify(updatedOrderObj));
+      }
+    } catch {
+      // ignore
+    }
+
+    if (updatedOrderObj) {
+      syncDocToFirestore('orders', orderId, updatedOrderObj);
+    }
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('khairul_fresh_orders_updated', { detail: updated }));
+    }
+
+    this.addAuditLog({
+      action: 'Kemaskini Status Bayaran',
+      performedBy: adminName,
+      details: `Status bayaran #${orderId} ditukar kepada "${paymentStatus === 'paid' ? 'LUNAS (Sudah Bayar)' : 'BELUM BAYAR'}".`,
       type: 'order',
     });
 
@@ -1273,6 +1338,14 @@ export const dataStorageService = {
         }
         if (!parsed.thermalReceiptSettings) {
           parsed.thermalReceiptSettings = DEFAULT_SITE_SETTINGS.thermalReceiptSettings;
+        }
+        if (!parsed.duitnowConfig) {
+          parsed.duitnowConfig = DEFAULT_SITE_SETTINGS.duitnowConfig;
+        } else {
+          if (!parsed.duitnowConfig.duitnowId || parsed.duitnowConfig.duitnowId === '01111135503' || parsed.duitnowConfig.duitnowId === '601111135503') {
+            parsed.duitnowConfig.duitnowId = '202503301954';
+            parsed.duitnowConfig.duitnowIdType = 'Business Registration No. (SSM)';
+          }
         }
         if (parsed.enableCoolerBoxOption === undefined) {
           parsed.enableCoolerBoxOption = false;

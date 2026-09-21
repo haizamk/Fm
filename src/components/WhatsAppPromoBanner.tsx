@@ -21,12 +21,20 @@ export const WhatsAppPromoBanner: React.FC<WhatsAppPromoBannerProps> = ({
   onOpenWhatsAppModal,
 }) => {
   const [copied, setCopied] = useState(false);
+  const [copiedDuitNow, setCopiedDuitNow] = useState(false);
 
   const handleCopyAccount = (e: React.MouseEvent) => {
     e.stopPropagation();
     navigator.clipboard.writeText('7061163993');
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleCopyDuitNow = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText('202503301954');
+    setCopiedDuitNow(true);
+    setTimeout(() => setCopiedDuitNow(false), 2000);
   };
 
   const handleChatNow = () => {
@@ -44,6 +52,7 @@ export const WhatsAppPromoBanner: React.FC<WhatsAppPromoBannerProps> = ({
         `• Bank: OCBC Bank (Malaysia) Berhad\n` +
         `• No Akaun: 70 6116 3993\n` +
         `• Nama: KHAIRUL FRESH AND FROZEN FOOD\n` +
+        `• DuitNow ID (No. Pendaftaran Perniagaan / SSM): 202503301954\n` +
         `*(Saya akan hantar resit bayaran di sini untuk pengesahan order)*`;
       const url = getOfficialWhatsAppLink(template);
       openWhatsAppSafe(url);
@@ -184,6 +193,25 @@ export const WhatsAppPromoBanner: React.FC<WhatsAppPromoBannerProps> = ({
                     >
                       {copied ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
                       <span>{copied ? 'Disalin' : 'Salin No.'}</span>
+                    </button>
+                  </div>
+
+                  <div className="p-2.5 bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700 flex items-center justify-between gap-2">
+                    <div>
+                      <span className="text-[10px] text-pink-600 dark:text-pink-400 block font-bold uppercase">
+                        DuitNow ID (No. Pendaftaran Perniagaan / SSM)
+                      </span>
+                      <span className="text-xs sm:text-sm font-black text-stone-900 dark:text-white font-mono tracking-wider">
+                        202503301954
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleCopyDuitNow}
+                      className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-pink-50 dark:bg-pink-950/60 text-pink-800 dark:text-pink-300 border border-pink-200 dark:border-pink-800 hover:bg-pink-100 transition-colors cursor-pointer flex items-center gap-1 shrink-0"
+                    >
+                      {copiedDuitNow ? <Check className="w-3 h-3 text-pink-600" /> : <Copy className="w-3 h-3" />}
+                      <span>{copiedDuitNow ? 'Disalin' : 'Salin ID'}</span>
                     </button>
                   </div>
 

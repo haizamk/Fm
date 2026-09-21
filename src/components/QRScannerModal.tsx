@@ -408,7 +408,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
                   >
                     <option value="disahkan">1. Disahkan</option>
                     <option value="sembelih-potong">2. Sembelih & Potong</option>
-                    <option value="pembungkusan-sejuk">3. Pek Sejuk</option>
+                    <option value="pembungkusan-sejuk">3. Pack Dan Tunggu Rider</option>
                     <option value="dalam-penghantaran">4. Sedia Ambil / Rider</option>
                     <option value="selesai">5. Selesai</option>
                   </select>

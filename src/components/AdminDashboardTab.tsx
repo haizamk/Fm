@@ -17,7 +17,9 @@ import {
   CheckCircle2, 
   Send,
   Flame,
-  AlertTriangle
+  AlertTriangle,
+  MessageCircle,
+  Clock
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -53,6 +55,7 @@ interface AdminDashboardTabProps {
   onProductsUpdated?: (products: Product[]) => void;
   onShowNotification?: (type: 'success' | 'error', text: string) => void;
   onNavigateToOrders?: (zone?: 'all' | 'semenyih' | 'beranang' | 'kajang' | 'pickup') => void;
+  onNavigateToWhatsAppOrders?: () => void;
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -71,17 +74,105 @@ export const AdminDashboardTab: React.FC<AdminDashboardTabProps> = ({
   onProductsUpdated,
   onShowNotification,
   onNavigateToOrders,
+  onNavigateToWhatsAppOrders,
 }) => {
   const [timeRange, setTimeRange] = useState<7 | 14 | 30>(30);
+  const [channelFilter, setChannelFilter] = useState<'all' | 'web' | 'whatsapp'>('all');
   const [chartMetric, setChartMetric] = useState<'revenue' | 'orders' | 'chickens'>('revenue');
   const [stockAlerts, setStockAlerts] = useState<StockAlertSubscription[]>(() => dataStorageService.getStockAlerts());
   const [selectedLogisticsZone, setSelectedLogisticsZone] = useState<'all' | 'semenyih' | 'beranang' | 'kajang' | 'pickup'>('all');
   const [selectedLogisticsDate, setSelectedLogisticsDate] = useState<string>('all');
 
-  // Generate 30-day analytics data
-  const rawDailyStats = useMemo(() => {
-    return dataStorageService.getDailySalesStats(30);
+  // Channel breakdown metrics
+  const whatsappOrders = useMemo(() => {
+    return orders.filter(
+      (o) =>
+        o.orderSource === 'whatsapp' ||
+        o.customer?.paymentMethod === 'whatsapp' ||
+        o.orderId.startsWith('WA-') ||
+        (o.customer?.orderNotes && o.customer.orderNotes.toLowerCase().includes('whatsapp'))
+    );
   }, [orders]);
+
+  const webOrders = useMemo(() => {
+    return orders.filter(
+      (o) =>
+        o.orderSource !== 'whatsapp' &&
+        o.customer?.paymentMethod !== 'whatsapp' &&
+        !o.orderId.startsWith('WA-') &&
+        !(o.customer?.orderNotes && o.customer.orderNotes.toLowerCase().includes('whatsapp'))
+    );
+  }, [orders]);
+
+  const whatsappPaidOrders = useMemo(() => {
+    return whatsappOrders.filter(
+      (o) =>
+        o.status !== 'dibatalkan' &&
+        (o.paymentStatus === 'paid' ||
+          (o.paymentStatus !== 'unpaid' && o.status !== 'menunggu_bayaran'))
+    );
+  }, [whatsappOrders]);
+
+  const whatsappUnpaidOrders = useMemo(() => {
+    return whatsappOrders.filter(
+      (o) =>
+        o.status !== 'dibatalkan' &&
+        (o.paymentStatus === 'unpaid' ||
+          (o.paymentStatus !== 'paid' && o.status === 'menunggu_bayaran'))
+    );
+  }, [whatsappOrders]);
+
+  const whatsappPaidTotal = useMemo(() => {
+    return whatsappPaidOrders.reduce((sum, o) => sum + o.total, 0);
+  }, [whatsappPaidOrders]);
+
+  const whatsappUnpaidTotal = useMemo(() => {
+    return whatsappUnpaidOrders.reduce((sum, o) => sum + o.total, 0);
+  }, [whatsappUnpaidOrders]);
+
+  const whatsappTotalRevenue = useMemo(() => {
+    return whatsappOrders.reduce((sum, o) => sum + (o.status !== 'dibatalkan' ? o.total : 0), 0);
+  }, [whatsappOrders]);
+
+  const webTotalRevenue = useMemo(() => {
+    return webOrders.reduce((sum, o) => sum + (o.status !== 'dibatalkan' ? o.total : 0), 0);
+  }, [webOrders]);
+
+  // Active orders based on channelFilter
+  const activeOrders = useMemo(() => {
+    if (channelFilter === 'whatsapp') return whatsappOrders;
+    if (channelFilter === 'web') return webOrders;
+    return orders;
+  }, [orders, channelFilter, whatsappOrders, webOrders]);
+
+  // Generate 30-day analytics data with channel filtering
+  const rawDailyStats = useMemo(() => {
+    const days = 30;
+    const result: DailySalesStat[] = [];
+    const today = new Date();
+
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(today.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+
+      const matchingOrders = activeOrders.filter((o) => o.createdAt.startsWith(dateStr) && o.status !== 'dibatalkan');
+      const totalRev = Number(matchingOrders.reduce((sum, o) => sum + o.total, 0).toFixed(2));
+      const totalOrders = matchingOrders.length;
+      const chickensSold = matchingOrders.reduce((acc, o) => acc + o.items.reduce((s, it) => s + it.quantity, 0), 0);
+      const dayName = d.toLocaleDateString('ms-MY', { weekday: 'short', day: 'numeric', month: 'short' });
+
+      result.push({
+        date: dateStr,
+        formattedDate: dayName,
+        revenue: totalRev,
+        orderCount: totalOrders,
+        chickensSold,
+        avgOrderValue: totalOrders > 0 ? Number((totalRev / totalOrders).toFixed(2)) : 0,
+      });
+    }
+    return result;
+  }, [activeOrders]);
 
   const filteredDailyStats = useMemo(() => {
     return rawDailyStats.slice(rawDailyStats.length - timeRange);
@@ -188,7 +279,42 @@ export const AdminDashboardTab: React.FC<AdminDashboardTabProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Channel Selector */}
+          <div className="bg-white dark:bg-stone-900 p-1 rounded-xl flex border border-stone-200 dark:border-stone-700 text-xs font-bold">
+            <button
+              onClick={() => setChannelFilter('all')}
+              className={`px-2.5 py-1.5 rounded-lg transition-all cursor-pointer ${
+                channelFilter === 'all'
+                  ? 'bg-emerald-700 text-white shadow-xs'
+                  : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-white'
+              }`}
+            >
+              Semua Saluran
+            </button>
+            <button
+              onClick={() => setChannelFilter('web')}
+              className={`px-2.5 py-1.5 rounded-lg transition-all cursor-pointer ${
+                channelFilter === 'web'
+                  ? 'bg-emerald-700 text-white shadow-xs'
+                  : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-white'
+              }`}
+            >
+              Web Direct
+            </button>
+            <button
+              onClick={() => setChannelFilter('whatsapp')}
+              className={`px-2.5 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
+                channelFilter === 'whatsapp'
+                  ? 'bg-emerald-700 text-white shadow-xs'
+                  : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-white'
+              }`}
+            >
+              <MessageCircle className="w-3 h-3" />
+              <span>WhatsApp</span>
+            </button>
+          </div>
+
           {/* Timeframe Buttons */}
           <div className="bg-white dark:bg-stone-900 p-1 rounded-xl flex border border-stone-200 dark:border-stone-700 text-xs font-bold">
             <button
@@ -241,7 +367,7 @@ export const AdminDashboardTab: React.FC<AdminDashboardTabProps> = ({
           </div>
           <div className="mt-2 flex items-center gap-1.5 text-[11px] text-emerald-600 dark:text-emerald-400 font-bold">
             <ArrowUpRight className="w-3.5 h-3.5" />
-            <span>+18.4% berbanding bulan lalu</span>
+            <span>{channelFilter === 'all' ? 'Gabungan Web & WhatsApp' : channelFilter === 'whatsapp' ? 'Saluran WhatsApp Sahaja' : 'Saluran Web Sahaja'}</span>
           </div>
         </div>
 
@@ -296,6 +422,102 @@ export const AdminDashboardTab: React.FC<AdminDashboardTabProps> = ({
           </div>
         </div>
 
+      </div>
+
+      {/* Saluran Jualan Breakdown & WhatsApp Payment Tracker */}
+      <div className="p-4 sm:p-5 bg-stone-50 dark:bg-stone-800/80 rounded-3xl border border-stone-200 dark:border-stone-700 space-y-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-stone-200 dark:border-stone-700 pb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs">
+              <MessageCircle className="w-4 h-4" />
+            </div>
+            <div>
+              <h4 className="text-sm font-black text-stone-900 dark:text-white font-['Outfit']">
+                Analisis Saluran Pesanan & Bayaran WhatsApp
+              </h4>
+              <p className="text-xs text-stone-500">
+                Pecahan hasil jualan antara pesanan Web dan WhatsApp serta status lunas bayaran.
+              </p>
+            </div>
+          </div>
+
+          {onNavigateToWhatsAppOrders && (
+            <button
+              type="button"
+              onClick={onNavigateToWhatsAppOrders}
+              className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
+            >
+              <span>Urus Pesanan WhatsApp</span>
+              <ArrowUpRight className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {/* Card 1: Web Channel */}
+          <div className="p-4 bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-700 shadow-xs">
+            <div className="flex items-center justify-between text-stone-600 dark:text-stone-400 mb-1">
+              <span className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
+                <ShoppingBag className="w-3.5 h-3.5 text-blue-600" />
+                <span>Pesanan Web Direct</span>
+              </span>
+              <span className="text-xs font-bold font-mono bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-md">
+                {webOrders.length} Pesanan
+              </span>
+            </div>
+            <div className="text-xl font-black text-stone-900 dark:text-white font-['Outfit'] mt-2">
+              RM {webTotalRevenue.toFixed(2)}
+            </div>
+            <p className="text-[11px] text-stone-500 mt-1">
+              Pesanan automatik yang dibuat terus melalui laman web oleh pelanggan.
+            </p>
+          </div>
+
+          {/* Card 2: WhatsApp Channel & Payment Breakdown */}
+          <div className="p-4 bg-white dark:bg-stone-900 rounded-2xl border border-emerald-200 dark:border-emerald-800/60 shadow-xs">
+            <div className="flex items-center justify-between text-emerald-800 dark:text-emerald-300 mb-1">
+              <span className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
+                <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Pesanan WhatsApp (Manual Admin)</span>
+              </span>
+              <span className="text-xs font-bold font-mono bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 px-2 py-0.5 rounded-md">
+                {whatsappOrders.length} Pesanan
+              </span>
+            </div>
+            <div className="text-xl font-black text-emerald-900 dark:text-emerald-200 font-['Outfit'] mt-2">
+              RM {whatsappTotalRevenue.toFixed(2)}
+            </div>
+            
+            {/* Payment status breakdown */}
+            <div className="mt-3 pt-3 border-t border-stone-100 dark:border-stone-800 grid grid-cols-2 gap-2 text-xs">
+              <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-900">
+                <div className="flex items-center gap-1 text-emerald-700 dark:text-emerald-300 font-bold text-[11px]">
+                  <CheckCircle2 className="w-3 h-3" />
+                  <span>Sudah Lunas</span>
+                </div>
+                <div className="text-sm font-black text-emerald-900 dark:text-emerald-200 mt-0.5 font-['Outfit']">
+                  RM {whatsappPaidTotal.toFixed(2)}
+                </div>
+                <div className="text-[10px] text-emerald-600 dark:text-emerald-400">
+                  {whatsappPaidOrders.length} pesanan selesai bayaran
+                </div>
+              </div>
+
+              <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-900">
+                <div className="flex items-center gap-1 text-amber-700 dark:text-amber-300 font-bold text-[11px]">
+                  <Clock className="w-3 h-3" />
+                  <span>Belum Bayar</span>
+                </div>
+                <div className="text-sm font-black text-amber-900 dark:text-amber-200 mt-0.5 font-['Outfit']">
+                  RM {whatsappUnpaidTotal.toFixed(2)}
+                </div>
+                <div className="text-[10px] text-amber-600 dark:text-amber-400">
+                  {whatsappUnpaidOrders.length} pesanan menunggu bayaran
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* LOGISTICS & DELIVERY ZONES INDICATOR */}

@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import QRCode from 'qrcode';
-import { QrCode, Copy, Check, MessageCircle, Download, ExternalLink, ShieldCheck, ZoomIn, X, Upload, Image as ImageIcon, RefreshCw } from 'lucide-react';
+import { QrCode, Copy, Check, MessageCircle, Download, ExternalLink, ShieldCheck, ZoomIn, X, Image as ImageIcon, RefreshCw } from 'lucide-react';
 import { normalizeWhatsAppPhone, OFFICIAL_WHATSAPP_DIGITS, openWhatsAppSafe, getOfficialWhatsAppLink } from '../utils/whatsappHelper';
 import { dataStorageService } from '../services/dataStorage';
-import { compressImageFile } from '../utils/imageCompressor';
 
 interface DuitNowOCBCQRProps {
   orderTotal?: number;
@@ -84,7 +83,6 @@ export const DuitNowOCBCQR: React.FC<DuitNowOCBCQRProps> = ({
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [isZoomed, setIsZoomed] = useState(false);
   const [customQrImage, setCustomQrImage] = useState<string>('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const bankName = 'OCBC Bank (Malaysia) Berhad';
   const accountName = 'KHAIRUL FRESH AND FROZEN FOOD';
@@ -92,9 +90,11 @@ export const DuitNowOCBCQR: React.FC<DuitNowOCBCQRProps> = ({
   const accountNumberRaw = '7061163993';
   const duitnowId = '202503301954';
   const duitnowIdType = 'No. Pendaftaran Perniagaan (SSM)';
-  const orderRef = customerPhone 
-    ? `${customerPhone} / ${orderId ? `#${orderId}` : 'Pesanan'}`
-    : (orderId ? `#${orderId}` : 'No. Telefon Pelanggan / no pesanan');
+
+  // Nombor Rujukan Pesanan Rasmi Dijana Sistem (cth: KFF-58291)
+  const [fallbackOrderId] = useState(() => 'KFF-' + Math.floor(10000 + Math.random() * 90000));
+  const activeOrderNumber = (orderId && orderId.trim()) ? orderId.trim().replace(/^#/, '') : fallbackOrderId;
+  const orderRef = activeOrderNumber;
   const whatsappNumber = OFFICIAL_WHATSAPP_DIGITS;
 
   // Load custom QR image from site settings or localStorage
@@ -118,46 +118,15 @@ export const DuitNowOCBCQR: React.FC<DuitNowOCBCQRProps> = ({
     setTimeout(() => setCopiedField(null), 2500);
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      try {
-        const compressed = await compressImageFile(file, { maxWidth: 600, maxHeight: 600, quality: 0.82 });
-        const base64 = compressed.dataUrl;
-        setCustomQrImage(base64);
-        try {
-          localStorage.setItem('khairul_duitnow_qr_img', base64);
-          const currentSettings = dataStorageService.getSiteSettings();
-          dataStorageService.saveSiteSettings({
-            ...currentSettings,
-            duitnowConfig: {
-              bankName,
-              accountName,
-              accountNumber,
-              orderReferenceGuide: 'No. Telefon Pelanggan / no pesanan',
-              qrImageUrl: base64,
-              isActive: true,
-            },
-          }, 'Admin/Pelanggan');
-        } catch (err) {
-          console.warn('Notice saving QR image to local storage:', err);
-        }
-      } catch (uploadErr) {
-        console.warn('Gagal memproses imej QR:', uploadErr);
-      }
-    }
-  };
-
   const handleSendWhatsAppProof = () => {
     const totalText = orderTotal ? `RM ${orderTotal.toFixed(2)}` : '';
-    const orderText = orderId ? `Pesanan #${orderId}` : 'Pesanan Baharu';
     const nameText = customerName ? `Nama: ${customerName}` : '';
     const phoneText = customerPhone ? `Tel: ${customerPhone}` : '';
     
     const message = 
       `Salam Khairul FRESH Food,\n\n` +
       `Saya telah membuat pembayaran melalui DuitNow QR / Pindahan Bank OCBC:\n` +
-      `• *Rujukan Pesanan:* ${orderText} (${customerPhone || 'No Telefon'})\n` +
+      `• *No. Pesanan / Rujukan:* #${activeOrderNumber}\n` +
       (nameText ? `• *${nameText}*\n` : '') +
       (phoneText ? `• *${phoneText}*\n` : '') +
       (totalText ? `• *Jumlah Dibayar:* ${totalText}\n` : '') +
@@ -165,7 +134,7 @@ export const DuitNowOCBCQR: React.FC<DuitNowOCBCQRProps> = ({
       `• *Nama Akaun:* ${accountName}\n` +
       `• *No. Akaun:* ${accountNumber}\n` +
       `• *DuitNow ID (No. Pendaftaran Perniagaan / SSM):* ${duitnowId}\n\n` +
-      `Dilampirkan resit / bukti transaksi pindahan DuitNow saya. Mohon semakan & pengesahan. Terima kasih!`;
+      `Dilampirkan resit / bukti transaksi pindahan DuitNow saya untuk Pesanan #${activeOrderNumber}. Mohon semakan & pengesahan. Terima kasih!`;
 
     const url = getOfficialWhatsAppLink(message, whatsappNumber || OFFICIAL_WHATSAPP_DIGITS);
     openWhatsAppSafe(url);
@@ -173,13 +142,6 @@ export const DuitNowOCBCQR: React.FC<DuitNowOCBCQRProps> = ({
 
   return (
     <div className="space-y-4">
-      <input
-        type="file"
-        ref={fileInputRef}
-        onChange={handleFileUpload}
-        accept="image/*"
-        className="hidden"
-      />
 
       {/* Zoom Modal */}
       {isZoomed && (
@@ -208,7 +170,7 @@ export const DuitNowOCBCQR: React.FC<DuitNowOCBCQRProps> = ({
                 merchantName={accountName} 
                 customImage={customQrImage} 
                 orderTotal={orderTotal}
-                orderId={orderId}
+                orderId={activeOrderNumber}
               />
             </div>
 
@@ -230,7 +192,7 @@ export const DuitNowOCBCQR: React.FC<DuitNowOCBCQRProps> = ({
               customImage={customQrImage} 
               compact={compact} 
               orderTotal={orderTotal}
-              orderId={orderId}
+              orderId={activeOrderNumber}
             />
             
             {/* Zoom Overlay badge on hover */}
@@ -242,7 +204,7 @@ export const DuitNowOCBCQR: React.FC<DuitNowOCBCQRProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-2 mt-2">
+          <div className="flex items-center justify-center mt-2">
             <button
               type="button"
               onClick={() => setIsZoomed(true)}
@@ -250,18 +212,6 @@ export const DuitNowOCBCQR: React.FC<DuitNowOCBCQRProps> = ({
             >
               <ZoomIn className="w-3 h-3" />
               <span>Besarkan Kod QR</span>
-            </button>
-
-            <span className="text-stone-300 dark:text-stone-700">•</span>
-
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="text-[11px] font-bold text-stone-500 hover:text-stone-800 dark:hover:text-stone-200 flex items-center gap-1 cursor-pointer"
-              title="Guna gambar asal standee dari peranti anda"
-            >
-              <Upload className="w-3 h-3" />
-              <span>{customQrImage ? 'Tukar Gambar' : 'Guna Gambar Asal'}</span>
             </button>
           </div>
         </div>
@@ -375,22 +325,34 @@ export const DuitNowOCBCQR: React.FC<DuitNowOCBCQRProps> = ({
               </button>
             </div>
 
-            {/* Order Reference */}
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-stone-500 dark:text-stone-400 font-bold shrink-0">Rujukan Pesanan:</span>
-              <div className="flex items-center gap-1.5 text-right">
-                <span className="font-bold text-stone-900 dark:text-white bg-white dark:bg-stone-800 px-2 py-0.5 rounded border border-pink-200 dark:border-stone-700 text-[11px]">
+            {/* Order Reference (No. Pesanan Dijana Sistem) */}
+            <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-white dark:bg-stone-900 border border-pink-200 dark:border-pink-800/80">
+              <div className="min-w-0 pr-1">
+                <span className="text-stone-500 dark:text-stone-400 font-bold block text-[11px]">
+                  Rujukan Pesanan:
+                </span>
+                <span className="font-mono font-black text-stone-900 dark:text-white text-xs sm:text-sm tracking-wider">
                   {orderRef}
                 </span>
-                <button
-                  type="button"
-                  onClick={() => handleCopy(orderRef, 'orderRef')}
-                  className="p-1 rounded-md bg-white dark:bg-stone-800 border border-pink-200 dark:border-stone-700 text-stone-500 hover:text-stone-900 dark:hover:text-white transition-colors cursor-pointer"
-                  title="Salin Rujukan Pesanan"
-                >
-                  {copiedField === 'orderRef' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                </button>
               </div>
+              <button
+                type="button"
+                onClick={() => handleCopy(orderRef, 'orderRef')}
+                className="px-2.5 py-1.5 rounded-lg bg-pink-50 hover:bg-pink-100 dark:bg-pink-950/60 dark:hover:bg-pink-900 text-pink-700 dark:text-pink-300 font-bold text-[11px] border border-pink-200 dark:border-pink-800 flex items-center gap-1 transition-colors cursor-pointer shrink-0"
+                title="Salin No. Pesanan Sistem"
+              >
+                {copiedField === 'orderRef' ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Disalin!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Salin Rujukan</span>
+                  </>
+                )}
+              </button>
             </div>
 
             {orderTotal && (

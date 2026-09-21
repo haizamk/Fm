@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   X, 
@@ -20,9 +20,13 @@ import {
   Check,
   ShieldCheck,
   Receipt,
-  Edit3
+  Edit3,
+  Minus,
+  Plus,
+  Calculator
 } from 'lucide-react';
-import { PRODUCTS, CHICKEN_CUT_OPTIONS } from '../data/products';
+import { CHICKEN_CUT_OPTIONS } from '../data/products';
+import { Product } from '../types';
 import { getOfficialWhatsAppLink, openWhatsAppSafe } from '../utils/whatsappHelper';
 import { dataStorageService } from '../services/dataStorage';
 import { DuitNowStandeeVisual } from './DuitNowOCBCQR';
@@ -31,6 +35,7 @@ interface WhatsAppQuickOrderModalProps {
   isOpen: boolean;
   onClose: () => void;
   defaultCustomerName?: string;
+  products?: Product[];
 }
 
 /**
@@ -110,22 +115,97 @@ export const WhatsAppQuickOrderModal: React.FC<WhatsAppQuickOrderModalProps> = (
   isOpen,
   onClose,
   defaultCustomerName = '',
+  products: propProducts,
 }) => {
   // 1. Nama Customer
   const [customerName, setCustomerName] = useState(defaultCustomerName);
 
+  // Live dynamic products - auto updates whenever prices change in admin or database!
+  const [productsList, setProductsList] = useState<Product[]>(() => {
+    if (propProducts && propProducts.length > 0) return propProducts;
+    return dataStorageService.getProducts();
+  });
+
+  // Sync when propProducts changes
+  useEffect(() => {
+    if (propProducts && propProducts.length > 0) {
+      setProductsList(propProducts);
+    }
+  }, [propProducts]);
+
+  // Sync when modal opens to ensure latest prices are loaded immediately
+  useEffect(() => {
+    if (isOpen) {
+      const current = dataStorageService.getProducts();
+      if (current && current.length > 0) {
+        setProductsList(current);
+      }
+    }
+  }, [isOpen]);
+
+  // Subscribe to real-time updates and storage event listener
+  useEffect(() => {
+    const unsub = dataStorageService.subscribeProducts((prods) => {
+      if (prods && prods.length > 0) {
+        setProductsList(prods);
+      }
+    });
+
+    const handleProductsUpdated = (e: Event) => {
+      const customEvent = e as CustomEvent<Product[]>;
+      if (customEvent.detail && customEvent.detail.length > 0) {
+        setProductsList(customEvent.detail);
+      } else {
+        setProductsList(dataStorageService.getProducts());
+      }
+    };
+
+    window.addEventListener('khairul_fresh_products_updated', handleProductsUpdated);
+    window.addEventListener('storage', handleProductsUpdated);
+
+    return () => {
+      unsub();
+      window.removeEventListener('khairul_fresh_products_updated', handleProductsUpdated);
+      window.removeEventListener('storage', handleProductsUpdated);
+    };
+  }, []);
+
   // 2. Produk Ayam & Potongan
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>(['ayam-segar-standard']);
+  const [productQuantities, setProductQuantities] = useState<Record<string, number>>({
+    'ayam-segar-standard': 1,
+  });
   const [selectedCut, setSelectedCut] = useState<string>('potong-12');
   const [customProductNotes, setCustomProductNotes] = useState<string>('Ayam Segar Standard (1 ekor) - Potong 12 Bahagian (Paling Popular)');
   const notesInputRef = useRef<HTMLInputElement>(null);
 
-  // Helper untuk rumusan nama produk
-  const getProductSummary = (prodIds: string[]) => {
-    const selected = PRODUCTS.filter(p => prodIds.includes(p.id));
-    if (selected.length === 0) return 'Ayam Segar Standard';
-    return selected.map(p => p.name).join(', ');
+  // Helper untuk rumusan nama produk & kuantiti berasaskan data terkini
+  const getProductSummary = (prodIds: string[], qtys: Record<string, number> = productQuantities) => {
+    const selected = productsList.filter(p => prodIds.includes(p.id));
+    if (selected.length === 0) return 'Ayam Segar Standard (1 ekor)';
+    return selected.map(p => {
+      const q = qtys[p.id] || 1;
+      return `${p.name} (${q} ${p.unit})`;
+    }).join(', ');
   };
+
+  // Senarai produk yang dipilih & pengiraan harga anggaran secara live
+  const selectedProducts = useMemo(() => {
+    return productsList.filter(p => selectedProductIds.includes(p.id));
+  }, [productsList, selectedProductIds]);
+
+  const estimatedTotalProductPrice = useMemo(() => {
+    return selectedProducts.reduce((sum, p) => {
+      const q = productQuantities[p.id] || 1;
+      return sum + (p.price * q);
+    }, 0);
+  }, [selectedProducts, productQuantities]);
+
+  const totalUnitsCount = useMemo(() => {
+    return selectedProducts.reduce((sum, p) => {
+      return sum + (productQuantities[p.id] || 1);
+    }, 0);
+  }, [selectedProducts, productQuantities]);
 
   // Logik bila customer tekan pilihan potong -> automatik masuk ke dalam kotak
   const handleCutChange = (cutId: string) => {
@@ -139,7 +219,7 @@ export const WhatsAppQuickOrderModal: React.FC<WhatsAppQuickOrderModalProps> = (
     } else {
       const cutObj = CHICKEN_CUT_OPTIONS.find(c => c.id === cutId);
       const cutLabel = cutObj ? cutObj.label : cutId;
-      const prodsStr = getProductSummary(selectedProductIds);
+      const prodsStr = getProductSummary(selectedProductIds, productQuantities);
       setCustomProductNotes(`${prodsStr} - ${cutLabel}`);
     }
   };
@@ -187,11 +267,16 @@ export const WhatsAppQuickOrderModal: React.FC<WhatsAppQuickOrderModalProps> = (
 
   const toggleProductSelection = (prodId: string) => {
     let updatedIds: string[];
+    const nextQuantities = { ...productQuantities };
     if (selectedProductIds.includes(prodId)) {
       if (selectedProductIds.length === 1) return; // Keep at least one
       updatedIds = selectedProductIds.filter(id => id !== prodId);
     } else {
       updatedIds = [...selectedProductIds, prodId];
+      if (!nextQuantities[prodId]) {
+        nextQuantities[prodId] = 1;
+        setProductQuantities(nextQuantities);
+      }
     }
     setSelectedProductIds(updatedIds);
 
@@ -199,7 +284,20 @@ export const WhatsAppQuickOrderModal: React.FC<WhatsAppQuickOrderModalProps> = (
     if (selectedCut !== 'lain-lain') {
       const cutObj = CHICKEN_CUT_OPTIONS.find(c => c.id === selectedCut);
       const cutLabel = cutObj ? cutObj.label : 'Potong 12';
-      const prodsStr = getProductSummary(updatedIds);
+      const prodsStr = getProductSummary(updatedIds, nextQuantities);
+      setCustomProductNotes(`${prodsStr} - ${cutLabel}`);
+    }
+  };
+
+  const handleUpdateQuantity = (prodId: string, newQty: number) => {
+    const safeQty = Math.max(1, Math.min(999, newQty || 1));
+    const nextQuantities = { ...productQuantities, [prodId]: safeQty };
+    setProductQuantities(nextQuantities);
+
+    if (selectedCut !== 'lain-lain') {
+      const cutObj = CHICKEN_CUT_OPTIONS.find(c => c.id === selectedCut);
+      const cutLabel = cutObj ? cutObj.label : 'Potong 12';
+      const prodsStr = getProductSummary(selectedProductIds, nextQuantities);
       setCustomProductNotes(`${prodsStr} - ${cutLabel}`);
     }
   };
@@ -216,8 +314,11 @@ export const WhatsAppQuickOrderModal: React.FC<WhatsAppQuickOrderModalProps> = (
       ? `Lain-lain (Pilihan Sendiri: ${customProductNotes.trim() || 'Sila rujuk nota'})`
       : (CHICKEN_CUT_OPTIONS.find(c => c.id === selectedCut)?.label || selectedCut);
 
-    const selectedProducts = PRODUCTS.filter(p => selectedProductIds.includes(p.id));
-    const productNamesList = selectedProducts.map(p => `• ${p.name} (${p.unit}) - Pilihan Potong: ${cutLabel}`).join('\n   ');
+    const productNamesList = selectedProducts.map(p => {
+      const qty = productQuantities[p.id] || 1;
+      const subtotal = qty * p.price;
+      return `   • ${p.name} × ${qty} ${p.unit} (RM ${p.price.toFixed(2)}/${p.unit}) = RM ${subtotal.toFixed(2)}\n     Pilihan Potong: ${cutLabel}`;
+    }).join('\n');
 
     const locationText = fulfillmentType === 'pickup' 
       ? '🏪 Self-Pickup di Gerai GA 59 Pasar Awam Semenyih (Sebelum 12:00 PM)'
@@ -229,22 +330,25 @@ export const WhatsAppQuickOrderModal: React.FC<WhatsAppQuickOrderModalProps> = (
       `--------------------------------------------------\n` +
       `1. *Nama Customer*:\n` +
       `   ${customerName.trim() || '[ Sila nyatakan nama ]'}\n\n` +
-      `2. *Produk Ayam & Potongan*:\n` +
-      `   ${productNamesList}\n` +
+      `2. *Produk Ayam, Kuantiti & Potongan*:\n` +
+      `${productNamesList}\n\n` +
+      `   *JUMLAH ITEM*: ${selectedProducts.length} jenis (${totalUnitsCount} unit)\n` +
+      `   *ANGGARAN TOTAL HARGA*: RM ${estimatedTotalProductPrice.toFixed(2)}\n` +
       `   *Catatan / Potongan Pilihan Sendiri*: ${customProductNotes.trim() || cutLabel}\n\n` +
       `3. *Lokasi Penghantaran atau Ambik di Pasar*:\n` +
       `   ${locationText}\n\n` +
       `4. *Bila Nak Hantar / Masa*:\n` +
       `   ${deliveryTiming || 'Hari ini / Segera'} (Waktu Operasi: Selasa - Ahad, Isnin Cuti)\n` +
       `--------------------------------------------------\n\n` +
-      `*MAKLUMAT PEMBAYARAN SYARIKAT*:\n` +
-      `• Kaedah: DuitNow QR / Pindahan Bank Sahaja\n` +
+      `*RINGKASAN HARGA & PEMBAYARAN SYARIKAT*:\n` +
+      `• Anggaran Total Produk: *RM ${estimatedTotalProductPrice.toFixed(2)}*\n` +
+      `• Kaedah Bayaran: DuitNow QR / Pindahan Bank Sahaja\n` +
       `• Bank: ${duitnow.bankName || 'OCBC Bank (Malaysia) Berhad'}\n` +
       `• No Akaun: ${duitnow.accountNumber || '70 6116 3993'}\n` +
       `• Nama Akaun: ${duitnow.accountName || 'KHAIRUL FRESH AND FROZEN FOOD'}\n` +
       `• DuitNow ID (No. Pendaftaran Perniagaan / SSM): ${duitnow.duitnowId || '202503301954'}\n\n` +
       `*(PENTING: Pembayaran hanya melalui DuitNow QR atau transfer bank ke akaun syarikat kami. Saya akan hantar resit bayaran di sini untuk pengesahan order)*\n\n` +
-      `Mohon pengesahan stok, total harga & caj penghantaran minima. Terima kasih!`;
+      `Mohon pengesahan stok, total akhir harga (termasuk caj penghantaran jika hantar ke rumah). Terima kasih!`;
 
     const waUrl = getOfficialWhatsAppLink(formattedMessage);
     openWhatsAppSafe(waUrl);
@@ -314,31 +418,130 @@ export const WhatsAppQuickOrderModal: React.FC<WhatsAppQuickOrderModalProps> = (
                 <span className="text-[10px] text-stone-500 dark:text-stone-400 font-normal">Boleh pilih lebih dari 1</span>
               </label>
 
-              {/* Product quick multi-selector with all products from database */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
-                {PRODUCTS.map((p) => {
+              {/* Product quick multi-selector with all products from database (auto-updates with current price & quantity counter) */}
+              <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                {productsList.map((p) => {
                   const isSelected = selectedProductIds.includes(p.id);
+                  const isOutOfStock = !p.inStock || (p.remainingStock !== undefined && p.remainingStock <= 0);
+                  const currentQty = productQuantities[p.id] || 1;
+                  const itemSubtotal = currentQty * p.price;
+
                   return (
-                    <button
-                      type="button"
+                    <div
                       key={p.id}
-                      onClick={() => toggleProductSelection(p.id)}
-                      className={`p-2.5 rounded-xl text-left border text-xs font-bold transition-all cursor-pointer flex items-center justify-between gap-1.5 ${
+                      className={`p-3 rounded-2xl border text-xs transition-all ${
                         isSelected
-                          ? 'bg-emerald-50 dark:bg-emerald-950/80 border-emerald-500 text-emerald-900 dark:text-emerald-200 shadow-2xs'
-                          : 'bg-white dark:bg-stone-900 border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300 hover:bg-stone-100'
+                          ? 'bg-emerald-50/90 dark:bg-emerald-950/70 border-emerald-500 shadow-xs ring-1 ring-emerald-500/30'
+                          : 'bg-white dark:bg-stone-900 border-stone-200 dark:border-stone-700 hover:border-emerald-300 dark:hover:border-stone-600'
                       }`}
                     >
-                      <div className="flex flex-col min-w-0">
-                        <span className="truncate">{p.name}</span>
-                        <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-extrabold font-['Outfit']">
-                          RM {p.price.toFixed(2)} /{p.unit}
-                        </span>
+                      {/* Baris Atas: Tekan untuk pilih / batal pilihan */}
+                      <div
+                        onClick={() => toggleProductSelection(p.id)}
+                        className="flex items-center justify-between gap-2 cursor-pointer select-none"
+                      >
+                        <div className="flex flex-col min-w-0">
+                          <span className={`font-bold truncate text-xs sm:text-sm ${
+                            isSelected ? 'text-emerald-950 dark:text-emerald-100' : 'text-stone-800 dark:text-stone-200'
+                          }`}>
+                            {p.name}
+                          </span>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-[11px] text-emerald-700 dark:text-emerald-400 font-extrabold font-['Outfit']">
+                              RM {p.price.toFixed(2)} /{p.unit}
+                            </span>
+                            {isOutOfStock && (
+                              <span className="text-[9px] px-1.5 py-0.5 rounded-sm bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 font-bold">
+                                Habis Stok
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="shrink-0 flex items-center gap-1.5">
+                          {isSelected ? (
+                            <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                          ) : (
+                            <div className="w-5 h-5 rounded-full border-2 border-stone-300 dark:border-stone-600 flex items-center justify-center hover:border-emerald-500 transition-colors" />
+                          )}
+                        </div>
                       </div>
-                      <CheckCircle2 className={`w-4 h-4 shrink-0 ${isSelected ? 'text-emerald-600 dark:text-emerald-400' : 'text-stone-300 dark:text-stone-600'}`} />
-                    </button>
+
+                      {/* Kawalan Kuantiti & Subtotal (Muncul bila produk dipilih) */}
+                      {isSelected && (
+                        <div
+                          onClick={(e) => e.stopPropagation()}
+                          className="mt-2.5 pt-2.5 border-t border-emerald-200/80 dark:border-emerald-800/60 flex items-center justify-between gap-2 flex-wrap"
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10.5px] font-black text-emerald-900 dark:text-emerald-200 mr-1">
+                              Kuantiti Diperlukan:
+                            </span>
+                            
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateQuantity(p.id, currentQty - 1)}
+                              disabled={currentQty <= 1}
+                              className="w-7 h-7 rounded-lg bg-emerald-200/80 hover:bg-emerald-300 dark:bg-emerald-900 dark:hover:bg-emerald-800 text-emerald-900 dark:text-emerald-100 font-black flex items-center justify-center transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shadow-2xs"
+                              title="Kurangkan kuantiti"
+                            >
+                              <Minus className="w-3.5 h-3.5" />
+                            </button>
+
+                            <input
+                              type="number"
+                              min={1}
+                              max={999}
+                              value={currentQty}
+                              onChange={(e) => handleUpdateQuantity(p.id, parseInt(e.target.value) || 1)}
+                              className="w-12 h-7 text-center rounded-lg bg-white dark:bg-stone-900 border border-emerald-300 dark:border-emerald-700 text-xs font-black text-emerald-950 dark:text-emerald-100 font-mono shadow-2xs focus:ring-2 focus:ring-emerald-500 outline-hidden"
+                            />
+
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateQuantity(p.id, currentQty + 1)}
+                              className="w-7 h-7 rounded-lg bg-emerald-200/80 hover:bg-emerald-300 dark:bg-emerald-900 dark:hover:bg-emerald-800 text-emerald-900 dark:text-emerald-100 font-black flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
+                              title="Tambah kuantiti"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                            </button>
+
+                            <span className="text-[11px] font-bold text-emerald-800 dark:text-emerald-300 ml-1">
+                              {p.unit}
+                            </span>
+                          </div>
+
+                          <div className="text-right ml-auto">
+                            <span className="text-[9.5px] font-semibold text-stone-500 dark:text-stone-400 block uppercase tracking-wider">
+                              Subtotal
+                            </span>
+                            <span className="text-xs sm:text-sm font-black text-emerald-800 dark:text-emerald-300 font-mono">
+                              RM {itemSubtotal.toFixed(2)}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
+              </div>
+
+              {/* Jalur Rumusan Anggaran Harga Bagi Produk Yang Dipilih */}
+              <div className="p-3 rounded-xl bg-emerald-100/90 dark:bg-emerald-950/70 border border-emerald-300 dark:border-emerald-800 flex items-center justify-between">
+                <div>
+                  <span className="text-[11px] font-extrabold text-emerald-950 dark:text-emerald-100 flex items-center gap-1.5">
+                    <Calculator className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                    Anggaran Harga Produk ({selectedProducts.length} jenis, {totalUnitsCount} unit):
+                  </span>
+                  <span className="text-[9.5px] text-emerald-800 dark:text-emerald-300 block mt-0.5">
+                    *Kiraan automatik ikut kuantiti & harga produk semasa
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="text-base sm:text-lg font-black text-emerald-900 dark:text-emerald-100 font-['Outfit']">
+                    RM {estimatedTotalProductPrice.toFixed(2)}
+                  </span>
+                </div>
               </div>
 
               {/* Cutting choice */}
@@ -668,11 +871,71 @@ export const WhatsAppQuickOrderModal: React.FC<WhatsAppQuickOrderModalProps> = (
               </div>
             </div>
 
+            {/* 6. Ringkasan & Anggaran Total Harga Tempahan */}
+            <div className="p-4 sm:p-5 rounded-3xl bg-stone-50 dark:bg-stone-800/80 border-2 border-emerald-500/40 shadow-xs space-y-3">
+              <div className="flex items-center justify-between text-xs font-black text-stone-900 dark:text-white uppercase tracking-wider">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-black text-xs shadow-xs">
+                    <Calculator className="w-3.5 h-3.5 text-white" />
+                  </div>
+                  <span>Ringkasan & Anggaran Total Harga</span>
+                </div>
+                <span className="text-[10.5px] px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-extrabold">
+                  {selectedProducts.length} Jenis Produk ({totalUnitsCount} Unit)
+                </span>
+              </div>
+
+              {/* Pecahan Item Dipilih */}
+              <div className="space-y-1.5 pt-1 text-xs divide-y divide-stone-200/70 dark:divide-stone-700/60">
+                {selectedProducts.map((p) => {
+                  const qty = productQuantities[p.id] || 1;
+                  const subtotal = qty * p.price;
+                  return (
+                    <div key={p.id} className="pt-1.5 first:pt-0 flex items-center justify-between text-stone-700 dark:text-stone-300">
+                      <div className="flex items-center gap-1.5 min-w-0 pr-2">
+                        <span className="font-bold text-stone-900 dark:text-white truncate">
+                          {p.name}
+                        </span>
+                        <span className="text-emerald-700 dark:text-emerald-400 font-black shrink-0">
+                          × {qty} {p.unit}
+                        </span>
+                        <span className="text-[10px] text-stone-400 dark:text-stone-500 shrink-0 hidden sm:inline">
+                          (@ RM {p.price.toFixed(2)})
+                        </span>
+                      </div>
+                      <span className="font-bold font-mono text-stone-900 dark:text-white shrink-0">
+                        RM {subtotal.toFixed(2)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Jumlah Keseluruhan Anggaran */}
+              <div className="pt-2.5 border-t-2 border-stone-200 dark:border-stone-700 flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-black text-stone-900 dark:text-white uppercase tracking-wider block">
+                    Anggaran Total Keseluruhan:
+                  </span>
+                  <span className="text-[10px] text-stone-500 dark:text-stone-400 block">
+                    {fulfillmentType === 'pickup' 
+                      ? '🏪 Ambil Sendiri di Pasar Semenyih (Tiada caj penghantaran)' 
+                      : '🚚 Penghantaran ke Rumah (Caj minima mengikut jarak/kawasan)'}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 font-['Outfit']">
+                    RM {estimatedTotalProductPrice.toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
             {/* Delivery Note Summary */}
             <div className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 flex items-center gap-2.5 text-emerald-900 dark:text-emerald-200 text-xs">
               <Truck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
               <p className="text-[11px] sm:text-xs font-medium">
-                <strong className="text-emerald-800 dark:text-emerald-300">Peringatan Penghantaran:</strong> Caj penghantaran minima mengikut kawasan akan dikenakan untuk pesanan hantar ke rumah.
+                <strong className="text-emerald-800 dark:text-emerald-300">Peringatan Penghantaran:</strong> Caj penghantaran minima mengikut kawasan akan disahkan oleh admin bagi pesanan hantar ke rumah.
               </p>
             </div>
 
@@ -680,14 +943,18 @@ export const WhatsAppQuickOrderModal: React.FC<WhatsAppQuickOrderModalProps> = (
             <button
               type="submit"
               disabled={isMondaySelected}
-              className={`w-full py-4 px-6 rounded-2xl font-black text-base shadow-xl flex items-center justify-center gap-2.5 transition-all cursor-pointer ${
+              className={`w-full py-4 px-6 rounded-2xl font-black text-sm sm:text-base shadow-xl flex items-center justify-center gap-2.5 transition-all cursor-pointer ${
                 isMondaySelected
                   ? 'bg-stone-400 text-stone-200 cursor-not-allowed shadow-none'
                   : 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white shadow-emerald-600/30 hover:scale-[1.01]'
               }`}
             >
-              <Send className="w-5 h-5" />
-              <span>{isMondaySelected ? 'Pilih Hari Selain Isnin (Isnin Cuti)' : 'Hantar Tempahan ke WhatsApp (011-1113 5503)'}</span>
+              <Send className="w-5 h-5 shrink-0" />
+              <span>
+                {isMondaySelected 
+                  ? 'Pilih Hari Selain Isnin (Isnin Cuti)' 
+                  : `Hantar Tempahan ke WhatsApp • Anggaran RM ${estimatedTotalProductPrice.toFixed(2)}`}
+              </span>
             </button>
 
           </form>

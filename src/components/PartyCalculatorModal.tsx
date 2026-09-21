@@ -12,11 +12,13 @@ import {
 } from 'lucide-react';
 import { PRODUCTS } from '../data/products';
 import { ChickenCutId, Product } from '../types';
+import { dataStorageService } from '../services/dataStorage';
 
 interface PartyCalculatorModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAddBulkToCart: (product: Product, quantity: number, cut: ChickenCutId) => void;
+  products?: Product[];
 }
 
 interface MenuType {
@@ -75,6 +77,7 @@ export const PartyCalculatorModal: React.FC<PartyCalculatorModalProps> = ({
   isOpen,
   onClose,
   onAddBulkToCart,
+  products: propProducts,
 }) => {
   const [pax, setPax] = useState<number>(50);
   const [selectedMenuId, setSelectedMenuId] = useState<string>('ayam-masak-merah-kenduri');
@@ -90,9 +93,11 @@ export const PartyCalculatorModal: React.FC<PartyCalculatorModalProps> = ({
   const totalChickensNeeded = baseChickens + bufferChickens;
   const estimatedKg = (totalChickensNeeded * 1.65).toFixed(1);
 
-  // Price calculation based on standard chicken price or bulk tier
-  const standardChicken = PRODUCTS.find((p) => p.id === 'ayam-segar-standard') || PRODUCTS[0];
-  const wholesalePricePer3 = 52.00; // Kombo Jimat 3 Ekor
+  // Price calculation based on standard chicken price or bulk tier (dynamically tracks live product prices)
+  const liveProducts = (propProducts && propProducts.length > 0) ? propProducts : dataStorageService.getProducts();
+  const standardChicken = liveProducts.find((p) => p.id === 'ayam-segar-standard') || liveProducts[0] || PRODUCTS[0];
+  const komboJimat = liveProducts.find((p) => p.id === 'kombo-keluarga') || PRODUCTS.find((p) => p.id === 'kombo-keluarga');
+  const wholesalePricePer3 = komboJimat ? komboJimat.price : 52.00; // Kombo Jimat 3 Ekor
   
   // If > 3 chickens, calculate with wholesale savings
   const wholesaleBundles = Math.floor(totalChickensNeeded / 3);

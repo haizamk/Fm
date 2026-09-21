@@ -1617,6 +1617,7 @@ export default function App() {
         isOpen={isCalculatorOpen}
         onClose={() => setIsCalculatorOpen(false)}
         onAddBulkToCart={handleBulkAddFromCalculator}
+        products={productsList}
       />
 
       {/* 6. Postcode Coverage Checker Modal */}
@@ -1678,6 +1679,7 @@ export default function App() {
         isOpen={isWhatsAppQuickOrderOpen}
         onClose={() => setIsWhatsAppQuickOrderOpen(false)}
         defaultCustomerName={currentUser?.name}
+        products={productsList}
       />
 
       {/* 11. Global Simulated OTP & Notification Toast System */}

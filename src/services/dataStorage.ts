@@ -540,6 +540,11 @@ export const dataStorageService = {
           if (cloudProds.length > 0) {
             safeSetStorage(PRODUCTS_KEY, cloudProds);
             callback(cloudProds);
+            try {
+              window.dispatchEvent(new CustomEvent('khairul_fresh_products_updated', { detail: cloudProds }));
+            } catch {
+              // ignore
+            }
           }
         }
       }, (err) => {
@@ -1165,6 +1170,12 @@ export const dataStorageService = {
       batch.commit().catch(e => console.warn('Firestore products batch sync error:', e));
     } catch (e) {
       console.warn('Firestore batch error:', e);
+    }
+
+    try {
+      window.dispatchEvent(new CustomEvent('khairul_fresh_products_updated', { detail: products }));
+    } catch {
+      // ignore
     }
 
     this.addAuditLog({

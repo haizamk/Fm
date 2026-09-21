@@ -111,6 +111,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   // Fulfillment option: 'delivery' (Penghantaran ke Rumah) | 'pickup' (Ambil Sendiri di Kedai)
   const [fulfillmentType, setFulfillmentType] = useState<'delivery' | 'pickup'>('delivery');
 
+  // Nombor pesanan rasmi dijana sistem untuk sesi checkout ini
+  const [sessionOrderId] = useState<string>(() => {
+    return 'KFF-' + Math.floor(10000 + Math.random() * 90000);
+  });
+
   // Available operating dates based on 11:00 PM Cut-off (strictly skips current day; after 11pm starts Day After Tomorrow)
   const cutoffInfo = getCutoffInfo(6);
   const initialDateStr = cutoffInfo.availableDates[0]?.dateStr || cutoffInfo.minDateStr;
@@ -521,7 +526,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     setIsSubmitting(true);
     setPaymentError(null);
 
-    const randomId = 'KFF-' + Math.floor(10000 + Math.random() * 90000);
+    const randomId = sessionOrderId;
     const formattedDate = formatDeliveryDateBM(deliveryDate);
     const estimatedDeliveryText = fulfillmentType === 'pickup'
       ? `Ambil di Kedai: ${formattedDate} (${pickupTime})`
@@ -1726,6 +1731,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               {paymentMethod === 'duitnow' ? (
                 <DuitNowOCBCQR
                   orderTotal={total}
+                  orderId={sessionOrderId}
                   customerName={fullName}
                   customerPhone={phone}
                 />

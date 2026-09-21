@@ -89,6 +89,7 @@ import { QRScannerModal } from './QRScannerModal';
 import { DuitNowStandeeVisual } from './DuitNowOCBCQR';
 import { getProductCleanUrl, slugify, copyShareableLink } from '../utils/seoHelper';
 import { compressImageFile } from '../utils/imageCompressor';
+import { FrontpageCardsEditor } from './FrontpageCardsEditor';
 
 interface AdminPortalProps {
   isOpen: boolean;
@@ -2425,6 +2426,19 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     </button>
                   </div>
                 </form>
+              )}
+
+              {/* DEDICATED MANAGER: 6 KAD PRODUK PILIHAN DI FRONTPAGE */}
+              {!isEditingProduct && (
+                <FrontpageCardsEditor
+                  products={products}
+                  onProductsUpdated={(updated) => {
+                    setProducts(updated);
+                    onProductsUpdated(updated);
+                  }}
+                  onShowNotification={showNotification}
+                  adminName={adminUser.name}
+                />
               )}
 
               {/* Product Grid */}

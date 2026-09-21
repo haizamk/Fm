@@ -44,6 +44,11 @@ import { DailySpecial } from './components/DailySpecial';
 import { QualityGuarantee } from './components/QualityGuarantee';
 import { FAQAccordion } from './components/FAQAccordion';
 import { Footer } from './components/Footer';
+import { ProductCategoriesSection } from './components/ProductCategoriesSection';
+import { PromoServiceRow } from './components/PromoServiceRow';
+import { WhatsAppPromoBanner } from './components/WhatsAppPromoBanner';
+import { TrustBadgesRow } from './components/TrustBadgesRow';
+import { HomeStoryRow } from './components/HomeStoryRow';
 import { FloatingProductOverlay, FlyingProductItem } from './components/FloatingProductOverlay';
 import { WhatsAppQuickOrderModal } from './components/WhatsAppQuickOrderModal';
 
@@ -1104,10 +1109,8 @@ export default function App() {
   };
 
   const scrollToProducts = () => {
-    const el = document.getElementById('catalog-section');
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth' });
-    }
+    setCurrentView('all-products');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleLogout = () => {
@@ -1220,6 +1223,36 @@ export default function App() {
             }}
             onExploreProducts={scrollToProducts}
             onOpenCalculator={() => setIsCalculatorOpen(true)}
+            onOpenWhatsApp={handleOpenWhatsAppHotline}
+          />
+
+          {/* Product Categories Section (6 Pilihan Produk Utama di Frontpage) */}
+          <ProductCategoriesSection
+            products={productsList}
+            isAdmin={currentUser?.role === 'admin'}
+            onOpenAdminEditor={() => {
+              if (currentUser?.role === 'admin') {
+                setIsAdminPortalOpen(true);
+              } else {
+                setIsAdminAuthModalOpen(true);
+              }
+            }}
+            onSelectProduct={handleOpenCutModal}
+            onSelectCategory={(cat) => {
+              setSelectedCategory(cat as any);
+              setCurrentView('all-products');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            onViewAllProducts={() => {
+              setCurrentView('all-products');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+          />
+
+          {/* Delivery Area Van & Dynamic Operating Hours Row */}
+          <PromoServiceRow
+            onOpenCoverage={() => setIsCoverageOpen(true)}
+            onOpenWhatsApp={handleOpenWhatsAppHotline}
           />
 
           {/* 12-Second Auto-Rotating Promotion & Announcement Banner */}
@@ -1251,160 +1284,13 @@ export default function App() {
             }}
           />
 
-          {/* Frontpage Main 6 Featured Products Section (2x3 Grid) */}
-          <main id="catalog-section" className="max-w-7xl mx-auto px-4 sm:px-6 py-10 sm:py-14 flex-1 w-full">
-            
-            {/* Featured Daily Special Banner / Component */}
-            <DailySpecial
-              products={productsList}
-              onSelectProduct={handleOpenCutModal}
-              onQuickAdd={handleQuickAdd}
-              isFavorite={favorites.includes(
-                getDailySpecial(productsList)?.product?.id || ''
-              )}
-              onToggleFavorite={toggleFavorite}
-            />
+          {/* Prominent WhatsApp Ordering Guidance Banner */}
+          <WhatsAppPromoBanner
+            onOpenWhatsAppModal={handleOpenWhatsAppHotline}
+          />
 
-            {/* Daily Stock Limit Urgency Notification Banner */}
-            {lowStockCount > 0 && (
-              <div className="mb-6 p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-amber-500/15 via-rose-500/15 to-amber-500/10 dark:from-amber-950/50 dark:via-rose-950/50 dark:to-amber-950/40 border border-amber-300 dark:border-amber-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
-                <div className="flex items-start sm:items-center gap-2.5">
-                  <div className="p-2 rounded-xl bg-amber-500 text-white shadow-xs shrink-0">
-                    <Flame className="w-5 h-5 fill-amber-200" />
-                  </div>
-                  <div>
-                    <h3 className="text-xs sm:text-sm font-bold text-stone-900 dark:text-white">
-                      Makluman Had Stok Ayam Segar Hari Ini
-                    </h3>
-                    <p className="text-[11px] sm:text-xs text-stone-600 dark:text-stone-300 mt-0.5">
-                      Terdapat <strong className="text-rose-700 dark:text-rose-400 font-extrabold">{lowStockCount} produk ayam</strong> yang hampir kehabisan baki stok harian. Tempah awal untuk menjamin slot anda!
-                    </p>
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => {
-                    setCurrentView('all-products');
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  className="px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 shrink-0 bg-rose-600 text-white hover:bg-rose-700 shadow-2xs"
-                >
-                  <Flame className="w-3.5 h-3.5 fill-current" />
-                  <span>Semak Semua Stok Terhad</span>
-                </button>
-              </div>
-            )}
-
-            {/* Frontpage Section Header */}
-            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6 sm:mb-8">
-              <div>
-                <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 font-bold text-xs uppercase tracking-wider mb-1">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span>⭐ 6 PRODUK UTAMA PILIHAN RAMAI</span>
-                </div>
-                <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-stone-900 dark:text-white font-['Outfit']">
-                  Pilihan Utama Segar Setiap Hari
-                </h2>
-                <p className="text-xs sm:text-sm text-stone-500 dark:text-stone-400 mt-1 max-w-xl">
-                  6 produk ayam segar yang paling kerap ditempah oleh suri rumah & peniaga. Dipotong percuma mengikut citarasa masakan anda.
-                </p>
-              </div>
-
-              {/* View All Products Button */}
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    setCurrentView('all-products');
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  className="w-full sm:w-auto px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs sm:text-sm font-bold transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <span>Lihat Semua Produk ({productsList.length})</span>
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            {/* 6 Featured Products Grid - 2 Rows x 3 Columns Layout on Desktop */}
-            {isLoadingProducts ? (
-              <ProductGridSkeleton count={6} />
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-                {featuredProducts.map((product, idx) => (
-                  <ProductCard
-                    key={product.id}
-                    product={product}
-                    index={idx}
-                    onSelectProduct={handleOpenCutModal}
-                    onQuickAdd={handleQuickAdd}
-                    isFavorite={favorites.includes(product.id)}
-                    onToggleFavorite={toggleFavorite}
-                    onNotifyStock={(p) => setStockNotifyProduct(p)}
-                  />
-                ))}
-              </div>
-            )}
-
-            {/* Dedicated CTA Block to explore All Products page */}
-            <div className="mt-8 p-5 sm:p-7 rounded-3xl bg-gradient-to-r from-emerald-900 via-emerald-800 to-stone-900 text-white flex flex-col md:flex-row items-center justify-between gap-5 shadow-lg border border-emerald-700/40">
-              <div className="space-y-1 text-center md:text-left">
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-bold uppercase tracking-wider mb-1 border border-emerald-400/30">
-                  <Layers className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Katalog Lengkap {productsList.length} Pilihan</span>
-                </div>
-                <h3 className="text-xl sm:text-2xl font-black font-['Outfit']">
-                  Ingin Terokai Semua Pilihan Ayam & Potongan?
-                </h3>
-                <p className="text-xs sm:text-sm text-emerald-100/85 max-w-xl">
-                  Buka halaman katalog penuh untuk melihat pelbagai variasi ayam kampung, dada fillet, kepak, tulang sup, pek jimat dan ayam perap sedia masak (3 item setiap baris).
-                </p>
-              </div>
-
-              <button
-                onClick={() => {
-                  setCurrentView('all-products');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                className="w-full sm:w-auto px-6 py-3.5 bg-amber-400 hover:bg-amber-300 text-stone-950 font-black text-sm rounded-2xl transition-all shadow-md flex items-center justify-center gap-2 shrink-0 cursor-pointer hover:scale-102 active:scale-98"
-              >
-                <span>Buka Katalog Keseluruhan Produk</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Special Bulk & Wholesale Promotion Banner */}
-            <div className="mt-10 p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-stone-900 via-emerald-950 to-stone-900 text-white relative overflow-hidden border border-emerald-900/50 shadow-xl">
-              <div className="relative z-10 max-w-2xl">
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400/20 text-amber-300 text-xs font-bold uppercase tracking-wider mb-2 border border-amber-400/30">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Khas Untuk Majlis, Kenduri & Peniaga Kedai Makan</span>
-                </div>
-                <h3 className="text-2xl sm:text-3xl font-black font-['Outfit'] leading-snug">
-                  Perlukan Ayam Segar Dalam Kuantiti Banyak?
-                </h3>
-                <p className="text-xs sm:text-sm text-stone-300 mt-2 leading-relaxed">
-                  Dapatkan harga borong terus dari ladang dengan pilihan potongan kenduri seragam (Potong 12 / Potong 16) serta penghantaran percuma terus ke dewan kenduri atau dapur restoran anda.
-                </p>
-                <div className="mt-5 flex flex-wrap gap-3">
-                  <button
-                    onClick={() => setIsCalculatorOpen(true)}
-                    className="bg-amber-400 hover:bg-amber-300 text-stone-950 font-extrabold text-xs sm:text-sm px-5 py-3 rounded-xl transition-colors flex items-center gap-2 cursor-pointer shadow-md"
-                  >
-                    <span>Gunakan Kalkulator Kenduri</span>
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={handleOpenWhatsAppHotline}
-                    className="bg-white/10 hover:bg-white/20 text-white font-bold text-xs sm:text-sm px-5 py-3 rounded-xl transition-colors flex items-center gap-2 cursor-pointer border border-white/15"
-                  >
-                    <PhoneCall className="w-4 h-4" />
-                    <span>Bincang Tempahan Katering WhatsApp</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-          </main>
+          {/* 4 Pillars Trust Badges Row (Alternating Red/Green Circles) */}
+          <TrustBadgesRow />
 
           {/* 4 Pillars Quality Guarantee Section */}
           <QualityGuarantee />
@@ -1431,6 +1317,14 @@ export default function App() {
           }
         }}
         onOpenAuth={() => setIsAuthModalOpen(true)}
+        onNavigateHome={() => {
+          setCurrentView('home');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+        onNavigateProducts={() => {
+          setCurrentView('all-products');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
       />
 
       {/* Floating WhatsApp Action Button */}

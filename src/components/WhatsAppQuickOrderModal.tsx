@@ -148,9 +148,9 @@ export const WhatsAppQuickOrderModal: React.FC<WhatsAppQuickOrderModalProps> = (
                 <span className="text-[10px] text-stone-500 dark:text-stone-400 font-normal">Boleh pilih lebih dari 1</span>
               </label>
 
-              {/* Product quick multi-selector */}
-              <div className="grid grid-cols-2 gap-2">
-                {PRODUCTS.slice(0, 6).map((p) => {
+              {/* Product quick multi-selector with all products from database */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
+                {PRODUCTS.map((p) => {
                   const isSelected = selectedProductIds.includes(p.id);
                   return (
                     <button
@@ -163,8 +163,13 @@ export const WhatsAppQuickOrderModal: React.FC<WhatsAppQuickOrderModalProps> = (
                           : 'bg-white dark:bg-stone-900 border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300 hover:bg-stone-100'
                       }`}
                     >
-                      <span className="truncate">{p.name}</span>
-                      <CheckCircle2 className={`w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-emerald-600 dark:text-emerald-400' : 'text-stone-300 dark:text-stone-600'}`} />
+                      <div className="flex flex-col min-w-0">
+                        <span className="truncate">{p.name}</span>
+                        <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-extrabold font-['Outfit']">
+                          RM {p.price.toFixed(2)} /{p.unit}
+                        </span>
+                      </div>
+                      <CheckCircle2 className={`w-4 h-4 shrink-0 ${isSelected ? 'text-emerald-600 dark:text-emerald-400' : 'text-stone-300 dark:text-stone-600'}`} />
                     </button>
                   );
                 })}

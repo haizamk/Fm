@@ -120,64 +120,77 @@ export const Header: React.FC<HeaderProps> = ({
               onClick={() => onNavigateView?.('home')}
               className="flex items-center gap-2.5 group cursor-pointer text-left"
             >
-              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-br from-emerald-600 to-emerald-800 text-white flex items-center justify-center shadow-md shadow-emerald-900/10 group-hover:scale-105 transition-transform">
+              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-br from-emerald-600 via-emerald-700 to-emerald-800 text-white flex items-center justify-center shadow-md shadow-emerald-900/10 group-hover:scale-105 transition-transform">
                 <span className="text-xl sm:text-2xl" role="img" aria-label="ayam">🐔</span>
               </div>
-              <div className="flex items-center">
-                <span className="text-lg sm:text-xl font-extrabold tracking-tight text-stone-900 dark:text-white font-['Outfit']">
+              <div className="flex flex-col text-left">
+                <span className="text-lg sm:text-xl font-extrabold tracking-tight text-stone-900 dark:text-white font-['Outfit'] leading-tight">
                   Khairul <span className="text-emerald-600 dark:text-emerald-400">Fresh Food</span>
+                </span>
+                <span className="text-[11px] font-bold text-stone-500 dark:text-stone-400 tracking-wider">
+                  Ayam Halal Semenyih
                 </span>
               </div>
             </button>
           </div>
 
-          {/* Clean Navigation: Home, Produk, Promo, Tentang Kami, Hubungi Kami */}
-          <nav className="hidden lg:flex items-center gap-1 xl:gap-2 bg-stone-100/80 dark:bg-stone-800/80 p-1.5 rounded-2xl border border-stone-200/80 dark:border-stone-700">
+          {/* Clean Navigation: Home, Produk, Promo, Tentang Kami, Resepi, Hubungi Kami */}
+          <nav className="hidden lg:flex items-center gap-1 xl:gap-2">
             <button
               onClick={() => {
                 onNavigateView?.('home');
                 const el = document.getElementById('hero');
                 if (el) el.scrollIntoView({ behavior: 'smooth' });
               }}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`px-3 py-1.5 text-sm font-extrabold transition-all cursor-pointer relative ${
                 activeView === 'home'
-                  ? 'bg-white dark:bg-stone-900 text-emerald-700 dark:text-emerald-400 shadow-2xs'
-                  : 'text-stone-600 dark:text-stone-300 hover:text-emerald-600 dark:hover:text-emerald-400'
+                  ? 'text-emerald-700 dark:text-emerald-400'
+                  : 'text-stone-700 dark:text-stone-300 hover:text-emerald-600 dark:hover:text-emerald-400'
               }`}
             >
-              Home
+              <span>Home</span>
+              {activeView === 'home' && (
+                <span className="absolute bottom-0 left-3 right-3 h-0.5 bg-emerald-600 rounded-full" />
+              )}
             </button>
             <button
               onClick={() => {
                 onNavigateView?.('all-products');
               }}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`px-3 py-1.5 text-sm font-extrabold transition-all cursor-pointer relative ${
                 activeView === 'all-products'
-                  ? 'bg-emerald-600 text-white shadow-2xs'
-                  : 'text-stone-600 dark:text-stone-300 hover:text-emerald-600 dark:hover:text-emerald-400'
+                  ? 'text-emerald-700 dark:text-emerald-400'
+                  : 'text-stone-700 dark:text-stone-300 hover:text-emerald-600 dark:hover:text-emerald-400'
               }`}
             >
-              Produk
+              <span>Produk</span>
+              {activeView === 'all-products' && (
+                <span className="absolute bottom-0 left-3 right-3 h-0.5 bg-emerald-600 rounded-full" />
+              )}
             </button>
             <button
               onClick={() => {
-                onNavigateView?.('all-products');
-                const el = document.getElementById('featured-products');
+                const el = document.getElementById('promo-service-row') || document.getElementById('featured-products');
                 if (el) el.scrollIntoView({ behavior: 'smooth' });
               }}
-              className="px-3 py-1.5 rounded-xl text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-all cursor-pointer flex items-center gap-1"
+              className="px-3 py-1.5 text-sm font-extrabold text-rose-600 dark:text-rose-400 hover:text-rose-700 transition-all cursor-pointer flex items-center gap-1"
             >
-              <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
               <span>Promo</span>
             </button>
             <button
               onClick={() => {
-                const el = document.getElementById('about-section') || document.getElementById('why-choose-us');
+                const el = document.getElementById('trust-badges') || document.getElementById('footer');
                 if (el) el.scrollIntoView({ behavior: 'smooth' });
               }}
-              className="px-3 py-1.5 rounded-xl text-xs font-bold text-stone-600 dark:text-stone-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all cursor-pointer"
+              className="px-3 py-1.5 text-sm font-extrabold text-stone-700 dark:text-stone-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all cursor-pointer"
             >
               Tentang Kami
+            </button>
+            <button
+              onClick={onOpenRecipes}
+              className="px-3 py-1.5 text-sm font-extrabold text-stone-700 dark:text-stone-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all cursor-pointer"
+            >
+              Resepi
             </button>
             <button
               onClick={() => {
@@ -185,7 +198,7 @@ export const Header: React.FC<HeaderProps> = ({
                 if (el) el.scrollIntoView({ behavior: 'smooth' });
                 else onOpenWhatsApp();
               }}
-              className="px-3 py-1.5 rounded-xl text-xs font-bold text-stone-600 dark:text-stone-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all cursor-pointer"
+              className="px-3 py-1.5 text-sm font-extrabold text-stone-700 dark:text-stone-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all cursor-pointer"
             >
               Hubungi Kami
             </button>
@@ -381,7 +394,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <div className={`relative transition-transform duration-300 ${isCartPulsing ? 'animate-cart-shake' : ''}`}>
                   <ShoppingBag className="w-5 h-5" />
                   {cartCount > 0 && (
-                    <span className={`absolute -top-2 -right-2 bg-amber-400 text-stone-900 font-extrabold text-[11px] w-4.5 h-4.5 rounded-full flex items-center justify-center border-2 border-emerald-600 ${isCartPulsing ? 'scale-110 bg-amber-300 ring-2 ring-white animate-bounce' : 'animate-pulse'}`}>
+                    <span className={`absolute -top-2 -right-2 bg-red-600 text-white font-black text-[11px] w-5 h-5 rounded-full flex items-center justify-center border-2 border-white dark:border-stone-900 shadow-sm ${isCartPulsing ? 'scale-110 ring-2 ring-red-400 animate-bounce' : ''}`}>
                       {cartCount}
                     </span>
                   )}

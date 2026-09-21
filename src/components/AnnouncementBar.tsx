@@ -122,10 +122,10 @@ export const AnnouncementBar: React.FC<AnnouncementBarProps> = ({
           <button
             onClick={onOpenWhatsApp}
             className="inline-flex items-center gap-1.5 text-white font-bold transition-all cursor-pointer bg-emerald-700 hover:bg-emerald-600 px-3 py-1 rounded-full border border-emerald-500/50 shadow-xs"
-            title="Hubungi WhatsApp: 011-11135503"
+            title="Chat WhatsApp Admin: 011-11135503"
           >
             <PhoneCall className="w-3 h-3 text-emerald-200" />
-            <span>011-1113 5503</span>
+            <span>WhatsApp Admin: 011-1113 5503</span>
           </button>
         </div>
 

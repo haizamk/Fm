@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { 
   ShoppingBag, 
   Search, 
@@ -26,7 +26,7 @@ import {
   Languages
 } from 'lucide-react';
 import { LoyaltyStatus } from '../utils/loyalty';
-import { CartItem, UserAccount } from '../types';
+import { CartItem, UserAccount, Product } from '../types';
 import { getProductImageUrl } from '../utils/imageCompressor';
 import { getProductImageAltText } from '../utils/productImage';
 import { useLanguage } from '../context/LanguageContext';
@@ -59,6 +59,9 @@ interface HeaderProps {
   onLogout: () => void;
   activeView?: 'home' | 'all-products';
   onNavigateView?: (view: 'home' | 'all-products') => void;
+  products?: Product[];
+  onSelectProduct?: (product: Product) => void;
+  onSearchSubmit?: (query: string) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -89,11 +92,173 @@ export const Header: React.FC<HeaderProps> = ({
   onLogout,
   activeView = 'home',
   onNavigateView,
+  products = [],
+  onSelectProduct,
+  onSearchSubmit,
 }) => {
   const { language, setLanguage, t } = useLanguage();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isCartHovered, setIsCartHovered] = useState(false);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+  const mobileSearchContainerRef = useRef<HTMLDivElement>(null);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Close search dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      const isInsideDesktop = searchContainerRef.current?.contains(target);
+      const isInsideMobile = mobileSearchContainerRef.current?.contains(target);
+      if (!isInsideDesktop && !isInsideMobile) {
+        setIsSearchFocused(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Filter matching products for live instant search
+  const matchingProducts = useMemo(() => {
+    if (!searchQuery.trim() || !products || products.length === 0) return [];
+    const q = searchQuery.toLowerCase().trim();
+    return products.filter((p) => {
+      const matchName = p.name.toLowerCase().includes(q);
+      const matchSubtitle = p.subtitle?.toLowerCase().includes(q);
+      const matchCategory = p.category?.toLowerCase().includes(q);
+      const matchTags = p.tags?.some((tag) => tag.toLowerCase().includes(q));
+      return matchName || matchSubtitle || matchCategory || matchTags;
+    }).slice(0, 5);
+  }, [products, searchQuery]);
+
+  const totalMatchCount = useMemo(() => {
+    if (!searchQuery.trim() || !products || products.length === 0) return 0;
+    const q = searchQuery.toLowerCase().trim();
+    return products.filter((p) => {
+      const matchName = p.name.toLowerCase().includes(q);
+      const matchSubtitle = p.subtitle?.toLowerCase().includes(q);
+      const matchCategory = p.category?.toLowerCase().includes(q);
+      const matchTags = p.tags?.some((tag) => tag.toLowerCase().includes(q));
+      return matchName || matchSubtitle || matchCategory || matchTags;
+    }).length;
+  }, [products, searchQuery]);
+
+  const handleExecuteSearch = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setIsSearchFocused(false);
+    if (onSearchSubmit) {
+      onSearchSubmit(searchQuery);
+    } else {
+      if (onNavigateView) {
+        onNavigateView('all-products');
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const handleSelectLiveProduct = (prod: Product) => {
+    setIsSearchFocused(false);
+    if (onSelectProduct) {
+      onSelectProduct(prod);
+    }
+  };
+
+  const renderSearchDropdown = () => (
+    <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-stone-900 rounded-2xl shadow-2xl border border-stone-200 dark:border-stone-700 overflow-hidden z-50 animate-in fade-in slide-in-from-top-1 duration-150">
+      <div className="px-3.5 py-2.5 bg-stone-50 dark:bg-stone-800/80 border-b border-stone-200 dark:border-stone-700 flex items-center justify-between">
+        <div className="flex items-center gap-1.5 text-xs font-bold text-stone-800 dark:text-stone-200">
+          <Search className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+          <span>Hasil Carian Pantas</span>
+          {totalMatchCount > 0 && (
+            <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 text-[10px] font-extrabold">
+              {totalMatchCount} produk
+            </span>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            onSearchChange('');
+            setIsSearchFocused(false);
+          }}
+          className="text-[11px] font-bold text-stone-500 hover:text-stone-800 dark:hover:text-stone-200 cursor-pointer"
+        >
+          Tutup
+        </button>
+      </div>
+
+      {matchingProducts.length > 0 ? (
+        <div className="divide-y divide-stone-100 dark:divide-stone-800 max-h-72 overflow-y-auto overscroll-contain">
+          {matchingProducts.map((prod) => (
+            <div
+              key={prod.id}
+              onClick={() => handleSelectLiveProduct(prod)}
+              className="p-3 hover:bg-emerald-50/50 dark:hover:bg-stone-800/80 flex items-center justify-between gap-2.5 cursor-pointer transition-colors"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <img
+                  src={getProductImageUrl(prod) || prod.image}
+                  alt={getProductImageAltText(prod)}
+                  className="w-11 h-11 rounded-xl object-cover border border-stone-200 dark:border-stone-700 shrink-0"
+                  referrerPolicy="no-referrer"
+                />
+                <div className="min-w-0">
+                  <h4 className="text-xs font-bold text-stone-900 dark:text-white truncate">
+                    {prod.name}
+                  </h4>
+                  <p className="text-[11px] text-stone-500 dark:text-stone-400 truncate">
+                    {prod.subtitle}
+                  </p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-xs font-extrabold text-emerald-700 dark:text-emerald-400 font-['Outfit']">
+                      RM {prod.price.toFixed(2)} /{prod.unit}
+                    </span>
+                    {prod.remainingStock !== undefined && prod.remainingStock <= 5 && (
+                      <span className="text-[9.5px] px-1.5 py-0.2 bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 font-bold rounded">
+                        Baki {prod.remainingStock}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleSelectLiveProduct(prod);
+                }}
+                className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-[11px] font-bold shrink-0 flex items-center gap-1 shadow-xs cursor-pointer"
+              >
+                <span>Pilih</span>
+                <ArrowRight className="w-3 h-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="p-4 text-center">
+          <p className="text-xs font-bold text-stone-700 dark:text-stone-300">
+            Tiada produk dijumpai untuk "{searchQuery}"
+          </p>
+          <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-1">
+            Cuba kata kunci seperti: <em>Ayam Segar, Kaki Ayam, Rangka, Paha, Dada, Tongkeng</em>
+          </p>
+        </div>
+      )}
+
+      <div className="p-2.5 bg-stone-50 dark:bg-stone-800/50 border-t border-stone-200 dark:border-stone-700 text-center">
+        <button
+          type="button"
+          onClick={handleExecuteSearch}
+          className="w-full py-1.5 text-xs font-black text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 flex items-center justify-center gap-1.5 cursor-pointer"
+        >
+          <span>Lihat Semua Hasil ({totalMatchCount} produk) di Katalog Penuh</span>
+          <ArrowRight className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    </div>
+  );
 
   const handleMouseEnterCart = () => {
     if (hoverTimeoutRef.current) {
@@ -205,25 +370,46 @@ export const Header: React.FC<HeaderProps> = ({
           </nav>
 
           {/* Search Bar */}
-          <div className="flex-1 max-w-md hidden md:block">
-            <div className="relative">
-              <Search className="w-4 h-4 text-stone-400 dark:text-stone-500 absolute left-3 top-1/2 -translate-y-1/2" />
+          <div className="flex-1 max-w-md hidden md:block" ref={searchContainerRef}>
+            <form onSubmit={handleExecuteSearch} action="javascript:void(0)" className="relative">
+              <Search className="w-4 h-4 text-stone-400 dark:text-stone-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
-                type="text"
+                type="search"
                 value={searchQuery}
-                onChange={(e) => onSearchChange(e.target.value)}
+                onChange={(e) => {
+                  onSearchChange(e.target.value);
+                  setIsSearchFocused(true);
+                }}
+                onFocus={() => setIsSearchFocused(true)}
                 placeholder={t('searchPlaceholder')}
-                className="w-full bg-stone-100/80 dark:bg-stone-800/80 hover:bg-stone-100 dark:hover:bg-stone-800 focus:bg-white dark:focus:bg-stone-800 border border-stone-200 dark:border-stone-700 focus:border-emerald-500 dark:focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 rounded-full pl-9 pr-4 py-2 text-sm text-stone-900 dark:text-white placeholder:text-stone-400 dark:placeholder:text-stone-500 transition-all outline-hidden"
+                className="w-full bg-stone-100/80 dark:bg-stone-800/80 hover:bg-stone-100 dark:hover:bg-stone-800 focus:bg-white dark:focus:bg-stone-800 border border-stone-200 dark:border-stone-700 focus:border-emerald-500 dark:focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 rounded-full pl-9 pr-14 py-2 text-sm text-stone-900 dark:text-white placeholder:text-stone-400 dark:placeholder:text-stone-500 transition-all outline-hidden"
               />
-              {searchQuery && (
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onSearchChange('');
+                      setIsSearchFocused(false);
+                    }}
+                    className="p-1 text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 text-xs cursor-pointer"
+                    title="Padam carian"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
                 <button
-                  onClick={() => onSearchChange('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 text-xs cursor-pointer"
+                  type="submit"
+                  className="p-1 rounded-full text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-stone-700 cursor-pointer transition-colors"
+                  title="Cari"
                 >
-                  {t('cancel')}
+                  <ArrowRight className="w-3.5 h-3.5" />
                 </button>
-              )}
-            </div>
+              </div>
+
+              {/* Desktop Live Search Dropdown */}
+              {isSearchFocused && searchQuery.trim().length > 0 && renderSearchDropdown()}
+            </form>
           </div>
 
           {/* Desktop Action Navigation & Tools */}
@@ -540,17 +726,47 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Mobile Search input */}
-        <div className="mt-2.5 md:hidden">
-          <div className="relative">
-            <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
+        <div className="mt-2.5 md:hidden" ref={mobileSearchContainerRef}>
+          <form onSubmit={handleExecuteSearch} action="javascript:void(0)" className="relative">
+            <Search className="w-4 h-4 text-stone-400 dark:text-stone-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
-              type="text"
+              type="search"
               value={searchQuery}
-              onChange={(e) => onSearchChange(e.target.value)}
+              onChange={(e) => {
+                onSearchChange(e.target.value);
+                setIsSearchFocused(true);
+              }}
+              onFocus={() => setIsSearchFocused(true)}
               placeholder="Cari ayam segar, bahagian potongan..."
-              className="w-full bg-stone-100 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-lg pl-9 pr-4 py-2 text-sm text-stone-900 dark:text-white placeholder:text-stone-400 dark:placeholder:text-stone-500 outline-hidden focus:border-emerald-500"
+              className="w-full bg-stone-100/90 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl pl-9 pr-18 py-2.5 text-sm text-stone-900 dark:text-white placeholder:text-stone-400 dark:placeholder:text-stone-500 outline-hidden focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs transition-all"
             />
-          </div>
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSearchChange('');
+                    setIsSearchFocused(false);
+                  }}
+                  className="p-1 rounded-md text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 cursor-pointer"
+                  aria-label="Padam carian"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+              <button
+                type="submit"
+                className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors cursor-pointer shadow-xs flex items-center gap-1"
+                aria-label="Cari sekarang"
+              >
+                <span>Cari</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Mobile Live Search Dropdown */}
+            {isSearchFocused && searchQuery.trim().length > 0 && renderSearchDropdown()}
+          </form>
         </div>
 
         {/* Mobile menu dropdown */}

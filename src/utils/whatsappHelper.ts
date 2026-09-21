@@ -49,6 +49,20 @@ export function openWhatsAppSafe(url: string): void {
 }
 
 /**
+ * Direct WhatsApp chat link to Admin for general customer inquiries & support
+ * (Directly connects to WhatsApp admin without opening order form)
+ */
+export function openAdminWhatsAppDirect(
+  customMessage?: string,
+  targetPhone: string = OFFICIAL_WHATSAPP_DIGITS
+): void {
+  const cleanNumber = normalizeWhatsAppPhone(targetPhone);
+  const defaultMsg = customMessage || 'Salam Admin Khairul Fresh Food! Saya ada pertanyaan.';
+  const url = `https://api.whatsapp.com/send?phone=${cleanNumber}&text=${encodeURIComponent(defaultMsg)}`;
+  openWhatsAppSafe(url);
+}
+
+/**
  * Generates an official WhatsApp chat link with the 4 mandatory user questions
  */
 export function getOfficialWhatsAppLink(

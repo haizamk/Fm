@@ -18,7 +18,7 @@ import { COVERAGE_AREAS } from './data/coverage';
 import { getLoyaltyStatus } from './utils/loyalty';
 import { getDailySpecial } from './utils/dailySpecial';
 import { getProductImageUrl } from './utils/productImage';
-import { getOfficialWhatsAppLink, getWhatsAppOrderLink } from './utils/whatsappHelper';
+import { getOfficialWhatsAppLink, getWhatsAppOrderLink, openAdminWhatsAppDirect, OFFICIAL_WHATSAPP_DIGITS } from './utils/whatsappHelper';
 import { authService } from './services/auth';
 import { dataStorageService } from './services/dataStorage';
 import { fonnteService } from './services/fonnteService';
@@ -1093,7 +1093,16 @@ export default function App() {
     setIsCartOpen(true);
   };
 
-  const handleOpenWhatsAppHotline = () => {
+  // 1, 2, 3: Direct WhatsApp chat ke Admin Khairul Fresh Food (Bukan untuk order produk, terus ke WhatsApp admin)
+  const handleOpenDirectAdminWhatsApp = () => {
+    openAdminWhatsAppDirect(
+      'Salam Admin Khairul Fresh Food! Saya ada pertanyaan lanjut.',
+      siteSettings.whatsappNumber || OFFICIAL_WHATSAPP_DIGITS
+    );
+  };
+
+  // KEKAL: Maklumat order produk melalui WhatsApp (Borang 4 soalan / Pesanan WhatsApp seperti di SS)
+  const handleOpenWhatsAppOrderModal = () => {
     setIsWhatsAppQuickOrderOpen(true);
   };
 
@@ -1123,14 +1132,14 @@ export default function App() {
   return (
     <div className="min-h-screen bg-stone-100 dark:bg-stone-950 text-stone-900 dark:text-stone-100 font-['Plus_Jakarta_Sans',sans-serif] selection:bg-emerald-500 selection:text-white flex flex-col transition-colors duration-200">
       
-      {/* Announcement Bar */}
+      {/* Announcement Bar (1. Top website banner whatsapp -> direct terus ke WhatsApp admin) */}
       <AnnouncementBar
         onOpenCoverage={() => setIsCoverageOpen(true)}
-        onOpenWhatsApp={handleOpenWhatsAppHotline}
+        onOpenWhatsApp={handleOpenDirectAdminWhatsApp}
         siteSettings={siteSettings}
       />
 
-      {/* Main Sticky Header */}
+      {/* Main Sticky Header (Direct terus ke WhatsApp admin) */}
       <Header
         cartCount={cartCount}
         cartTotal={cartTotal}
@@ -1141,7 +1150,7 @@ export default function App() {
         onOpenCalculator={() => setIsCalculatorOpen(true)}
         onOpenRecipes={() => setIsRecipeOpen(true)}
         onOpenTracking={() => setIsTrackingOpen(true)}
-        onOpenWhatsApp={handleOpenWhatsAppHotline}
+        onOpenWhatsApp={handleOpenDirectAdminWhatsApp}
         selectedPostcode={selectedPostcode}
         selectedCity={selectedCity}
         searchQuery={searchQuery}
@@ -1162,6 +1171,13 @@ export default function App() {
         onLogout={handleLogout}
         activeView={currentView}
         onNavigateView={(v) => setCurrentView(v)}
+        products={productsList}
+        onSelectProduct={handleOpenCutModal}
+        onSearchSubmit={(q) => {
+          setSearchQuery(q);
+          setCurrentView('all-products');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
       />
 
       {/* Portal Shortcut Banner for Logged In Users */}
@@ -1194,6 +1210,38 @@ export default function App() {
         </div>
       )}
 
+      {/* Active Search Notification Banner when on Home View */}
+      {currentView === 'home' && searchQuery.trim() && (
+        <div className="bg-emerald-800 text-white px-4 py-2.5 shadow-sm border-b border-emerald-700">
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-xs font-bold">
+              <Search className="w-4 h-4 text-emerald-300 shrink-0" />
+              <span>
+                Carian aktif: &ldquo;<strong className="text-yellow-300">{searchQuery}</strong>&rdquo; ({filteredProducts.length} produk dijumpai)
+              </span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => {
+                  setCurrentView('all-products');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="bg-white text-emerald-900 hover:bg-emerald-50 px-3 py-1 rounded-lg text-xs font-black transition-colors cursor-pointer flex items-center gap-1 shadow-xs"
+              >
+                <span>Lihat Hasil ({filteredProducts.length})</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => setSearchQuery('')}
+                className="text-emerald-200 hover:text-white text-xs font-bold px-1.5 py-1 cursor-pointer"
+              >
+                Padam
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Main Content Area: Frontpage (Home) vs All Products Catalog */}
       {currentView === 'all-products' ? (
         <AllProductsPage
@@ -1210,12 +1258,13 @@ export default function App() {
           }}
           initialCategory={selectedCategory}
           initialSearchQuery={searchQuery}
+          onSearchChange={(q) => setSearchQuery(q)}
           onCategoryChange={(cat) => setSelectedCategory(cat)}
           onShare={(url, msg) => handleCopyLink(url, msg)}
         />
       ) : (
         <>
-          {/* Hero Banner with value proposition & quick postcode entry */}
+          {/* Hero Banner with value proposition & quick postcode entry (Order Melalui WhatsApp -> buka tab/modal tempahan WhatsApp) */}
           <HeroBanner
             onCheckPostcode={(code) => {
               setSelectedPostcode(code);
@@ -1223,7 +1272,7 @@ export default function App() {
             }}
             onExploreProducts={scrollToProducts}
             onOpenCalculator={() => setIsCalculatorOpen(true)}
-            onOpenWhatsApp={handleOpenWhatsAppHotline}
+            onOpenWhatsApp={handleOpenWhatsAppOrderModal}
           />
 
           {/* Product Categories Section (6 Pilihan Produk Utama di Frontpage) */}
@@ -1249,10 +1298,10 @@ export default function App() {
             }}
           />
 
-          {/* Delivery Area Van & Dynamic Operating Hours Row */}
+          {/* Delivery Area Van & Dynamic Operating Hours Row (Direct WhatsApp ke admin) */}
           <PromoServiceRow
             onOpenCoverage={() => setIsCoverageOpen(true)}
-            onOpenWhatsApp={handleOpenWhatsAppHotline}
+            onOpenWhatsApp={handleOpenDirectAdminWhatsApp}
           />
 
           {/* 12-Second Auto-Rotating Promotion & Announcement Banner */}
@@ -1277,16 +1326,16 @@ export default function App() {
                 setCurrentView('all-products');
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               } else if (action === 'whatsapp') {
-                handleOpenWhatsAppHotline();
+                handleOpenDirectAdminWhatsApp();
               } else {
                 scrollToProducts();
               }
             }}
           />
 
-          {/* Prominent WhatsApp Ordering Guidance Banner */}
+          {/* Prominent WhatsApp Ordering Guidance Banner (KEKAL: Maklumat order produk melalui WhatsApp seperti di gambar SS) */}
           <WhatsAppPromoBanner
-            onOpenWhatsAppModal={handleOpenWhatsAppHotline}
+            onOpenWhatsAppModal={handleOpenWhatsAppOrderModal}
           />
 
           {/* 4 Pillars Trust Badges Row (Alternating Red/Green Circles) */}
@@ -1300,13 +1349,13 @@ export default function App() {
         </>
       )}
 
-      {/* Footer */}
+      {/* Footer (Direct WhatsApp ke admin) */}
       <Footer
         onOpenCoverage={() => setIsCoverageOpen(true)}
         onOpenCalculator={() => setIsCalculatorOpen(true)}
         onOpenRecipes={() => setIsRecipeOpen(true)}
         onOpenTracking={() => setIsTrackingOpen(true)}
-        onOpenWhatsApp={handleOpenWhatsAppHotline}
+        onOpenWhatsApp={handleOpenDirectAdminWhatsApp}
         isDarkMode={isDarkMode}
         onToggleDarkMode={toggleDarkMode}
         onOpenAdminPortal={() => {
@@ -1327,16 +1376,16 @@ export default function App() {
         }}
       />
 
-      {/* Floating WhatsApp Action Button */}
+      {/* Floating WhatsApp Action Button (3. Icon whatsapp di bawah sekali -> direct terus ke WhatsApp admin) */}
       <button
-        onClick={handleOpenWhatsAppHotline}
+        onClick={handleOpenDirectAdminWhatsApp}
         className="fixed bottom-5 right-5 z-40 bg-emerald-600 hover:bg-emerald-500 text-white p-3.5 rounded-full shadow-2xl hover:scale-105 transition-all flex items-center gap-2 cursor-pointer group"
-        title="Hubungi Talian WhatsApp Khairul Fresh Food"
-        aria-label="WhatsApp Kami"
+        title="Chat Terus WhatsApp Admin: 011-1113 5503"
+        aria-label="Chat Terus WhatsApp Admin"
       >
         <MessageCircle className="w-6 h-6" />
         <span className="hidden group-hover:inline-block text-xs font-bold pr-1">
-          WhatsApp Kami ({siteSettings.supportPhone})
+          WhatsApp Admin ({siteSettings.supportPhone})
         </span>
       </button>
 

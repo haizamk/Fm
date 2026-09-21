@@ -19,8 +19,10 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({
     if (onOpenWhatsApp) {
       onOpenWhatsApp();
     } else {
-      const msg = encodeURIComponent("Salam Khairul Fresh Food! Saya nak bertanyakan tentang Ayam Segar Promo RM9.90/kg & tempahan di Semenyih.");
-      window.open(`https://wa.me/601111135503?text=${msg}`, '_blank');
+      const el = document.getElementById('whatsapp-order-section');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth' });
+      }
     }
   };
 
@@ -71,14 +73,15 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({
                 <ArrowRight className="w-4 h-4 ml-0.5" />
               </button>
 
-              {/* Green Button: WhatsApp Kami */}
+              {/* Green Button: Order Melalui WhatsApp */}
               <button
                 onClick={handleWhatsApp}
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-7 py-3.5 rounded-2xl bg-[#16a34a] hover:bg-[#15803d] active:bg-[#166534] text-white font-black text-base shadow-lg shadow-green-600/25 transition-all transform hover:-translate-y-0.5 cursor-pointer"
-                aria-label="WhatsApp Kami"
+                aria-label="Order Melalui WhatsApp"
+                title="Buka Borang Tempahan Melalui WhatsApp"
               >
                 <MessageCircle className="w-5 h-5 fill-white/20" />
-                <span>WhatsApp Kami</span>
+                <span>Order Melalui WhatsApp</span>
               </button>
             </div>
 

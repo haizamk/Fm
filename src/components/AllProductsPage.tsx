@@ -30,6 +30,7 @@ interface AllProductsPageProps {
   onBackToHome: () => void;
   initialCategory?: ProductCategory;
   initialSearchQuery?: string;
+  onSearchChange?: (query: string) => void;
   onCategoryChange?: (cat: ProductCategory) => void;
   onShare?: (url: string, msg?: string) => void;
 }
@@ -46,6 +47,7 @@ export const AllProductsPage: React.FC<AllProductsPageProps> = ({
   onBackToHome,
   initialCategory = 'semua',
   initialSearchQuery = '',
+  onSearchChange,
   onCategoryChange,
   onShare,
 }) => {
@@ -61,6 +63,15 @@ export const AllProductsPage: React.FC<AllProductsPageProps> = ({
   useEffect(() => {
     setSelectedCategory(initialCategory);
   }, [initialCategory]);
+
+  useEffect(() => {
+    setSearchQuery(initialSearchQuery);
+  }, [initialSearchQuery]);
+
+  const handleSearchInputChange = (val: string) => {
+    setSearchQuery(val);
+    onSearchChange?.(val);
+  };
 
   const handleSelectCat = (catId: ProductCategory) => {
     setSelectedCategory(catId);
@@ -132,6 +143,7 @@ export const AllProductsPage: React.FC<AllProductsPageProps> = ({
 
   const handleResetFilters = () => {
     setSearchQuery('');
+    onSearchChange?.('');
     setSelectedCategory('semua');
     setSortBy('default');
     setShowOnlyFavorites(false);
@@ -215,13 +227,13 @@ export const AllProductsPage: React.FC<AllProductsPageProps> = ({
               <input
                 type="text"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => handleSearchInputChange(e.target.value)}
                 placeholder={t('searchPlaceholder')}
                 className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 focus:border-emerald-500 dark:focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 rounded-xl pl-9 pr-8 py-2.5 text-sm text-stone-900 dark:text-white placeholder:text-stone-400 dark:placeholder:text-stone-500 transition-all outline-hidden"
               />
               {searchQuery && (
                 <button
-                  onClick={() => setSearchQuery('')}
+                  onClick={() => handleSearchInputChange('')}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 text-xs font-bold cursor-pointer"
                 >
                   ✕

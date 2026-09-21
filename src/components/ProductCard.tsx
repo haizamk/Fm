@@ -1,7 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { Product } from '../types';
-import { Star, Scissors, Plus, ShieldCheck, Check, Heart, Scale, Flame, AlertCircle, Sparkles, Bell, Layers, Share2 } from 'lucide-react';
-import { calculatePricePerKg } from '../utils/pricing';
+import { Star, Scissors, Plus, Check, Heart, AlertCircle, Sparkles, Bell, Layers, Share2 } from 'lucide-react';
 import { ProductImage } from './ProductImage';
 import { useLanguage } from '../context/LanguageContext';
 import { getProductCleanUrl, copyShareableLink } from '../utils/seoHelper';
@@ -64,7 +63,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   const isCriticalStock = !isOutOfStock && displayStock <= 2;
   const hasDiscount = Boolean(product.originalPrice && product.originalPrice > minActivePrice);
   const savingsAmount = hasDiscount && product.originalPrice ? product.originalPrice - minActivePrice : 0;
-  const priceInfo = calculatePricePerKg({ ...product, price: minActivePrice });
 
   // Compute staggered entry animation delay capped at 300ms
   const staggerDelay = `${Math.min((index % 8) * 45, 320)}ms`;
@@ -136,56 +134,15 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           </button>
         </div>
 
-        {/* Top Badges */}
-        <div className="absolute top-2.5 left-2.5 flex flex-col gap-1 z-10">
-          {isOutOfStock ? (
+        {/* Out of stock badge on image if sold out */}
+        {isOutOfStock && (
+          <div className="absolute top-2.5 left-2.5 z-10">
             <span className="text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider shadow-md text-white bg-rose-700 flex items-center gap-1 w-fit ring-1 ring-white/40">
               <AlertCircle className="w-3 h-3 text-white shrink-0" />
               <span>{t('outOfStock')}</span>
             </span>
-          ) : (
-            product.badge && (
-              <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider shadow-sm text-white ${
-                product.badgeColor === 'green' ? 'bg-emerald-600' :
-                product.badgeColor === 'amber' ? 'bg-amber-600' :
-                product.badgeColor === 'red' ? 'bg-rose-600' : 'bg-blue-600'
-              }`}>
-                {isEn && product.badge === 'Paling Laris' ? 'Best Seller' : isEn && product.badge === 'Pek Jimat' ? 'Value Pack' : product.badge}
-              </span>
-            )
-          )}
-
-          {/* Jimat RM X Promotional Savings Badge */}
-          {hasDiscount && savingsAmount > 0 && !isOutOfStock && (
-            <span className="text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider shadow-md text-stone-950 bg-yellow-400 border border-yellow-300 flex items-center gap-1 w-fit ring-2 ring-yellow-400/40">
-              <Sparkles className="w-3 h-3 text-stone-950 fill-stone-950 shrink-0" />
-              <span>{t('savingBadge')} RM {savingsAmount.toFixed(2)}</span>
-            </span>
-          )}
-
-          {/* Daily Stock Limit Urgency Badge on Image */}
-          {!isOutOfStock && isLowStock && (
-            <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow-md flex items-center gap-1 text-white ${
-              isCriticalStock ? 'bg-rose-600 animate-pulse' : 'bg-amber-600'
-            }`}>
-              <Flame className="w-3 h-3 fill-amber-300 text-amber-300 shrink-0" />
-              <span>{t('remainingStock')} {displayStock} {t('leftUnit')}!</span>
-            </span>
-          )}
-
-          {product.halalCertified && (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-stone-900/80 text-white backdrop-blur-xs flex items-center gap-1 shadow-sm w-fit border border-stone-700/50">
-              <ShieldCheck className="w-3 h-3 text-emerald-400" />
-              <span>{t('halalCertifiedBadge')}</span>
-            </span>
-          )}
-        </div>
-
-        {/* Weight pill on bottom right */}
-        <div className="absolute bottom-2.5 right-2.5 bg-stone-950/80 backdrop-blur-xs text-stone-100 text-[11px] font-semibold px-2.5 py-0.8 rounded-md shadow-xs flex items-center gap-1">
-          <Scale className="w-3 h-3 text-emerald-400" />
-          <span>{product.weightEstimate}</span>
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Out of stock or Stock Warning Notification Banner */}
@@ -290,28 +247,23 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               </span>
             </div>
 
-            {/* Price Per KG Label and Strikethrough Discount */}
-            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-              <span 
-                className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md bg-emerald-950 dark:bg-emerald-900 text-emerald-200 font-extrabold text-[11px] tracking-wide border border-emerald-800 dark:border-emerald-700 shadow-2xs"
-                title={`Kadar nilai: ${priceInfo.formatted}`}
-              >
-                <span>{priceInfo.formatted}</span>
-              </span>
+            {/* Strikethrough Discount & Savings Badge */}
+            {(product.originalPrice || (hasDiscount && savingsAmount > 0)) && (
+              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                {product.originalPrice && (
+                  <span className="text-[11px] text-stone-400 dark:text-stone-500 line-through font-normal">
+                    RM {product.originalPrice.toFixed(2)}
+                  </span>
+                )}
 
-              {product.originalPrice && (
-                <span className="text-[11px] text-stone-400 dark:text-stone-500 line-through font-normal">
-                  RM {product.originalPrice.toFixed(2)}
-                </span>
-              )}
-
-              {hasDiscount && savingsAmount > 0 && (
-                <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md bg-stone-950 text-yellow-300 font-black text-[11px] border border-yellow-400 shadow-xs">
-                  <Sparkles className="w-3 h-3 text-yellow-300 fill-yellow-300" />
-                  <span>{t('savingBadge')} RM {savingsAmount.toFixed(2)}</span>
-                </span>
-              )}
-            </div>
+                {hasDiscount && savingsAmount > 0 && (
+                  <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md bg-stone-950 text-yellow-300 font-black text-[11px] border border-yellow-400 shadow-xs">
+                    <Sparkles className="w-3 h-3 text-yellow-300 fill-yellow-300" />
+                    <span>{t('savingBadge')} RM {savingsAmount.toFixed(2)}</span>
+                  </span>
+                )}
+              </div>
+            )}
           </div>
 
           {isOutOfStock ? (

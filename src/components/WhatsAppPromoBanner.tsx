@@ -1,5 +1,16 @@
-import React from 'react';
-import { MessageCircle, ArrowRight, CheckCircle2, PhoneCall, Sparkles } from 'lucide-react';
+import React, { useState } from 'react';
+import { 
+  MessageCircle, 
+  ArrowRight, 
+  CheckCircle2, 
+  PhoneCall, 
+  Sparkles,
+  QrCode,
+  Copy,
+  Check,
+  Receipt,
+  ShieldCheck
+} from 'lucide-react';
 import { getOfficialWhatsAppLink, openWhatsAppSafe } from '../utils/whatsappHelper';
 
 interface WhatsAppPromoBannerProps {
@@ -9,6 +20,15 @@ interface WhatsAppPromoBannerProps {
 export const WhatsAppPromoBanner: React.FC<WhatsAppPromoBannerProps> = ({
   onOpenWhatsAppModal,
 }) => {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyAccount = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText('7061163993');
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   const handleChatNow = () => {
     if (onOpenWhatsAppModal) {
       onOpenWhatsAppModal();
@@ -18,7 +38,13 @@ export const WhatsAppPromoBanner: React.FC<WhatsAppPromoBannerProps> = ({
         `1. Nama:\n` +
         `2. Produk Ayam: Ayam Segar (1 ekor - potong 12)\n` +
         `3. Lokasi: Semenyih / Ambil di Pasar Semenyih\n` +
-        `4. Bila nak hantar: Pagi esok`;
+        `4. Bila nak hantar: Pagi esok (Selasa - Ahad)\n\n` +
+        `*MAKLUMAT PEMBAYARAN SYARIKAT*:\n` +
+        `• Kaedah: DuitNow QR / Pindahan Bank Sahaja\n` +
+        `• Bank: OCBC Bank (Malaysia) Berhad\n` +
+        `• No Akaun: 70 6116 3993\n` +
+        `• Nama: KHAIRUL FRESH AND FROZEN FOOD\n` +
+        `*(Saya akan hantar resit bayaran di sini untuk pengesahan order)*`;
       const url = getOfficialWhatsAppLink(template);
       openWhatsAppSafe(url);
     }
@@ -40,24 +66,25 @@ export const WhatsAppPromoBanner: React.FC<WhatsAppPromoBannerProps> = ({
             <div className="lg:col-span-6 flex flex-col sm:flex-row items-center gap-6 text-center sm:text-left">
               
               {/* Phone Graphic with WhatsApp Chat Mockup */}
-              <div className="w-24 sm:w-28 h-40 sm:h-44 rounded-3xl bg-[#075e54] text-white p-2.5 shadow-2xl border-4 border-white dark:border-stone-800 shrink-0 flex flex-col justify-between transform -rotate-3 hover:rotate-0 transition-transform">
+              <div className="w-24 sm:w-28 h-36 sm:h-44 rounded-3xl bg-[#075e54] text-white p-2.5 shadow-xl border-4 border-white dark:border-stone-800 shrink-0 flex flex-col justify-between transform -rotate-3 hover:rotate-0 transition-transform mb-1 sm:mb-0">
                 <div className="flex items-center justify-between border-b border-emerald-600/60 pb-1.5">
                   <div className="w-2 h-2 rounded-full bg-emerald-400" />
                   <span className="text-[9px] font-black tracking-wider text-emerald-200">WHATSAPP</span>
                   <div className="w-1.5 h-1.5 rounded-full bg-white/40" />
                 </div>
 
-                <div className="my-auto space-y-1.5 text-left">
-                  <div className="bg-[#128c7e] text-white text-[9px] p-1.5 rounded-lg max-w-[85%] font-medium leading-tight">
+                <div className="my-auto space-y-1.5 text-left py-1">
+                  <div className="bg-[#128c7e] text-white text-[9px] p-1.5 rounded-lg max-w-[85%] font-medium leading-tight shadow-xs">
                     Salam! Ayam segar Semenyih ada stok?
                   </div>
-                  <div className="bg-[#25d366] text-stone-950 text-[9px] p-1.5 rounded-lg max-w-[85%] ml-auto font-bold leading-tight">
+                  <div className="bg-[#25d366] text-stone-950 text-[9px] p-1.5 rounded-lg max-w-[85%] ml-auto font-bold leading-tight shadow-xs">
                     Ada puan! Baru sampai segar pagi ni.
                   </div>
                 </div>
 
-                <div className="text-center pt-1 border-t border-emerald-600/60">
-                  <span className="text-[8px] font-bold text-emerald-200">011-1113 5503</span>
+                <div className="flex items-center justify-center gap-1 pt-1 border-t border-emerald-600/60 text-emerald-200">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span className="text-[8px] font-black uppercase tracking-wider">Online Sekarang</span>
                 </div>
               </div>
 
@@ -120,8 +147,50 @@ export const WhatsAppPromoBanner: React.FC<WhatsAppPromoBannerProps> = ({
                     <span className="w-5 h-5 rounded-full bg-emerald-600 text-white font-black text-xs flex items-center justify-center shrink-0 mt-0.5">
                       4
                     </span>
-                    <span><strong>Bila nak hantar?</strong></span>
+                    <span><strong>Bila nak hantar?</strong> (Selasa – Ahad, Isnin Cuti)</span>
                   </div>
+                </div>
+
+                {/* Kaedah Bayaran: DuitNow QR & Akaun Syarikat */}
+                <div className="mb-5 p-3.5 rounded-2xl bg-amber-50/90 dark:bg-stone-800/90 border border-amber-300 dark:border-amber-700/70 text-xs space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 font-black text-[#ED0058] dark:text-rose-400">
+                      <QrCode className="w-4 h-4" />
+                      <span>Bayaran: DuitNow QR / Pindahan Bank</span>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-md bg-rose-600 text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1">
+                      <Receipt className="w-2.5 h-2.5" />
+                      <span>Wajib Resit</span>
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] text-stone-700 dark:text-stone-300 leading-relaxed">
+                    Customer order WhatsApp <strong>hanya bayar melalui DuitNow QR atau transfer bank ke akaun syarikat kami</strong>:
+                  </p>
+
+                  <div className="p-2.5 bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700 flex items-center justify-between gap-2">
+                    <div>
+                      <span className="text-[10px] text-stone-500 dark:text-stone-400 block font-bold uppercase">
+                        OCBC Bank • KHAIRUL FRESH AND FROZEN FOOD
+                      </span>
+                      <span className="text-xs sm:text-sm font-black text-stone-900 dark:text-white font-mono tracking-wider">
+                        70 6116 3993
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleCopyAccount}
+                      className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 transition-colors cursor-pointer flex items-center gap-1 shrink-0"
+                    >
+                      {copied ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                      <span>{copied ? 'Disalin' : 'Salin No.'}</span>
+                    </button>
+                  </div>
+
+                  <p className="text-[10.5px] text-rose-800 dark:text-rose-300 font-bold flex items-center gap-1.5 bg-rose-50/80 dark:bg-rose-950/40 p-1.5 rounded-lg border border-rose-200 dark:border-rose-900/60">
+                    <ShieldCheck className="w-3.5 h-3.5 shrink-0 text-rose-600 dark:text-rose-400" />
+                    <span>Sila hantar resit pembayaran di WhatsApp sebelum pesanan disahkan & diproses.</span>
+                  </p>
                 </div>
 
                 {/* Primary WhatsApp Button */}

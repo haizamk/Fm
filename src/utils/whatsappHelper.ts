@@ -49,38 +49,69 @@ export function openWhatsAppSafe(url: string): void {
 }
 
 /**
- * Generates an official WhatsApp chat link with optional pre-filled message
+ * Generates an official WhatsApp chat link with the 4 mandatory user questions
  */
 export function getOfficialWhatsAppLink(
-  message: string = 'Salam Khairul Fresh Food, saya ingin bertanya mengenai pesanan ayam segar.',
+  message?: string,
   targetPhone: string = OFFICIAL_WHATSAPP_DIGITS
 ): string {
   const cleanNumber = normalizeWhatsAppPhone(targetPhone);
-  return `https://api.whatsapp.com/send?phone=${cleanNumber}&text=${encodeURIComponent(message)}`;
+  
+  const default4QuestionsMessage = 
+    `Salam Khairul Fresh Food! Saya ingin membuat tempahan ayam segar:\n\n` +
+    `*BORANG TEMPAHAN AYAM SEGAR*\n` +
+    `--------------------------------------------------\n` +
+    `1. *Nama Customer*:\n` +
+    `   [ Sila isi nama anda ]\n\n` +
+    `2. *Produk Ayam Apa?*:\n` +
+    `   • Ayam Segar Standard (Ekor)\n` +
+    `   • Ayam Kampung (Ekor)\n` +
+    `   • Dada Fillet / Whole Leg / Kepak\n` +
+    `   [ Sila potong: Potong 4 / 8 / 12 / 16 / Cincang ]\n\n` +
+    `3. *Lokasi Penghantaran atau Ambik di Pasar?*:\n` +
+    `   [ Penghantaran ke Rumah / Ambik Sendiri di Gerai GA 59 Pasar Awam Semenyih ]\n\n` +
+    `4. *Bila Nak Hantar / Masa Pickup?*:\n` +
+    `   [ Sila nyatakan tarikh & masa pilihan anda ]\n` +
+    `--------------------------------------------------\n\n` +
+    `Mohon maklumkan ketersediaan stok & total harga. Terima kasih!`;
+
+  const finalMessage = message || default4QuestionsMessage;
+  return `https://api.whatsapp.com/send?phone=${cleanNumber}&text=${encodeURIComponent(finalMessage)}`;
 }
 
 /**
- * Generates a WhatsApp order message link for checkout / cart quick order
+ * Generates a WhatsApp order message link adhering to the 4 mandatory questions
  */
 export function getWhatsAppOrderLink(
   items: CartItem[],
   total: number,
   city: string = 'Semenyih',
-  postcode: string = '43500'
+  postcode: string = '43500',
+  customerName: string = '',
+  deliveryTimeText: string = 'Hari Ini / Segera'
 ): string {
   const itemsList = items
     .map(
       (it) =>
-        `• ${it.product.name} (x${it.quantity}) - Potongan: ${it.selectedCut} - RM ${it.itemTotalPrice.toFixed(2)}`
+        `• ${it.product.name} (x${it.quantity}) - Potongan: ${it.selectedCut} [RM ${it.itemTotalPrice.toFixed(2)}]`
     )
-    .join('\n');
+    .join('\n   ');
 
   const message = 
-    `Salam Khairul Fresh Food,\n\n` +
-    `Saya ingin membuat pesanan segar berikut:\n${itemsList}\n\n` +
-    `Jumlah: RM ${total.toFixed(2)}\n` +
-    `Lokasi Hantar: ${city} (${postcode})\n\n` +
-    `Mohon bantuan pengesahan dan masa slot penghantaran. Terima kasih!`;
+    `Salam Khairul Fresh Food! Saya nak sahkan tempahan berikut:\n\n` +
+    `*BORANG TEMPAHAN AYAM SEGAR*\n` +
+    `--------------------------------------------------\n` +
+    `1. *Nama Customer*:\n` +
+    `   ${customerName.trim() || '[ Sila isi nama anda ]'}\n\n` +
+    `2. *Produk Ayam & Kuantiti*:\n` +
+    `   ${itemsList}\n` +
+    `   *JUMLAH ANGGARAN*: RM ${total.toFixed(2)}\n\n` +
+    `3. *Lokasi Penghantaran atau Ambik di Pasar*:\n` +
+    `   Penghantaran ke ${city} (${postcode})\n\n` +
+    `4. *Bila Nak Hantar / Masa*:\n` +
+    `   ${deliveryTimeText}\n` +
+    `--------------------------------------------------\n\n` +
+    `Mohon pengesahan tempahan ini. Terima kasih!`;
 
   return getOfficialWhatsAppLink(message, OFFICIAL_WHATSAPP_DIGITS);
 }

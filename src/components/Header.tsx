@@ -131,34 +131,65 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           </div>
 
-          {/* View Nav Tabs (Laman Utama vs Semua Produk) */}
-          <div className="hidden md:flex items-center p-1 bg-stone-100 dark:bg-stone-800/90 rounded-2xl border border-stone-200 dark:border-stone-700">
+          {/* Clean Navigation: Home, Produk, Promo, Tentang Kami, Hubungi Kami */}
+          <nav className="hidden lg:flex items-center gap-1 xl:gap-2 bg-stone-100/80 dark:bg-stone-800/80 p-1.5 rounded-2xl border border-stone-200/80 dark:border-stone-700">
             <button
-              onClick={() => onNavigateView?.('home')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              onClick={() => {
+                onNavigateView?.('home');
+                const el = document.getElementById('hero');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeView === 'home'
-                  ? 'bg-white dark:bg-stone-900 text-emerald-700 dark:text-emerald-400 shadow-xs'
-                  : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
+                  ? 'bg-white dark:bg-stone-900 text-emerald-700 dark:text-emerald-400 shadow-2xs'
+                  : 'text-stone-600 dark:text-stone-300 hover:text-emerald-600 dark:hover:text-emerald-400'
               }`}
             >
-              {t('home')}
+              Home
             </button>
             <button
-              onClick={() => onNavigateView?.('all-products')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              onClick={() => {
+                onNavigateView?.('all-products');
+              }}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeView === 'all-products'
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
+                  ? 'bg-emerald-600 text-white shadow-2xs'
+                  : 'text-stone-600 dark:text-stone-300 hover:text-emerald-600 dark:hover:text-emerald-400'
               }`}
             >
-              <span>{t('allProducts')}</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-extrabold ${
-                activeView === 'all-products' ? 'bg-white/20 text-white' : 'bg-stone-200 dark:bg-stone-700 text-stone-700 dark:text-stone-300'
-              }`}>
-                {t('catalog')}
-              </span>
+              Produk
             </button>
-          </div>
+            <button
+              onClick={() => {
+                onNavigateView?.('all-products');
+                const el = document.getElementById('featured-products');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-all cursor-pointer flex items-center gap-1"
+            >
+              <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+              <span>Promo</span>
+            </button>
+            <button
+              onClick={() => {
+                const el = document.getElementById('about-section') || document.getElementById('why-choose-us');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold text-stone-600 dark:text-stone-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all cursor-pointer"
+            >
+              Tentang Kami
+            </button>
+            <button
+              onClick={() => {
+                const el = document.getElementById('footer');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+                else onOpenWhatsApp();
+              }}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold text-stone-600 dark:text-stone-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all cursor-pointer"
+            >
+              Hubungi Kami
+            </button>
+          </nav>
 
           {/* Search Bar */}
           <div className="flex-1 max-w-md hidden md:block">
@@ -546,32 +577,64 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
 
             {/* Page Navigation Tabs in Mobile */}
-            <div className="grid grid-cols-2 gap-2 p-1 bg-stone-100 dark:bg-stone-800 rounded-xl mb-1">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-1.5 bg-stone-100 dark:bg-stone-800 rounded-2xl mb-1">
               <button
                 onClick={() => {
                   onNavigateView?.('home');
                   setMobileMenuOpen(false);
+                  const el = document.getElementById('hero');
+                  if (el) el.scrollIntoView({ behavior: 'smooth' });
                 }}
-                className={`py-2 px-3 rounded-lg text-xs font-bold text-center transition-all cursor-pointer ${
+                className={`py-2 px-3 rounded-xl text-xs font-bold text-center transition-all cursor-pointer ${
                   activeView === 'home'
-                    ? 'bg-white dark:bg-stone-900 text-emerald-700 dark:text-emerald-400 shadow-xs'
-                    : 'text-stone-600 dark:text-stone-400'
+                    ? 'bg-white dark:bg-stone-900 text-emerald-700 dark:text-emerald-400 shadow-2xs'
+                    : 'text-stone-700 dark:text-stone-300'
                 }`}
               >
-                🏠 {t('home')}
+                🏠 Home
               </button>
               <button
                 onClick={() => {
                   onNavigateView?.('all-products');
                   setMobileMenuOpen(false);
                 }}
-                className={`py-2 px-3 rounded-lg text-xs font-bold text-center transition-all cursor-pointer ${
+                className={`py-2 px-3 rounded-xl text-xs font-bold text-center transition-all cursor-pointer ${
                   activeView === 'all-products'
-                    ? 'bg-emerald-600 text-white shadow-xs'
-                    : 'text-stone-600 dark:text-stone-400'
+                    ? 'bg-emerald-600 text-white shadow-2xs'
+                    : 'text-stone-700 dark:text-stone-300'
                 }`}
               >
-                🍗 {t('allProducts')}
+                🍗 Produk
+              </button>
+              <button
+                onClick={() => {
+                  onNavigateView?.('all-products');
+                  setMobileMenuOpen(false);
+                  const el = document.getElementById('featured-products');
+                  if (el) el.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="py-2 px-3 rounded-xl text-xs font-bold text-center bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 cursor-pointer"
+              >
+                🔥 Promo
+              </button>
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  const el = document.getElementById('about-section') || document.getElementById('why-choose-us');
+                  if (el) el.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="py-2 px-3 rounded-xl text-xs font-bold text-center text-stone-700 dark:text-stone-300 hover:bg-white dark:hover:bg-stone-900 cursor-pointer"
+              >
+                ℹ️ Tentang Kami
+              </button>
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  onOpenWhatsApp();
+                }}
+                className="py-2 px-3 rounded-xl text-xs font-bold text-center text-stone-700 dark:text-stone-300 hover:bg-white dark:hover:bg-stone-900 cursor-pointer"
+              >
+                💬 Hubungi Kami
               </button>
             </div>
 

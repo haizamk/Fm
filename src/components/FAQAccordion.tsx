@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { 
   HelpCircle, 
   ChevronDown, 
+  ChevronUp,
   Sparkles, 
   CheckCircle2, 
   ShieldCheck, 
@@ -104,8 +105,9 @@ const FAQ_DATA: FAQItem[] = [
 
 export const FAQAccordion: React.FC = () => {
   const { t, isEn } = useLanguage();
+  const [isSectionOpen, setIsSectionOpen] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'all' | 'freshness' | 'cutting' | 'delivery' | 'order'>('all');
-  const [openIds, setOpenIds] = useState<string[]>(['faq-1', 'faq-3']);
+  const [openIds, setOpenIds] = useState<string[]>([]);
 
   const toggleItem = (id: string) => {
     setOpenIds(prev => 
@@ -126,22 +128,63 @@ export const FAQAccordion: React.FC = () => {
     : FAQ_DATA.filter(item => item.category === activeTab);
 
   return (
-    <section className="py-12 sm:py-16 bg-stone-50 dark:bg-stone-900/40 border-t border-stone-200 dark:border-stone-800 transition-colors">
+    <section id="faq-section" className="py-8 sm:py-12 bg-stone-50 dark:bg-stone-900/40 border-t border-stone-200 dark:border-stone-800 transition-colors">
       <div className="max-w-4xl mx-auto px-4 sm:px-6">
         
-        {/* Section Header */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-900 dark:text-emerald-300 text-xs font-bold uppercase tracking-wider mb-2 border border-emerald-200 dark:border-emerald-800">
-            <HelpCircle className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
-            <span>{t('faqSectionTitle')}</span>
+        {!isSectionOpen ? (
+          /* Collapsed State: Neat Compact Invitation Banner */
+          <div className="bg-white dark:bg-stone-900 rounded-3xl p-6 sm:p-8 text-center border border-stone-200 dark:border-stone-800 shadow-sm transition-all duration-300">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 flex items-center justify-center mx-auto mb-3 border border-emerald-200 dark:border-emerald-800">
+              <HelpCircle className="w-6 h-6" />
+            </div>
+            
+            <h2 className="text-xl sm:text-2xl font-black text-stone-900 dark:text-white font-['Outfit']">
+              {t('faqTitle')}
+            </h2>
+            
+            <p className="mt-1.5 text-xs sm:text-sm text-stone-600 dark:text-stone-400 max-w-md mx-auto leading-relaxed">
+              {isEn 
+                ? 'Have questions about our fresh daily chicken, custom butchery cuts, halal status, or delivery area?' 
+                : 'Ada soalan tentang bekalan ayam segar harian, potongan khas, status halal, atau kawasan penghantaran?'}
+            </p>
+
+            <button
+              type="button"
+              onClick={() => setIsSectionOpen(true)}
+              className="mt-5 inline-flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-2xl bg-emerald-800 hover:bg-emerald-900 active:bg-emerald-950 text-white font-black text-sm transition-all shadow-md hover:shadow-lg cursor-pointer transform hover:scale-[1.01]"
+            >
+              <HelpCircle className="w-4 h-4 text-emerald-200" />
+              <span>{isEn ? 'Show Frequently Asked Questions (FAQ)' : 'Lihat Soalan Lazim (FAQ)'}</span>
+              <ChevronDown className="w-4 h-4 text-emerald-200" />
+            </button>
           </div>
-          <h2 className="text-2xl sm:text-3xl font-black text-stone-900 dark:text-white font-['Outfit']">
-            {t('faqTitle')}
-          </h2>
-          <p className="mt-1.5 text-xs sm:text-sm text-stone-600 dark:text-stone-400">
-            {t('faqSubtitle')}
-          </p>
-        </div>
+        ) : (
+          /* Expanded Full FAQ Content */
+          <div className="animate-fade-in space-y-6">
+            {/* Section Header with Hide Toggle */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 sm:p-5 bg-white dark:bg-stone-900 rounded-3xl border border-stone-200 dark:border-stone-800 shadow-2xs">
+              <div>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-900 dark:text-emerald-300 text-xs font-bold uppercase tracking-wider mb-1 border border-emerald-200 dark:border-emerald-800">
+                  <HelpCircle className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
+                  <span>{t('faqSectionTitle')}</span>
+                </div>
+                <h2 className="text-xl sm:text-2xl font-black text-stone-900 dark:text-white font-['Outfit']">
+                  {t('faqTitle')}
+                </h2>
+                <p className="text-xs text-stone-600 dark:text-stone-400">
+                  {t('faqSubtitle')}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsSectionOpen(false)}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 text-xs font-extrabold transition-all cursor-pointer border border-stone-300 dark:border-stone-700 shrink-0 shadow-2xs"
+              >
+                <ChevronUp className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <span>{isEn ? 'Hide FAQ' : 'Tutup / Sembunyikan FAQ'}</span>
+              </button>
+            </div>
 
         {/* Category Tabs & Quick Action Strip */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mb-6">
@@ -315,6 +358,8 @@ export const FAQAccordion: React.FC = () => {
             <span>{isEn ? 'Ask on WhatsApp (011-11135503)' : 'Tanya di WhatsApp (011-11135503)'}</span>
           </a>
         </div>
+          </div>
+        )}
 
       </div>
     </section>

@@ -42,10 +42,10 @@ import { OrderTrackingModal } from './components/OrderTrackingModal';
 import { LoyaltyModal } from './components/LoyaltyModal';
 import { DailySpecial } from './components/DailySpecial';
 import { QualityGuarantee } from './components/QualityGuarantee';
-import { CustomerReviews } from './components/CustomerReviews';
 import { FAQAccordion } from './components/FAQAccordion';
 import { Footer } from './components/Footer';
 import { FloatingProductOverlay, FlyingProductItem } from './components/FloatingProductOverlay';
+import { WhatsAppQuickOrderModal } from './components/WhatsAppQuickOrderModal';
 
 // Portals & Secure Authentication Components (Code-Split / Lazy Loaded for Performance)
 import { AuthModal } from './components/AuthModal';
@@ -99,6 +99,7 @@ export default function App() {
   const [isAdminAuthModalOpen, setIsAdminAuthModalOpen] = useState<boolean>(false);
   const [isCustomerPortalOpen, setIsCustomerPortalOpen] = useState<boolean>(false);
   const [isAdminPortalOpen, setIsAdminPortalOpen] = useState<boolean>(false);
+  const [isWhatsAppQuickOrderOpen, setIsWhatsAppQuickOrderOpen] = useState<boolean>(false);
 
   // Products & Site Settings from Data Storage Service
   const [productsList, setProductsList] = useState<Product[]>(() => dataStorageService.getProducts());
@@ -1088,11 +1089,7 @@ export default function App() {
   };
 
   const handleOpenWhatsAppHotline = () => {
-    const url = getOfficialWhatsAppLink(
-      'Salam Khairul Fresh Food, saya ingin bertanya mengenai pesanan ayam segar.',
-      siteSettings.supportPhone || '011-11135503'
-    );
-    window.open(url, '_blank');
+    setIsWhatsAppQuickOrderOpen(true);
   };
 
   const handleQuickWhatsAppOrder = () => {
@@ -1412,9 +1409,6 @@ export default function App() {
           {/* 4 Pillars Quality Guarantee Section */}
           <QualityGuarantee />
 
-          {/* Customer Reviews & Social Proof */}
-          <CustomerReviews />
-
           {/* Frequently Asked Questions (FAQ) Accordion */}
           <FAQAccordion />
         </>
@@ -1627,6 +1621,13 @@ export default function App() {
         defaultCustomerName={currentUser?.name}
         defaultEmail={currentUser?.email}
         defaultPhone={currentUser?.phone}
+      />
+
+      {/* 11. WhatsApp Quick Order 4-Questions Modal */}
+      <WhatsAppQuickOrderModal
+        isOpen={isWhatsAppQuickOrderOpen}
+        onClose={() => setIsWhatsAppQuickOrderOpen(false)}
+        defaultCustomerName={currentUser?.name}
       />
 
       {/* 11. Global Simulated OTP & Notification Toast System */}

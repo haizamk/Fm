@@ -191,7 +191,7 @@ export const PRODUCTS: Product[] = [
     originalPrice: 21.00,
     unit: 'ekor',
     weightEstimate: '1.6kg - 2.4kg / ekor',
-    image: 'https://images.unsplash.com/photo-1604503468506-a8da13d82791?auto=format&fit=crop&q=80&w=900',
+    image: 'https://images.unsplash.com/photo-1587593810167-a84920ea0781?auto=format&fit=crop&q=80&w=900',
     inStock: true,
     rating: 4.9,
     reviewsCount: 148,
